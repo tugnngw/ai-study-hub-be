@@ -1,0 +1,75 @@
+package com.tugnw.aistudy.domain.entity;
+
+import com.tugnw.aistudy.domain.enums.AuthProvider;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import com.tugnw.aistudy.domain.enums.AccountRole;
+import com.tugnw.aistudy.domain.enums.AccountStatus;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+@Entity
+@Table(name = "account")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Account {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false, unique = true, length = 10)
+    private String username;
+
+    @Column(nullable = false, unique = true, length = 40)
+    private String email;
+
+    @Column(name = "password_hash", nullable = false, length = 20)
+    private String passwordHash;
+
+    @Column(name = "full_name", length = 30)
+    private String fullName;
+
+    @Column(columnDefinition = "TEXT")
+    private String avatarUrl;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false)
+    private AccountRole role = AccountRole.USER;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private AccountStatus status = AccountStatus.ACTIVE;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 50)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    @Column(name = "provider_id")
+    private String providerId;
+
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+}
