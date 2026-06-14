@@ -46,7 +46,10 @@ CREATE TABLE folder (
     owner_id    UUID NOT NULL REFERENCES account(id) ON DELETE CASCADE,
     name        VARCHAR(255) NOT NULL,
     ai_summary  TEXT,
-    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    deleted_at  TIMESTAMP
+
 );
 
 -- 5. DOCUMENT (Tài liệu)
