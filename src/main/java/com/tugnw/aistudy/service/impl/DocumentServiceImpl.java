@@ -30,7 +30,23 @@ public class DocumentServiceImpl implements DocumentService {
     public DocumentResponse uploadDocument(UUID ownerId, DocumentUploadRequest request) {
         MultipartFile file = request.getFile();
 
-        // TODO: Validate file size (max 50MB), file type (.pdf, .docx, etc.)
+        // Validate file size (max 50MB)
+        long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new RuntimeException("File size exceeds limit (50MB)");
+        }
+
+        // Validate file type
+        String contentType = file.getContentType();
+        boolean allowedType = contentType != null && (
+            contentType.equals("application/pdf") ||
+            contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
+            contentType.equals("text/plain") ||
+            contentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        );
+        if (!allowedType) {
+            throw new RuntimeException("Invalid file type. Only PDF, DOCX, TXT, PPTX are allowed");
+        }
 
         // TODO: Check total user storage (max 1GB)
 
@@ -41,7 +57,7 @@ public class DocumentServiceImpl implements DocumentService {
         document.setOwnerId(ownerId);
         document.setCloudinaryUrl((String) uploadResult.get("url"));
         document.setPublicId((String) uploadResult.get("public_id"));
-        document.setMimeType(file.getContentType());
+        document.setMimeType(contentType);
         document.setFileSize(file.getSize());
         document.setStatus("processing");
 

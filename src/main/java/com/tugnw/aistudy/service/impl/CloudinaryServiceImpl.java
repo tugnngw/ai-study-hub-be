@@ -18,12 +18,22 @@ public class CloudinaryServiceImpl implements CloudinaryService {
     @Override
     public Map<String, Object> upload(MultipartFile file) {
         try {
+            String originalFilename = file.getOriginalFilename();
+            if (originalFilename == null) {
+                originalFilename = "file";
+            }
+            Map<String, Object> options = Map.of(
+                    "resource_type", "auto",
+                    "use_filename", true,
+                    "unique_filename", false,
+                    "filename_override", originalFilename
+            );
             Map<String, Object> uploadResult = cloudinary.uploader().upload(
                     file.getBytes(),
-                    Map.of("resource_type", "auto")
+                    options
             );
             return uploadResult;
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Failed to upload file to Cloudinary", e);
         }
     }
