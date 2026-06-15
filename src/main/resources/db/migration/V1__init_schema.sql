@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";
 CREATE TABLE account (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username        VARCHAR(10) UNIQUE NOT NULL,
-    email           VARCHAR(40) UNIQUE NOT NULL,
+    email           VARCHAR(40) UNIQUE,
     password_hash   VARCHAR(255) NOT NULL,
     full_name       VARCHAR(30),
     avatar_url      TEXT,
@@ -21,7 +21,7 @@ CREATE TABLE account (
     created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at      TIMESTAMP WITH TIME ZONE,
-    version         INTEGER DEFAULT 0
+    version          BIGINT NOT NULL DEFAULT 0
 );
 
 -- 2. SEMESTER (Học kỳ)
@@ -36,8 +36,8 @@ CREATE TABLE semester (
 CREATE TABLE subject (
     id          BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     semester_id BIGINT REFERENCES semester(id) ON DELETE SET NULL,
-    code        VARCHAR(50) NOT NULL,
-    name        VARCHAR(255) NOT NULL
+    code        VARCHAR(50) ,
+    name        VARCHAR(255)
 );
 
 -- 4. FOLDER (Thư mục)

@@ -13,7 +13,7 @@ import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.security.JwtTokenProvider;
 import com.tugnw.aistudy.service.AuthService;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -44,7 +44,6 @@ public class AuthServiceImpl implements AuthService {
 
         // Create new account
         Account account = Account.builder()
-                .id(UUID.randomUUID())
                 .username(request.username())
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .fullName(request.fullName())

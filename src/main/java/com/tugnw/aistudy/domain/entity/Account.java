@@ -32,7 +32,7 @@ public class Account {
     @Column(nullable = false, unique = true, length = 40)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 20)
+    @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
     @Column(name = "full_name", length = 30)
@@ -72,4 +72,8 @@ public class Account {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    @Version  // ← THÊM DÒNG NÀY để fix lỗi StaleObjectStateException
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 }
