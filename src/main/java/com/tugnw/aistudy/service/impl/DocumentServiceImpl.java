@@ -8,6 +8,8 @@ import com.tugnw.aistudy.domain.mapper.DocumentMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
+import com.tugnw.aistudy.service.RagService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,8 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
+    //Tích hợp RAG
+    private final RagService ragService;
 
     @Override
     public DocumentResponse uploadDocument(UUID ownerId, DocumentUploadRequest request) {
@@ -63,7 +67,16 @@ public class DocumentServiceImpl implements DocumentService {
 
         Document savedDocument = documentRepository.save(document);
 
-        // TODO: Call AI service asynchronously to generate summary
+        // KÍCH HOẠT AI RAG
+        try {
+            ragService.processAndSaveDocument(file, savedDocument.getId());
+            // Cập nhật thành active nếu thành công
+            savedDocument.setStatus("active");
+            documentRepository.save(savedDocument);
+        } catch (Exception e) {
+            // Bắt lỗi nếu file PDF bị hỏng hoặc lỗi gọi Gemini API
+            throw new RuntimeException("Lỗi trong quá trình AI xử lý tài liệu: " + e.getMessage());
+        }
 
         return documentMapper.toResponse(savedDocument);
     }

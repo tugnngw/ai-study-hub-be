@@ -18,19 +18,19 @@ public class RagController {
         this.ragService = ragService;
     }
 
-    // Endpoint 1: FE gọi cái này khi bấm nút Upload
-    @PostMapping("/upload")
-    public ResponseEntity<?> uploadDocument(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("documentId") Long documentId) { 
-        try {
-            String result = ragService.processAndSaveDocument(file, documentId);
-            return ResponseEntity.ok(Map.of("message", result));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
-        }
-    }
+    // // Endpoint 1: FE gọi cái này khi bấm nút Upload
+    // @PostMapping("/upload")
+    // public ResponseEntity<?> uploadDocument(
+    //         @RequestParam("file") MultipartFile file,
+    //         @RequestParam("documentId") Long documentId) { 
+    //     try {
+    //         String result = ragService.processAndSaveDocument(file, documentId);
+    //         return ResponseEntity.ok(Map.of("message", result));
+    //     } catch (Exception e) {
+    //         e.printStackTrace();
+    //         return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+    //     }
+    // }
 
     // Endpoint 2: FE gọi cái này khi chat
     @PostMapping("/ask")
