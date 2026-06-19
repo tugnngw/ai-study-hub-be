@@ -27,8 +27,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
-    //Tích hợp RAG
-    private final RagService ragService;
+    private final RagService ragService; // Đã thêm RagService
 
     @Override
     public DocumentResponse uploadDocument(UUID ownerId, DocumentUploadRequest request) {
@@ -37,19 +36,15 @@ public class DocumentServiceImpl implements DocumentService {
         // Validate file size (max 50MB)
         long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new RuntimeException("File size exceeds limit (50MB)");
+            throw new RuntimeException("Kích thước file vượt quá giới hạn 50MB");
         }
 
-        // Validate file type
+        // ĐÃ FIX: Khóa chặt định dạng chỉ cho phép PDF để tránh Crash hệ thống AI
         String contentType = file.getContentType();
-        boolean allowedType = contentType != null && (
-            contentType.equals("application/pdf") ||
-            contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
-            contentType.equals("text/plain") ||
-            contentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
-        );
+        boolean allowedType = contentType != null && contentType.equals("application/pdf");
+        
         if (!allowedType) {
-            throw new RuntimeException("Invalid file type. Only PDF, DOCX, TXT, PPTX are allowed");
+            throw new RuntimeException("Định dạng không hợp lệ. Hệ thống AI hiện tại chỉ hỗ trợ file PDF.");
         }
 
         // TODO: Check total user storage (max 1GB)
@@ -63,14 +58,14 @@ public class DocumentServiceImpl implements DocumentService {
         document.setPublicId((String) uploadResult.get("public_id"));
         document.setMimeType(contentType);
         document.setFileSize(file.getSize());
-        document.setStatus("processing");
+        document.setStatus("processing"); // Trạng thái chờ AI xử lý
 
         Document savedDocument = documentRepository.save(document);
 
         // KÍCH HOẠT AI RAG
         try {
             ragService.processAndSaveDocument(file, savedDocument.getId());
-            // Cập nhật thành active nếu thành công
+            // Cập nhật thành active nếu AI đọc và băm nhỏ thành công
             savedDocument.setStatus("active");
             documentRepository.save(savedDocument);
         } catch (Exception e) {
