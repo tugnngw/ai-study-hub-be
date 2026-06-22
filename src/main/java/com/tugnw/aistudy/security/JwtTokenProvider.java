@@ -35,13 +35,15 @@ public class JwtTokenProvider {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
 
-        return Jwts.builder()
+        String token = Jwts.builder()
                 .setSubject(userDetails.getUsername())
                 .claim("role", userDetails.getAuthorities().stream().map(grantedAuthority -> grantedAuthority.getAuthority()).collect(java.util.stream.Collectors.joining(",")))
                 .setIssuedAt(new Date())
                 .setExpiration(expiryDate)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
+        System.out.println("DEBUG JwtTokenProvider: Generated token length: " + token.length());
+        return token;
     }
 
     public String getUsernameFromJWT(String token) {
@@ -62,7 +64,17 @@ public class JwtTokenProvider {
                     .parseSignedClaims(token);
 
             return true;
+        } catch (io.jsonwebtoken.security.SignatureException e) {
+            System.out.println("DEBUG JWT: Invalid signature - " + e.getMessage());
+            return false;
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            System.out.println("DEBUG JWT: Token expired - " + e.getMessage());
+            return false;
+        } catch (io.jsonwebtoken.MalformedJwtException e) {
+            System.out.println("DEBUG JWT: Malformed token - " + e.getMessage());
+            return false;
         } catch (JwtException | IllegalArgumentException e) {
+            System.out.println("DEBUG JWT: Validation failed - " + e.getClass().getSimpleName() + ": " + e.getMessage());
             return false;
         }
     }
