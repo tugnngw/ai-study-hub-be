@@ -3,11 +3,13 @@ package com.tugnw.aistudy.service.impl;
 import com.nimbusds.openid.connect.sdk.LogoutRequest;
 import com.tugnw.aistudy.domain.dto.auth.AuthResponse;
 import com.tugnw.aistudy.domain.dto.auth.LoginRequest;
+import com.tugnw.aistudy.domain.dto.auth.RefreshTokenRequest;
 import com.tugnw.aistudy.domain.dto.auth.RegisterRequest;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
+import com.tugnw.aistudy.exception.InvalidTokenException;
 import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.security.CustomUserDetails;
@@ -62,6 +64,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         String accessToken = jwtTokenProvider.generateToken(authentication);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
 
         // Map account to response and add tokens
         AuthResponse response = accountMapper.toAuthResponse(account);
@@ -72,7 +75,7 @@ public class AuthServiceImpl implements AuthService {
                 response.fullName(),
                 response.role(),
                 accessToken,
-                null, // refreshToken not implemented yet
+                refreshToken,
                 3600000L // 1 hour expiration in ms
         );
     }
@@ -101,6 +104,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         String accessToken = jwtTokenProvider.generateToken(authentication);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
 
         // Map account to response and add tokens
         AuthResponse response = accountMapper.toAuthResponse(account);
@@ -113,6 +117,45 @@ public class AuthServiceImpl implements AuthService {
                 accessToken,
                 null, // refreshToken not implemented yet
                 3600000L // 1 hour expiration in ms
+        );
+    }
+
+    @Override
+    public AuthResponse refresh(RefreshTokenRequest request) {
+        String refreshToken = request.refreshToken();
+
+        // Validate the refresh token
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            throw new InvalidTokenException("Invalid or expired refresh token");
+        }
+
+        String username = jwtTokenProvider.getUsernameFromJWT(refreshToken);
+        Account account = accountRepository.findByUsername(username);
+        if (account == null) {
+            throw new InvalidTokenException("Account not found for refresh token");
+        }
+
+        // Create authentication from the account
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                new CustomUserDetails(account),
+                null,
+                new CustomUserDetails(account).getAuthorities()
+        );
+
+        // Generate new tokens
+        String newAccessToken = jwtTokenProvider.generateToken(authentication);
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(authentication);
+
+        AuthResponse response = accountMapper.toAuthResponse(account);
+        return new AuthResponse(
+                response.userId(),
+                response.username(),
+                response.email(),
+                response.fullName(),
+                response.role(),
+                newAccessToken,
+                newRefreshToken,
+                (long) jwtTokenProvider.getJwtExpirationInMs()
         );
     }
 

@@ -89,6 +89,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                         .avatarUrl(avatarUrl)
                         .authProvider(AuthProvider.GOOGLE)
                         .providerId(providerId)
+                        .passwordHash(UUID.randomUUID().toString())
                         .build()));
     }
 

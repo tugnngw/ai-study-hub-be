@@ -23,6 +23,9 @@ public class JwtTokenProvider {
     @Value("${app.jwt.expiration-ms}")
     private int jwtExpirationInMs;
 
+    @Value("${app.jwt.refresh-expiration-ms:604800000}")
+    private int jwtRefreshExpirationInMs;
+
     private Key key;
 
     @PostConstruct
@@ -46,6 +49,20 @@ public class JwtTokenProvider {
         return token;
     }
 
+    public String generateRefreshToken(Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + jwtRefreshExpirationInMs);
+
+        return Jwts.builder()
+                .setSubject(userDetails.getUsername())
+                .claim("tokenType", "refresh")
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
     public String getUsernameFromJWT(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith((SecretKey) key)
@@ -54,6 +71,10 @@ public class JwtTokenProvider {
                 .getPayload();
 
         return claims.getSubject();
+    }
+
+    public int getJwtExpirationInMs() {
+        return jwtExpirationInMs;
     }
 
     public boolean validateToken(String token) {

@@ -2,6 +2,7 @@ package com.tugnw.aistudy.controller;
 
 import com.nimbusds.openid.connect.sdk.LogoutRequest;
 import com.tugnw.aistudy.domain.dto.auth.AuthResponse;
+import com.tugnw.aistudy.domain.dto.auth.RefreshTokenRequest;
 import com.tugnw.aistudy.domain.dto.auth.LoginRequest;
 import com.tugnw.aistudy.domain.dto.auth.RegisterRequest;
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
@@ -37,5 +38,10 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody LogoutRequest request) {
         authService.logout(request);
         return ResponseEntity.ok(ApiResponse.success("Logged out", null));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<AuthResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Token refreshed", authService.refresh(request)));
     }
 }

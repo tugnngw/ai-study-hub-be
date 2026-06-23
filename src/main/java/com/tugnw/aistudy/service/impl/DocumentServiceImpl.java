@@ -55,11 +55,11 @@ public class DocumentServiceImpl implements DocumentService {
 
             Document document = documentMapper.toEntity(request);
             document.setOwnerId(ownerId);
-            document.setCloudinaryUrl((String) uploadResult.get("url"));
+            document.setCloudinaryUrl((String) uploadResult.get("secure_url"));
             document.setPublicId((String) uploadResult.get("public_id"));
             document.setMimeType(contentType);
             document.setFileSize(file.getSize());
-            document.setStatus("processing");
+            document.setStatus("ready");
 
             Document savedDocument = documentRepository.save(document);
 
