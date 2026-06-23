@@ -87,6 +87,38 @@ public class DocumentController {
     }
 
     /**
+     * Get shared documents with current user
+     */
+    @GetMapping("/shared")
+    public ResponseEntity<List<DocumentResponse>> getSharedDocuments(Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        // TODO: Implement share logic
+        return ResponseEntity.ok(List.of());
+    }
+
+    /**
+     * Get soft-deleted documents (trash)
+     */
+    @GetMapping("/trash")
+    public ResponseEntity<List<DocumentResponse>> getTrashDocuments(Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        // TODO: Implement trash logic
+        return ResponseEntity.ok(List.of());
+    }
+
+    /**
+     * Restore document from trash
+     */
+    @PostMapping("/{id}/restore")
+    public ResponseEntity<Void> restoreDocument(
+            @PathVariable Long id,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        // TODO: Implement restore logic
+        return ResponseEntity.ok().build();
+    }
+
+    /**
      * Get document detail by ID
      */
     @GetMapping("/{id}")

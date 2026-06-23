@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface FolderRepository extends JpaRepository<Folder, UUID>, JpaSpecificationExecutor<Folder> {
+    Optional<Folder> findByIdAndOwnerIdAndDeletedAtIsNull(UUID id, UUID ownerId);
     Optional<Folder> findByIdAndDeletedAtIsNull(UUID id);
 
     List<Folder> findByOwnerIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID ownerId);

@@ -9,6 +9,7 @@ import java.util.UUID;
 
 public interface AccountRepository extends JpaRepository<Account, UUID> {
     Account findByUsername(String username);
+    Account findByUsernameIgnoreCaseAndDeletedAtIsNull(String username);
 
     Optional<Account> findByAuthProviderAndProviderIdAndDeletedAtIsNull(AuthProvider authProvider, String providerId);
     Optional<Account> findByEmailIgnoreCaseAndDeletedAtIsNull(String email);
