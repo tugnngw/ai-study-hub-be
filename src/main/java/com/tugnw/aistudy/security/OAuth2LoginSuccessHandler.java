@@ -8,6 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -21,6 +22,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.UUID;
 
+
+@Transactional
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
@@ -49,10 +53,23 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         );
         String accessToken = jwtTokenProvider.generateToken(auth);
 
+        String refreshToken = jwtTokenProvider.generateRefreshToken(auth);
+
+        // Log token generation for OAuth
+        log.info("OAUTH_TOKEN_ISSUED userId={} email={} accessTokenPresent={} accessTokenLength={} refreshTokenPresent={} refreshTokenLength={} redirectUrl={}",
+                account.getId(),
+                account.getEmail(),
+                accessToken != null && !accessToken.isBlank(),
+                accessToken == null ? 0 : accessToken.length(),
+                refreshToken != null && !refreshToken.isBlank(),
+                refreshToken == null ? 0 : refreshToken.length(),
+                "oauth-success with tokens");
+
         // Redirect to frontend with JWT token
         String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl)
                 .path("/oauth-success")
                 .queryParam("access_token", accessToken)
+                .queryParam("refresh_token", refreshToken)
                 .queryParam("user_id", account.getId())
                 .build()
                 .toUriString();
@@ -90,6 +107,10 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                         .authProvider(AuthProvider.GOOGLE)
                         .providerId(providerId)
                         .passwordHash(UUID.randomUUID().toString())
+                        .passwordHash(UUID.randomUUID().toString()) // Password hash is not necessary for OAuth accounts
+                        // Set default role and status if creating a new user
+                        .role(com.tugnw.aistudy.domain.enums.AccountRole.USER) // Assuming default role is USER
+                        .status(com.tugnw.aistudy.domain.enums.AccountStatus.ACTIVE) // Assuming default status is ACTIVE
                         .build()));
     }
 

@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5434:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -37,10 +37,10 @@ services:
       - "4040:4040"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ai_study_hub
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5433/ai_study_hub
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/ai_study_hub
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5433/ai_study_hub
       SPRING_FLYWAY_USER: postgres
       SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
@@ -54,6 +54,7 @@ services:
       MAIL_FROM_NAME: ${MAIL_FROM_NAME}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      Frontend_URL: ${Frontend_URL}
     depends_on:
       postgres:
         condition: service_healthy

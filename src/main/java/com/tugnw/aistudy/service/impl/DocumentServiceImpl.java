@@ -65,6 +65,8 @@ public class DocumentServiceImpl implements DocumentService {
 
             // Add to responses
             responses.add(documentMapper.toResponse(savedDocument));
+            
+
         }
 
         // Return all responses
@@ -96,7 +98,7 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     @Transactional(readOnly = true)
-    public DocumentResponse getDocumentById(Long id, UUID ownerId) {
+    public DocumentResponse getDocumentById(UUID id, UUID ownerId) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
@@ -108,7 +110,7 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public DocumentResponse updateDocument(Long id, UUID ownerId, DocumentUpdateRequest request) {
+    public DocumentResponse updateDocument(UUID id, UUID ownerId, DocumentUpdateRequest request) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
@@ -126,7 +128,7 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public void deleteDocument(Long id, UUID ownerId) {
+    public void deleteDocument(UUID id, UUID ownerId) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
@@ -139,13 +141,13 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public String getDocumentDownloadUrl(Long id, UUID ownerId) {
+    public String getDocumentDownloadUrl(UUID id, UUID ownerId) {
         // TODO: Implement
         return null;
     }
 
     @Override
-    public String generateShareableLink(Long id, UUID ownerId) {
+    public String generateShareableLink(UUID id, UUID ownerId) {
         // TODO: Implement shareable link logic
         return null;
     }

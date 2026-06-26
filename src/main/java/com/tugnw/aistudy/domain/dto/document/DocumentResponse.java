@@ -8,7 +8,7 @@ import java.util.UUID;
 @Data
 public class DocumentResponse {
 
-    private Long id;
+    private UUID id;
     private UUID ownerId;
     private UUID folderId;
     private Long subjectId;

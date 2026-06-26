@@ -17,6 +17,7 @@ import com.tugnw.aistudy.security.JwtTokenProvider;
 import com.tugnw.aistudy.service.AuthService;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -29,6 +30,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final AccountRepository accountRepository;
@@ -65,6 +67,7 @@ public class AuthServiceImpl implements AuthService {
 
         String accessToken = jwtTokenProvider.generateToken(authentication);
         String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
+        logTokenIssued("register", account, accessToken, refreshToken);
 
         // Map account to response and add tokens
         AuthResponse response = accountMapper.toAuthResponse(account);
@@ -105,6 +108,7 @@ public class AuthServiceImpl implements AuthService {
 
         String accessToken = jwtTokenProvider.generateToken(authentication);
         String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
+        logTokenIssued("login", account, accessToken, refreshToken);
 
         // Map account to response and add tokens
         AuthResponse response = accountMapper.toAuthResponse(account);
@@ -115,7 +119,7 @@ public class AuthServiceImpl implements AuthService {
                 response.fullName(),
                 response.role(),
                 accessToken,
-                null, // refreshToken not implemented yet
+                refreshToken,
                 3600000L // 1 hour expiration in ms
         );
     }
@@ -145,6 +149,7 @@ public class AuthServiceImpl implements AuthService {
         // Generate new tokens
         String newAccessToken = jwtTokenProvider.generateToken(authentication);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(authentication);
+        logTokenIssued("refresh", account, newAccessToken, newRefreshToken);
 
         AuthResponse response = accountMapper.toAuthResponse(account);
         return new AuthResponse(
@@ -163,5 +168,25 @@ public class AuthServiceImpl implements AuthService {
     public void logout(LogoutRequest request) {
         // Logout logic can be implemented here if needed
         // For JWT, logout is typically client-side (token deletion)
+    }
+
+    private void logTokenIssued(String flow, Account account, String accessToken, String refreshToken) {
+        log.info("AUTH_TOKEN_ISSUED flow={} userId={} username={} accessTokenPresent={} accessTokenLength={} accessTokenPrefix={} refreshTokenPresent={} refreshTokenLength={} refreshTokenPrefix={}",
+                flow,
+                account.getId(),
+                account.getUsername(),
+                accessToken != null && !accessToken.isBlank(),
+                accessToken == null ? 0 : accessToken.length(),
+                tokenPrefix(accessToken),
+                refreshToken != null && !refreshToken.isBlank(),
+                refreshToken == null ? 0 : refreshToken.length(),
+                tokenPrefix(refreshToken));
+    }
+
+    private String tokenPrefix(String token) {
+        if (token == null || token.isBlank()) {
+            return "NONE";
+        }
+        return token.substring(0, Math.min(12, token.length())) + "...";
     }
 }

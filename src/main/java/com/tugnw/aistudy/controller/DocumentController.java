@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/documents")   // Giống test case Folder, dễ test
@@ -111,7 +112,7 @@ public class DocumentController {
      */
     @PostMapping("/{id}/restore")
     public ResponseEntity<Void> restoreDocument(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         // TODO: Implement restore logic
@@ -123,7 +124,7 @@ public class DocumentController {
      */
     @GetMapping("/{id}")
     public ResponseEntity<DocumentResponse> getDocumentById(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             Authentication authentication) {
 
         UUID ownerId = getCurrentUserId(authentication);
@@ -136,7 +137,7 @@ public class DocumentController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<DocumentResponse> updateDocument(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @RequestBody DocumentUpdateRequest request,
             Authentication authentication) {
 
@@ -150,7 +151,7 @@ public class DocumentController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDocument(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             Authentication authentication) {
 
         UUID ownerId = getCurrentUserId(authentication);
@@ -163,7 +164,7 @@ public class DocumentController {
      */
     @GetMapping("/{id}/download")
     public ResponseEntity<String> getDownloadUrl(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             Authentication authentication) {
 
         UUID ownerId = getCurrentUserId(authentication);
