@@ -3,7 +3,10 @@ package com.tugnw.aistudy.controller;
 import com.tugnw.aistudy.domain.dto.document.DocumentResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentUploadRequest;
 import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
+import com.tugnw.aistudy.domain.dto.share.ShareResponse;
+import com.tugnw.aistudy.domain.dto.share.ShareRequest;
 import com.tugnw.aistudy.service.DocumentService;
+import com.tugnw.aistudy.service.ShareService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,16 +21,20 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/documents")   // Giống test case Folder, dễ test
-@RequiredArgsConstructor
 @Validated
 @CrossOrigin(origins = "*", allowedHeaders = "*", exposedHeaders = "Authorization")
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final ShareService shareService;
+
+    public DocumentController(DocumentService documentService, ShareService shareService) {
+        this.documentService = documentService;
+        this.shareService = shareService;
+    }
 
     /**
      * Upload new document
@@ -170,6 +177,24 @@ public class DocumentController {
         UUID ownerId = getCurrentUserId(authentication);
         String url = documentService.getDocumentDownloadUrl(id, ownerId);
         return ResponseEntity.ok(url);
+    }
+
+    @PostMapping("/{id}/share")
+    public ResponseEntity<ShareResponse> shareDocument(
+            @PathVariable UUID id,
+            @RequestBody ShareRequest request,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        request.setDocumentId(id);
+        return ResponseEntity.ok(shareService.shareDocument(request, ownerId));
+    }
+
+    @GetMapping("/{id}/share-info")
+    public ResponseEntity<ShareResponse> getDocumentShareInfo(
+            @PathVariable UUID id,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        return ResponseEntity.ok(shareService.getShareInfo(id, "document", ownerId));
     }
 
     private UUID getCurrentUserId(Authentication authentication) {

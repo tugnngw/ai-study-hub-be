@@ -8,9 +8,11 @@ import java.util.UUID;
 
 public interface ShareService {
     ShareResponse shareFolder(ShareRequest request, UUID ownerId);
+    ShareResponse shareDocument(ShareRequest request, UUID ownerId);
     List<ShareResponse> getSharesByOwner(UUID ownerId);
     List<ShareResponse> getSharesWithMe(UUID userId);
     void removeShare(Long shareId, UUID ownerId);
     String getShareLink(UUID folderId);
     Share getShareEntity(Long shareId);
+    ShareResponse getShareInfo(UUID id, String type, UUID ownerId);
 }

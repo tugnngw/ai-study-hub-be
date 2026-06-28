@@ -3,7 +3,10 @@ package com.tugnw.aistudy.controller;
 import com.tugnw.aistudy.domain.dto.folder.FolderCreateRequest;
 import com.tugnw.aistudy.domain.dto.folder.FolderResponse;
 import com.tugnw.aistudy.domain.dto.folder.FolderUpdateRequest;
+import com.tugnw.aistudy.domain.dto.share.ShareResponse;
+import com.tugnw.aistudy.domain.dto.share.ShareRequest;
 import com.tugnw.aistudy.service.FolderService;
+import com.tugnw.aistudy.service.ShareService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +21,16 @@ import java.util.UUID;
 @CrossOrigin(origins = "*", allowedHeaders = "*", exposedHeaders = "Authorization")
 @RestController
 @RequestMapping("/api/folder")
-@RequiredArgsConstructor
 @Validated
 public class FolderController {
 
     private final FolderService folderService;
+    private final ShareService shareService;
+
+    public FolderController(FolderService folderService, ShareService shareService) {
+        this.folderService = folderService;
+        this.shareService = shareService;
+    }
 
     @PostMapping("/create")
     public ResponseEntity<FolderResponse> createFolder(
@@ -70,6 +78,24 @@ public class FolderController {
         UUID ownerId = getCurrentUserId(authentication);
         folderService.deleteFolder(id, ownerId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/share")
+    public ResponseEntity<ShareResponse> shareFolder(
+            @PathVariable UUID id,
+            @RequestBody ShareRequest request,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        request.setFolderId(id);
+        return ResponseEntity.ok(shareService.shareFolder(request, ownerId));
+    }
+
+    @GetMapping("/{id}/share-info")
+    public ResponseEntity<ShareResponse> getFolderShareInfo(
+            @PathVariable UUID id,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        return ResponseEntity.ok(shareService.getShareInfo(id, "folder", ownerId));
     }
 
     /**
