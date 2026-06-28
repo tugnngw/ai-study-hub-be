@@ -42,6 +42,15 @@ public class ShareController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{shareId}/save")
+    public ResponseEntity<ShareResponse> saveToMyFolder(
+            @PathVariable Long shareId,
+            @RequestBody com.tugnw.aistudy.domain.dto.share.SaveToFolderRequest request,
+            Authentication authentication) {
+        ShareResponse response = shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(), request.getDescription());
+        return ResponseEntity.ok(response);
+    }
+
     private UUID getCurrentUserId(Authentication authentication) {
         Object principal = authentication.getPrincipal();
         if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {

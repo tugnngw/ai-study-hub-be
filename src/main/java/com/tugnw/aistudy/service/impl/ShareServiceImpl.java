@@ -45,7 +45,6 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     public ShareResponse shareFolder(ShareRequest request, UUID ownerId) {
-        // If no target user provided, just generate/share link without sharing to anyone
         if ((request.getEmail() == null || request.getEmail().isBlank()) &&
                 (request.getUsername() == null || request.getUsername().isBlank())) {
             Folder folder = folderRepository.findByIdAndOwnerIdAndDeletedAtIsNull(request.getFolderId(), ownerId)
@@ -60,7 +59,7 @@ public class ShareServiceImpl implements ShareService {
             Share saved = shareRepository.save(share);
             return mapToResponse(saved);
         }
-        // Existing logic with target user
+
         Account targetUser = findTargetUser(request);
         if (targetUser == null) {
             String searchBy = request.getEmail() != null ? request.getEmail() : request.getUsername();
@@ -91,7 +90,6 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     public ShareResponse shareDocument(ShareRequest request, UUID ownerId) {
-        // If no target provided, generate link only
         if ((request.getEmail() == null || request.getEmail().isBlank()) &&
                 (request.getUsername() == null || request.getUsername().isBlank())) {
             Document document = documentRepository.findByIdAndOwnerIdAndDeletedAtIsNull(request.getDocumentId(), ownerId)
@@ -161,6 +159,66 @@ public class ShareServiceImpl implements ShareService {
             throw new IllegalArgumentException("You don't have permission to remove this share");
         }
         shareRepository.delete(share);
+    }
+
+    @Override
+    public ShareResponse saveToMyFolder(Long shareId, UUID folderId, String title, String description) {
+        Share share = shareRepository.findById(shareId)
+                .orElseThrow(() -> new IllegalArgumentException("Share not found"));
+        UUID newOwnerId = share.getOwner().getId();
+
+        if (share.getDocument() != null) {
+            Document original = share.getDocument();
+            Document copy = copyDocument(original, folderId, newOwnerId, title, description);
+            Document savedDoc = documentRepository.save(copy);
+
+            return new ShareResponse(
+                    share.getId(),
+                    folderId,
+                    savedDoc.getId(),
+                    savedDoc.getOwnerId(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "private",
+                    null,
+                    null,
+                    null,
+                    List.of(),
+                    savedDoc.getTitle(),
+                    null
+            );
+        }
+
+        if (share.getFolder() == null) {
+            throw new IllegalArgumentException("Shared item not found");
+        }
+
+        List<Document> documents = documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(share.getFolder().getId());
+        for (Document document : documents) {
+            documentRepository.save(copyDocument(document, folderId, newOwnerId, null, null));
+        }
+
+        return new ShareResponse(
+                share.getId(),
+                folderId,
+                null,
+                newOwnerId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "private",
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                share.getFolder().getName()
+        );
     }
 
     @Override
@@ -252,5 +310,22 @@ public class ShareServiceImpl implements ShareService {
                 documentTitle,
                 folderName
         );
+    }
+
+    private Document copyDocument(Document original, UUID folderId, UUID ownerId, String title, String description) {
+        return Document.builder()
+                .ownerId(ownerId)
+                .folderId(folderId)
+                .title(title != null && !title.isBlank() ? title : original.getTitle())
+                .description(description != null ? description : original.getDescription())
+                .summary(original.getSummary())
+                .status("ready")
+                .cloudinaryUrl(original.getCloudinaryUrl())
+                .publicId(original.getPublicId())
+                .mimeType(original.getMimeType())
+                .checksum(original.getChecksum())
+                .fileSize(original.getFileSize())
+                .totalPages(original.getTotalPages())
+                .build();
     }
 }
