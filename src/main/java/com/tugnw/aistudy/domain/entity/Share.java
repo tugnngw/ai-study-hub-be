@@ -17,8 +17,12 @@ public class Share {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "folder_id", nullable = false)
+    @JoinColumn(name = "folder_id")
     private Folder folder;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id")
+    private Document document;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
@@ -28,9 +32,19 @@ public class Share {
     @JoinColumn(name = "shared_account_id")
     private Account sharedAccount;
 
+    @Column(name = "share_token", unique = true, length = 36)
+    private String shareToken;
+
     @Column(name = "visibility", nullable = false, length = 50)
     @Builder.Default
     private String visibility = "private";
+
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
+    @Column(name = "revoked", nullable = false)
+    @Builder.Default
+    private Boolean revoked = false;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -38,5 +52,8 @@ public class Share {
     @PrePersist
     public void prePersist() {
         this.createdAt = Instant.now();
+        if (this.shareToken == null) {
+            this.shareToken = UUID.randomUUID().toString();
+        }
     }
 }

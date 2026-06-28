@@ -11,6 +11,7 @@ import java.util.UUID;
 public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSpecificationExecutor<Document> {
 
     Optional<Document> findByIdAndDeletedAtIsNull(UUID id);
+    Optional<Document> findByIdAndOwnerIdAndDeletedAtIsNull(UUID id, UUID ownerId);
 
     List<Document> findByOwnerIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID ownerId);
 
