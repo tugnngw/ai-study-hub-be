@@ -13,6 +13,8 @@ import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.ShareService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,12 @@ public class ShareServiceImpl implements ShareService {
 
     @Value("${app.frontend-url:http://localhost:5173}")
     private String frontendUrl;
+
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
 
     private Account findTargetUser(ShareRequest request) {
         Account targetUser = null;
@@ -155,7 +163,7 @@ public class ShareServiceImpl implements ShareService {
     public void removeShare(Long shareId, UUID ownerId) {
         Share share = shareRepository.findById(shareId)
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
-        if (!share.getOwner().getId().equals(ownerId)) {
+        if (!isAdmin() && !share.getOwner().getId().equals(ownerId)) {
             throw new IllegalArgumentException("You don't have permission to remove this share");
         }
         shareRepository.delete(share);
@@ -241,7 +249,7 @@ public class ShareServiceImpl implements ShareService {
                 : shareRepository.findByFolderId(id);
 
         List<ShareResponse.ShareRecipient> recipients = shares.stream()
-                .filter(s -> s.getOwner().getId().equals(ownerId))
+                .filter(s -> isAdmin() || s.getOwner().getId().equals(ownerId))
                 .filter(s -> s.getSharedAccount() != null && !s.getRevoked())
                 .map(s -> new ShareResponse.ShareRecipient(
                         s.getSharedAccount().getId(),

@@ -2,7 +2,6 @@ package com.tugnw.aistudy.service.impl;
 
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.repository.AccountRepository;
-import com.tugnw.aistudy.security.CustomUserDetails;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -23,6 +22,6 @@ public class CustomUserDetailsServiceImpl implements UserDetailsService {
         if (account == null) {
             throw new UsernameNotFoundException("User not found with username: " + username);
         }
-        return new CustomUserDetails(account);
+        return account;
     }
 }

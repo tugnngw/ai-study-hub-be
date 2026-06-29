@@ -53,11 +53,9 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/shares/{shareId}/save", "/api/shares/*/save").permitAll()
                         .requestMatchers(
-                                 "/api/auth/**",
-                                 "/api/v1/rag/**",
-                                 "/api/shares/*/save",
+                                 "/api/auth/register",
+                                 "/api/auth/login",
                                  "/oauth2/**",
                                 "/login/oauth2/**",
                                 "/v3/api-docs/**",

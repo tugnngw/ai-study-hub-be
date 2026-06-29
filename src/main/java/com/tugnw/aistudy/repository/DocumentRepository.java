@@ -21,4 +21,14 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     // Kiểm tra storage usage
     boolean existsByOwnerIdAndChecksumAndDeletedAtIsNull(UUID ownerId, String checksum);
+
+    List<Document> findByStatusAndDeletedAtIsNull(String status);
+
+    List<Document> findByDeletedAtIsNotNull();
+    List<Document> findByOwnerIdAndDeletedAtIsNotNullOrderByCreatedAtDesc(UUID ownerId);
+    List<Document> findByDeletedAtIsNotNullOrderByCreatedAtDesc();
+
+    List<Document> findAllByDeletedAtIsNull();
+
+    List<Document> findAllBy();
 }

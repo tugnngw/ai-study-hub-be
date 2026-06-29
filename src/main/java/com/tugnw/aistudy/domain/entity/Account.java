@@ -8,12 +8,17 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 @Entity
 @Table(name = "account")
@@ -21,7 +26,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Account {
+public class Account implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -76,4 +81,15 @@ public class Account {
     @Version  // ← THÊM DÒNG NÀY để fix lỗi StaleObjectStateException
     @Column(name = "version", nullable = false)
     private Long version = 0L;
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+    }
+
+    @Override
+    public String getPassword() {
+        return "";
+    }
+
 }

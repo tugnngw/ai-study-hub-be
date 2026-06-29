@@ -3,13 +3,17 @@ package com.tugnw.aistudy.service.impl;
 import com.tugnw.aistudy.domain.dto.rag.RagChatRequest;
 import com.tugnw.aistudy.domain.dto.rag.RagChatResponse;
 import com.tugnw.aistudy.domain.entity.Document;
+import com.tugnw.aistudy.domain.entity.Folder;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.DocumentChunkRepository;
+import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
 import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -31,6 +35,7 @@ public class RagServiceImpl implements RagService {
 
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository chunkRepository;
+    private final FolderRepository folderRepository;
 
     private final Tika tika = new Tika();
     private final RestTemplate restTemplate = new RestTemplate();
@@ -50,14 +55,23 @@ public class RagServiceImpl implements RagService {
     private static final int MAX_CHUNK_SIZE = 1000;
     private static final int CHUNK_OVERLAP = 200;
 
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
     // ==========================================
     // GIAI ĐOẠN 1: TẢI FILE & TRÍCH XUẤT VĂN BẢN
     // ==========================================
     @Override
-    public String extractTextFromDocument(UUID documentId) throws Exception {
-        System.out.println("\n[LOG - EXTRACT] 1. Tìm kiếm Document ID: " + documentId);
+    public String extractTextFromDocument(UUID documentId, UUID requesterId) throws Exception {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
                 .orElseThrow(() -> new RuntimeException("Tài liệu không tồn tại hoặc đã bị xóa."));
+
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+            throw new RuntimeException("You do not have permission to access this document");
+        }
 
         String fileUrl = document.getCloudinaryUrl();
         if (fileUrl == null || fileUrl.isBlank()) {
@@ -99,17 +113,20 @@ public class RagServiceImpl implements RagService {
     // GIAI ĐOẠN 2: CHUNKING & EMBEDDING PIPELINE
     // ==========================================
     @Override
-    @Transactional // BẮT BUỘC ĐỂ ĐẢM BẢO DỮ LIỆU ĐƯỢC LƯU XUỐNG DB
-    public void processAndSaveDocumentPipeline(UUID documentId) throws Exception {
+    @Transactional
+    public void processAndSaveDocumentPipeline(UUID documentId, UUID requesterId) throws Exception {
         System.out.println("\n========== BẮT ĐẦU PIPELINE RAG ==========");
         Document docStatus = documentRepository.findByIdAndDeletedAtIsNull(documentId).orElse(null);
         if (docStatus != null) {
+            if (!isAdmin() && !docStatus.getOwnerId().equals(requesterId)) {
+                throw new RuntimeException("You do not have permission to process this document");
+            }
             docStatus.setStatus("processing");
             documentRepository.save(docStatus);
         }
 
         try {
-            String rawText = extractTextFromDocument(documentId);
+            String rawText = extractTextFromDocument(documentId, requesterId);
             if (rawText == null || rawText.isBlank()) {
                 throw new RuntimeException("Không thể bóc tách nội dung văn bản từ tài liệu này.");
             }
@@ -159,12 +176,17 @@ public class RagServiceImpl implements RagService {
     }
 
     @Override
-    public void processFolderPipeline(UUID folderId) throws Exception {
+    public void processFolderPipeline(UUID folderId, UUID requesterId) throws Exception {
+        Folder folder = folderRepository.findByIdAndDeletedAtIsNull(folderId)
+                .orElseThrow(() -> new RuntimeException("Folder not found"));
+        if (!isAdmin() && !folder.getOwnerId().equals(requesterId)) {
+            throw new RuntimeException("You do not have permission to process this folder");
+        }
         List<Document> documents = documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
         for (Document doc : documents) {
             if ("pending".equalsIgnoreCase(doc.getStatus()) || "ready".equalsIgnoreCase(doc.getStatus()) || "failed".equalsIgnoreCase(doc.getStatus())) {
                 try {
-                    processAndSaveDocumentPipeline(doc.getId());
+                    processAndSaveDocumentPipeline(doc.getId(), requesterId);
                 } catch (Exception e) {
                     System.err.println("Pipeline failed for document " + doc.getId() + ": " + e.getMessage());
                 }
@@ -173,9 +195,15 @@ public class RagServiceImpl implements RagService {
     }
 
     @Override
-    public String getDocumentProcessingStatus(UUID documentId) {
+    public String getDocumentProcessingStatus(UUID documentId, UUID requesterId) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId).orElse(null);
-        return document != null ? document.getStatus() : "not_found";
+        if (document != null) {
+            if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+                throw new RuntimeException("You do not have permission to view this document");
+            }
+            return document.getStatus();
+        }
+        return "not_found";
     }
 
     private List<Double> getEmbeddingFromGemini(String text) {
@@ -262,7 +290,18 @@ public class RagServiceImpl implements RagService {
     // GIAI ĐOẠN 3: RETRIEVAL & GENERATION (CHAT)
     // ==========================================
     @Override
-    public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest) throws Exception {
+    public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) throws Exception {
+        if (chatRequest.getDocumentId() != null) {
+            Document document = documentRepository.findByIdAndDeletedAtIsNull(chatRequest.getDocumentId()).orElse(null);
+            if (document != null && !isAdmin() && !document.getOwnerId().equals(requesterId)) {
+                throw new RuntimeException("You do not have permission to access this document");
+            }
+        } else if (chatRequest.getFolderId() != null) {
+            Folder folder = folderRepository.findByIdAndDeletedAtIsNull(chatRequest.getFolderId()).orElse(null);
+            if (folder != null && !isAdmin() && !folder.getOwnerId().equals(requesterId)) {
+                throw new RuntimeException("You do not have permission to access this folder");
+            }
+        }
         List<Double> queryVector = getEmbeddingFromGemini(chatRequest.getQuestion());
         if (queryVector.isEmpty()) {
             throw new RuntimeException("Không thể tạo vector cho câu hỏi.");

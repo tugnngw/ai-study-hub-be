@@ -21,6 +21,10 @@ public interface DocumentService {
 
     void deleteDocument(UUID id, UUID ownerId);
 
+    List<DocumentResponse> getTrashDocuments(UUID requesterId);
+
+    void restoreDocument(UUID id, UUID requesterId);
+
     String getDocumentDownloadUrl(UUID id, UUID ownerId);
 
     String generateShareableLink(UUID id, UUID ownerId);

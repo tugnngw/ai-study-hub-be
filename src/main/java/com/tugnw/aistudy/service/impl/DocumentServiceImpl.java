@@ -9,6 +9,8 @@ import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,6 +28,12 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
+
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
 
     @Override
     public List<DocumentResponse> uploadDocuments(UUID ownerId, DocumentUploadRequest request) {
@@ -102,7 +110,7 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (!document.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !document.getOwnerId().equals(ownerId)) {
             throw new RuntimeException("You do not have permission to access this document");
         }
 
@@ -114,7 +122,7 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (!document.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !document.getOwnerId().equals(ownerId)) {
             throw new RuntimeException("You do not have permission to update this document");
         }
 
@@ -132,11 +140,36 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (!document.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !document.getOwnerId().equals(ownerId)) {
             throw new RuntimeException("You do not have permission to delete this document");
         }
 
         document.setDeletedAt(LocalDateTime.now());
+        documentRepository.save(document);
+    }
+
+    @Override
+    public List<DocumentResponse> getTrashDocuments(UUID requesterId) {
+        List<Document> docs = isAdmin()
+            ? documentRepository.findByDeletedAtIsNotNullOrderByCreatedAtDesc()
+            : documentRepository.findByOwnerIdAndDeletedAtIsNotNullOrderByCreatedAtDesc(requesterId);
+        return docs.stream().map(documentMapper::toResponse).toList();
+    }
+
+    @Override
+    public void restoreDocument(UUID id, UUID requesterId) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        if (document.getDeletedAt() == null) {
+            throw new RuntimeException("Document is not in trash");
+        }
+
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+            throw new RuntimeException("You do not have permission to restore this document");
+        }
+
+        document.setDeletedAt(null);
         documentRepository.save(document);
     }
 
