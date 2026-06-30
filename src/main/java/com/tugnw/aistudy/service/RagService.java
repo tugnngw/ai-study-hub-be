@@ -10,4 +10,5 @@ public interface RagService {
     RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) throws Exception;
     void processFolderPipeline(UUID folderId, UUID requesterId) throws Exception;
     String getDocumentProcessingStatus(UUID documentId, UUID requesterId);
+    String generateContent(String prompt);
 }

@@ -340,6 +340,12 @@ public class RagServiceImpl implements RagService {
         return new RagChatResponse(aiAnswer, referencedDocIds);
     }
 
+    @Override
+    public String generateContent(String prompt) {
+        System.out.println("[LOG - RAG] Generating text from prompt using Gemini.");
+        return generateTextFromGemini(prompt);
+    }
+
     private String generateTextFromGemini(String prompt) {
         String url = "https://generativelanguage.googleapis.com/v1beta/models/" + chatModel + ":generateContent?key=" + geminiApiKey;
 
