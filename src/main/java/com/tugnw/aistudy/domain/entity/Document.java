@@ -43,7 +43,7 @@ public class Document {
 
     @Column(length = 50)
     @Builder.Default
-    private String status = "processing";
+    private String status = "COMPLETED";
 
     @Column(name = "cloudinary_url", length = 500)
     private String cloudinaryUrl;

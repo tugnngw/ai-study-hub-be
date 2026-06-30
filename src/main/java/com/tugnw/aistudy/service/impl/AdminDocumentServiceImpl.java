@@ -24,6 +24,7 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     @Transactional(readOnly = true)
     public List<DocumentResponse> getAllDocuments() {
         return documentRepository.findAll().stream()
+                .filter(d -> d.getDeletedAt() == null)
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -31,8 +32,14 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     @Override
     @Transactional(readOnly = true)
     public List<DocumentResponse> getDocumentsByStatus(String status) {
+        String targetStatus = switch (status.toUpperCase()) {
+            case "PENDING" -> "COMPLETED";
+            case "APPROVED" -> "READY";
+            case "REJECTED" -> "REJECT";
+            default -> status.toUpperCase();
+        };
         return documentRepository.findAll().stream()
-                .filter(document -> document.getStatus() != null && document.getStatus().equalsIgnoreCase(status))
+                .filter(d -> d.getDeletedAt() == null && d.getStatus() != null && d.getStatus().equalsIgnoreCase(targetStatus))
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -66,7 +73,7 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     public void approveDocument(UUID id) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
-        document.setStatus("approved");
+        document.setStatus("READY");
         documentRepository.save(document);
     }
 
@@ -74,7 +81,7 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     public void rejectDocument(UUID id) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
-        document.setStatus("rejected");
+        document.setStatus("REJECT");
         documentRepository.save(document);
     }
 
