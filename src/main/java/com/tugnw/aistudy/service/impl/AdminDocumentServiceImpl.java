@@ -72,9 +72,11 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     @Override
     public void approveDocument(UUID id) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
+                .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
+        System.out.println("[ADMIN] Approving document: " + id + " current status: " + document.getStatus());
         document.setStatus("READY");
         documentRepository.save(document);
+        System.out.println("[ADMIN] Document " + id + " approved, new status: " + document.getStatus());
     }
 
     @Override

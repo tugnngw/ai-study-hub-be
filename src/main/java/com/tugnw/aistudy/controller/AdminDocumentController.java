@@ -28,38 +28,32 @@ public class AdminDocumentController {
         return ResponseEntity.ok(ApiResponse.success("Documents retrieved", adminDocumentService.getAllDocuments()));
     }
 
+    @PatchMapping("/{id}/approve")
+    @Operation(summary = "Approve document")
+    public ResponseEntity<ApiResponse<Void>> approveDocument(@PathVariable UUID id) {
+        adminDocumentService.approveDocument(id);
+        return ResponseEntity.ok(ApiResponse.success("Document approved", null));
+    }
+
+    @PatchMapping("/{id}/reject")
+    @Operation(summary = "Reject document")
+    public ResponseEntity<ApiResponse<Void>> rejectDocument(@PathVariable UUID id) {
+        adminDocumentService.rejectDocument(id);
+        return ResponseEntity.ok(ApiResponse.success("Document rejected", null));
+    }
+
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete document", description = "Soft delete any document")
+    @Operation(summary = "Delete document")
     public ResponseEntity<ApiResponse<Void>> deleteDocument(@PathVariable UUID id) {
         adminDocumentService.deleteDocument(id);
         return ResponseEntity.ok(ApiResponse.success("Document deleted", null));
     }
 
     @PostMapping("/{id}/restore")
-    @Operation(summary = "Restore document", description = "Restore a soft-deleted document")
+    @Operation(summary = "Restore document")
     public ResponseEntity<ApiResponse<Void>> restoreDocument(@PathVariable UUID id) {
         adminDocumentService.restoreDocument(id);
         return ResponseEntity.ok(ApiResponse.success("Document restored", null));
-    }
-
-    @PatchMapping("/{id}/approve")
-    @Operation(summary = "Approve document", description = "Approve a pending document for publishing")
-    public ResponseEntity<ApiResponse<Void>> approveDocument(@PathVariable UUID id) {
-        adminDocumentService.approveDocument(id);
-        return ResponseEntity.ok(ApiResponse.success("Document approved", null));
-    }
-
-    @GetMapping("/trash")
-    @Operation(summary = "List trash documents", description = "Get list of soft-deleted documents")
-    public ResponseEntity<ApiResponse<List<DocumentResponse>>> getTrashDocuments() {
-        return ResponseEntity.ok(ApiResponse.success("Trash documents retrieved", adminDocumentService.getTrashDocuments()));
-    }
-
-    @PatchMapping("/{id}/reject")
-    @Operation(summary = "Reject document", description = "Reject a pending document")
-    public ResponseEntity<ApiResponse<Void>> rejectDocument(@PathVariable UUID id) {
-        adminDocumentService.rejectDocument(id);
-        return ResponseEntity.ok(ApiResponse.success("Document rejected", null));
     }
 
     @GetMapping("/status/{status}")

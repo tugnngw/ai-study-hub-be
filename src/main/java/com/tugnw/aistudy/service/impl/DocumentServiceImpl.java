@@ -67,7 +67,7 @@ public class DocumentServiceImpl implements DocumentService {
             document.setPublicId((String) uploadResult.get("public_id"));
             document.setMimeType(contentType);
             document.setFileSize(file.getSize());
-            document.setStatus("ready");
+            document.setStatus("COMPLETED");
 
             Document savedDocument = documentRepository.save(document);
 

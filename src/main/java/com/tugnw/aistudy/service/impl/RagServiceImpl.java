@@ -121,7 +121,7 @@ public class RagServiceImpl implements RagService {
             if (!isAdmin() && !docStatus.getOwnerId().equals(requesterId)) {
                 throw new RuntimeException("You do not have permission to process this document");
             }
-            docStatus.setStatus("processing");
+            docStatus.setStatus("PROCESSING");
             documentRepository.save(docStatus);
         }
 
@@ -161,7 +161,7 @@ public class RagServiceImpl implements RagService {
             }
 
             if (docStatus != null) {
-                docStatus.setStatus("completed");
+                docStatus.setStatus("COMPLETED");
                 documentRepository.save(docStatus);
                 System.out.println("========== PIPELINE HOÀN TẤT THÀNH CÔNG ==========\n");
             }
@@ -184,7 +184,7 @@ public class RagServiceImpl implements RagService {
         }
         List<Document> documents = documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
         for (Document doc : documents) {
-            if ("pending".equalsIgnoreCase(doc.getStatus()) || "ready".equalsIgnoreCase(doc.getStatus()) || "failed".equalsIgnoreCase(doc.getStatus())) {
+            if ("pending".equalsIgnoreCase(doc.getStatus()) || "ready".equalsIgnoreCase(doc.getStatus()) || "failed".equalsIgnoreCase(doc.getStatus()) || "COMPLETED".equalsIgnoreCase(doc.getStatus())) {
                 try {
                     processAndSaveDocumentPipeline(doc.getId(), requesterId);
                 } catch (Exception e) {
