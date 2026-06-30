@@ -30,7 +30,7 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes()); // Ensure proper key initialization
+        this.key = Keys.hmacShaKeyFor(java.util.Base64.getDecoder().decode(jwtSecret)); // Ensure proper key initialization
     }
 
     public String generateToken(Authentication authentication) {
