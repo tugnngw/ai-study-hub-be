@@ -30,29 +30,29 @@ public class AdminDocumentController {
 
     @PatchMapping("/{id}/approve")
     @Operation(summary = "Approve document")
-    public ResponseEntity<ApiResponse<Void>> approveDocument(@PathVariable UUID id) {
-        adminDocumentService.approveDocument(id);
+    public ResponseEntity<ApiResponse<Void>> approveDocument(@PathVariable String id) {
+        adminDocumentService.approveDocument(UUID.fromString(id));
         return ResponseEntity.ok(ApiResponse.success("Document approved", null));
     }
 
     @PatchMapping("/{id}/reject")
     @Operation(summary = "Reject document")
-    public ResponseEntity<ApiResponse<Void>> rejectDocument(@PathVariable UUID id) {
-        adminDocumentService.rejectDocument(id);
+    public ResponseEntity<ApiResponse<Void>> rejectDocument(@PathVariable String id) {
+        adminDocumentService.rejectDocument(UUID.fromString(id));
         return ResponseEntity.ok(ApiResponse.success("Document rejected", null));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete document")
-    public ResponseEntity<ApiResponse<Void>> deleteDocument(@PathVariable UUID id) {
-        adminDocumentService.deleteDocument(id);
+    public ResponseEntity<ApiResponse<Void>> deleteDocument(@PathVariable String id) {
+        adminDocumentService.deleteDocument(UUID.fromString(id));
         return ResponseEntity.ok(ApiResponse.success("Document deleted", null));
     }
 
     @PostMapping("/{id}/restore")
     @Operation(summary = "Restore document")
-    public ResponseEntity<ApiResponse<Void>> restoreDocument(@PathVariable UUID id) {
-        adminDocumentService.restoreDocument(id);
+    public ResponseEntity<ApiResponse<Void>> restoreDocument(@PathVariable String id) {
+        adminDocumentService.restoreDocument(UUID.fromString(id));
         return ResponseEntity.ok(ApiResponse.success("Document restored", null));
     }
 
