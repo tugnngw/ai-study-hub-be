@@ -29,6 +29,7 @@ public class FlashcardController {
             Authentication authentication) throws Exception {
         UUID requesterId = getCurrentUserId(authentication);
         List<FlashcardResponse> responses = flashcardService.generateFlashcards(
+                request.getDocumentId(),
                 requesterId,
                 request
         );

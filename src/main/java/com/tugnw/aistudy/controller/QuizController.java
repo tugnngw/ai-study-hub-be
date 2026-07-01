@@ -29,6 +29,7 @@ public class QuizController {
             Authentication authentication) throws Exception {
         UUID requesterId = getCurrentUserId(authentication);
         QuizResponse response = quizService.generateQuiz(
+                request.getDocumentId(),
                 requesterId,
                 request
         );

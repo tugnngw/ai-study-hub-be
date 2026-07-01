@@ -28,12 +28,11 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
-    private final com.tugnw.aistudy.repository.ShareRepository shareRepository;
 
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
     @Override
@@ -50,10 +49,10 @@ public class DocumentServiceImpl implements DocumentService {
             // Validate file type
             String contentType = file.getContentType();
             boolean allowedType = contentType != null && (
-                    contentType.equals("application/pdf") ||
-                            contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
-                            contentType.equals("text/plain") ||
-                            contentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                contentType.equals("application/pdf") ||
+                contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
+                contentType.equals("text/plain") ||
+                contentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
             );
             if (!allowedType) {
                 throw new RuntimeException("Invalid file type. Only PDF, DOCX, TXT, PPTX are allowed");
@@ -74,7 +73,7 @@ public class DocumentServiceImpl implements DocumentService {
 
             // Add to responses
             responses.add(documentMapper.toResponse(savedDocument));
-
+            
 
         }
 
@@ -100,35 +99,6 @@ public class DocumentServiceImpl implements DocumentService {
         List<Document> documents = documentRepository
                 .findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
 
-        return documents.stream()
-                .map(documentMapper::toResponse)
-                .toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<DocumentResponse> getDocumentsBySharedFolder(UUID shareToken, UUID requesterId) {
-        // Find the share with the given shareToken
-        com.tugnw.aistudy.domain.entity.Share share =
-                shareRepository.findByShareToken(shareToken.toString())
-                        .orElseThrow(() -> new RuntimeException("Share not found"));
-
-        // Check if requester is the owner, admin, or the user this share was sent to
-        UUID ownerId = share.getOwner().getId();
-        if (!isAdmin() && !ownerId.equals(requesterId) &&
-                (share.getSharedAccount() == null || !share.getSharedAccount().getId().equals(requesterId))) {
-            throw new RuntimeException("You do not have permission to access this folder");
-        }
-
-        if (share.getFolder() == null) {
-            return List.of();
-        }
-
-        // Get documents from the shared folder
-        List<com.tugnw.aistudy.domain.entity.Document> documents =
-                documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(share.getFolder().getId());
-
-        // Map to responses - we need to update owner information since these are shared documents
         return documents.stream()
                 .map(documentMapper::toResponse)
                 .toList();
@@ -181,8 +151,8 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public List<DocumentResponse> getTrashDocuments(UUID requesterId) {
         List<Document> docs = isAdmin()
-                ? documentRepository.findByDeletedAtIsNotNullOrderByCreatedAtDesc()
-                : documentRepository.findByOwnerIdAndDeletedAtIsNotNullOrderByCreatedAtDesc(requesterId);
+            ? documentRepository.findByDeletedAtIsNotNullOrderByCreatedAtDesc()
+            : documentRepository.findByOwnerIdAndDeletedAtIsNotNullOrderByCreatedAtDesc(requesterId);
         return docs.stream().map(documentMapper::toResponse).toList();
     }
 
@@ -213,23 +183,5 @@ public class DocumentServiceImpl implements DocumentService {
     public String generateShareableLink(UUID id, UUID ownerId) {
         // TODO: Implement shareable link logic
         return null;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public String getDocumentSummary(UUID id, UUID requesterId) {
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
-
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("You do not have permission to access this document");
-        }
-
-        String summary = document.getSummary();
-        if (summary == null || summary.trim().isEmpty()) {
-            throw new RuntimeException("No summary available for this document");
-        }
-
-        return summary;
     }
 }

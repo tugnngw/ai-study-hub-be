@@ -28,8 +28,4 @@ public interface DocumentService {
     String getDocumentDownloadUrl(UUID id, UUID ownerId);
 
     String generateShareableLink(UUID id, UUID ownerId);
-
-    List<DocumentResponse> getDocumentsBySharedFolder(UUID shareToken, UUID requesterId);
-
-    String getDocumentSummary(UUID id, UUID requesterId);
 }

@@ -31,10 +31,4 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     List<Document> findAllByDeletedAtIsNull();
 
     List<Document> findAllBy();
-
-    /**
-     * Fetch multiple documents by IDs, excluding soft-deleted records.
-     * Order is NOT guaranteed by default; handled by DocumentSourceResolver if needed.
-     */
-    List<Document> findByIdInAndDeletedAtIsNull(List<UUID> ids);
 }

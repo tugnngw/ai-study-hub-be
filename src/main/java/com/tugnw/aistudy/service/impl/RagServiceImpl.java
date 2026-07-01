@@ -54,6 +54,7 @@ public class RagServiceImpl implements RagService {
 
     private static final int MAX_CHUNK_SIZE = 1000;
     private static final int CHUNK_OVERLAP = 200;
+
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null && auth.getAuthorities().stream()
