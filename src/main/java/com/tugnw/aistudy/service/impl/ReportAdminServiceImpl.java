@@ -23,7 +23,7 @@ public class ReportAdminServiceImpl implements ReportAdminService {
     private final JdbcTemplate jdbcTemplate;
 
     private final RowMapper<ReportResponse> rowMapper = (rs, rowNum) -> new ReportResponse(
-        rs.getLong("id"),
+        UUID.fromString(rs.getString("id")),
         UUID.fromString(rs.getString("document_id")),
         rs.getString("document_title"),
         rs.getString("reporter_id") != null ? UUID.fromString(rs.getString("reporter_id")) : null,
@@ -51,6 +51,9 @@ public class ReportAdminServiceImpl implements ReportAdminService {
             rowMapper
         );
         
+        // Debug status
+        reports.forEach(r -> System.out.println("DEBUG: Report status = " + r.getStatus() + " (id=" + r.getId() + ")"));
+        
         return new PageImpl<>(reports, pageable, total != null ? total : 0);
     }
 
@@ -70,6 +73,27 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         List<ReportResponse> reports = jdbcTemplate.query(
             dataSql,
             new Object[]{reporterId, pageable.getPageSize(), pageable.getOffset()},
+            rowMapper
+        );
+        
+        return new PageImpl<>(reports, pageable, total != null ? total : 0);
+    }
+
+    @Override
+    public Page<ReportResponse> getAllReports(Pageable pageable) {
+        String countSql = "SELECT COUNT(*) FROM report";
+        Integer total = jdbcTemplate.queryForObject(countSql, Integer.class);
+        
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.created_at " +
+                "FROM report r " +
+                "LEFT JOIN account a ON r.reporter_id = a.id " +
+                "LEFT JOIN document d ON r.document_id = d.id " +
+                "ORDER BY r.created_at DESC " +
+                "LIMIT ? OFFSET ?";
+        
+        List<ReportResponse> reports = jdbcTemplate.query(
+            dataSql,
+            new Object[]{pageable.getPageSize(), pageable.getOffset()},
             rowMapper
         );
         

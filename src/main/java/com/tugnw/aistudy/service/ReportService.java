@@ -6,5 +6,5 @@ import java.util.UUID;
 
 public interface ReportService {
     void reportDocument(ReportRequest request, UUID accountId);
-    void handleReportDecision(Long reportId, ReportDecisionRequest decision, UUID adminId);
+    void handleReportDecision(UUID reportId, ReportDecisionRequest decision, UUID adminId);
 }

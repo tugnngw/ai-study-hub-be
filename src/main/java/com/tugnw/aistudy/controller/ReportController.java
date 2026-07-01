@@ -49,10 +49,17 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.success("My reports retrieved", reports));
     }
 
+    @GetMapping("/history")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Page<ReportResponse>>> getAllReports(Pageable pageable) {
+        Page<ReportResponse> reports = reportAdminService.getAllReports(pageable);
+        return ResponseEntity.ok(ApiResponse.success("All reports retrieved", reports));
+    }
+
     @PostMapping("/{id}/decision")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> handleReportDecision(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @RequestBody com.tugnw.aistudy.domain.dto.report.ReportDecisionRequest decision,
             Authentication authentication) {
         UUID adminId = getCurrentUserId(authentication);

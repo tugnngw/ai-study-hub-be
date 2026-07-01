@@ -11,7 +11,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ReportResponse {
-    private Long id;
+    private UUID id;
     private UUID documentId;
     private String documentTitle;
     private UUID reporterId;

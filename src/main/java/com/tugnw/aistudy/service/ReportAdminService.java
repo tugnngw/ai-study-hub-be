@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface ReportAdminService {
     Page<ReportResponse> getReports(Pageable pageable);
     Page<ReportResponse> getReportsByReporter(UUID reporterId, Pageable pageable);
+    Page<ReportResponse> getAllReports(Pageable pageable);
 }
