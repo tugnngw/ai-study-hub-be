@@ -5,6 +5,7 @@ import com.tugnw.aistudy.domain.dto.document.DocumentUploadRequest;
 import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareRequest;
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.ShareService;
 import lombok.RequiredArgsConstructor;
@@ -60,12 +61,27 @@ public class DocumentController {
 
     @GetMapping("/folder/{folderId}")
     public ResponseEntity<List<DocumentResponse>> getDocumentsByFolder(
-            @PathVariable UUID folderId,
+            @PathVariable String folderId,
             Authentication authentication) {
 
-        UUID ownerId = getCurrentUserId(authentication);
-        List<DocumentResponse> responses = documentService.getDocumentsByFolder(ownerId, folderId);
-        return ResponseEntity.ok(responses);
+        // Check if folderId starts with "shared-"
+        if (folderId.startsWith("shared-")) {
+            String shareToken = folderId.substring(7); // Remove "shared-" prefix
+            // Validate shareToken as UUID
+            try {
+                UUID uuidShareToken = UUID.fromString(shareToken);
+                UUID requesterId = getCurrentUserId(authentication);
+                List<DocumentResponse> responses = documentService.getDocumentsBySharedFolder(uuidShareToken, requesterId);
+                return ResponseEntity.ok(responses);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid share token format");
+            }
+        } else {
+            UUID uuidFolderId = UUID.fromString(folderId);
+            UUID ownerId = getCurrentUserId(authentication);
+            List<DocumentResponse> responses = documentService.getDocumentsByFolder(ownerId, uuidFolderId);
+            return ResponseEntity.ok(responses);
+        }
     }
 
     @GetMapping("/shared")
@@ -129,9 +145,7 @@ public class DocumentController {
             @PathVariable UUID id,
             @RequestBody ShareRequest request,
             Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        request.setDocumentId(id);
-        return ResponseEntity.ok(shareService.shareDocument(request, ownerId));
+        throw new IllegalArgumentException("Chỉ cho phép share folder, không được share document");
     }
 
     @GetMapping("/{id}/share-info")
@@ -140,6 +154,15 @@ public class DocumentController {
             Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         return ResponseEntity.ok(shareService.getShareInfo(id, "document", ownerId));
+    }
+
+    @GetMapping("/{id}/summary")
+    public ResponseEntity<ApiResponse<String>> getDocumentSummary(
+            @PathVariable UUID id,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        String markdown = documentService.getDocumentSummary(id, ownerId);
+        return ResponseEntity.ok(ApiResponse.success("Summary retrieved successfully", markdown));
     }
 
     private UUID getCurrentUserId(Authentication authentication) {

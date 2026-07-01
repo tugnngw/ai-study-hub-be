@@ -38,7 +38,7 @@ public class ShareServiceImpl implements ShareService {
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null && auth.getAuthorities().stream()
-            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
     private Account findTargetUser(ShareRequest request) {
@@ -54,6 +54,10 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     public ShareResponse shareFolder(ShareRequest request, UUID ownerId) {
+        if (request.getFolderId() == null) {
+            throw new IllegalArgumentException("Folder ID is required");
+        }
+
         if ((request.getEmail() == null || request.getEmail().isBlank()) &&
                 (request.getUsername() == null || request.getUsername().isBlank())) {
             Folder folder = folderRepository.findByIdAndOwnerIdAndDeletedAtIsNull(request.getFolderId(), ownerId)
@@ -77,14 +81,14 @@ public class ShareServiceImpl implements ShareService {
         if (targetUser.getId().equals(ownerId)) {
             throw new IllegalArgumentException("Cannot share to yourself");
         }
-        
+
         Folder folder = folderRepository.findByIdAndOwnerIdAndDeletedAtIsNull(request.getFolderId(), ownerId)
                 .orElseThrow(() -> new IllegalArgumentException("Folder not found or you don't have permission"));
-        
+
         if (shareRepository.findByFolderIdAndSharedAccountId(folder.getId(), targetUser.getId()).isPresent()) {
             throw new IllegalArgumentException("Already shared with this user");
         }
-        
+
         Account owner = accountRepository.findById(ownerId)
                 .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
         Share share = Share.builder()
@@ -99,47 +103,7 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     public ShareResponse shareDocument(ShareRequest request, UUID ownerId) {
-        if ((request.getEmail() == null || request.getEmail().isBlank()) &&
-                (request.getUsername() == null || request.getUsername().isBlank())) {
-            Document document = documentRepository.findByIdAndOwnerIdAndDeletedAtIsNull(request.getDocumentId(), ownerId)
-                    .orElseThrow(() -> new IllegalArgumentException("Document not found or you don't have permission"));
-            Account owner = accountRepository.findById(ownerId)
-                    .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
-            Share share = Share.builder()
-                    .document(document)
-                    .owner(owner)
-                    .visibility(request.getVisibility())
-                    .build();
-            Share saved = shareRepository.save(share);
-            return mapToResponse(saved);
-        }
-        
-        Account targetUser = findTargetUser(request);
-        if (targetUser == null) {
-            String searchBy = request.getEmail() != null ? request.getEmail() : request.getUsername();
-            throw new IllegalArgumentException("User not found: " + searchBy);
-        }
-        if (targetUser.getId().equals(ownerId)) {
-            throw new IllegalArgumentException("Cannot share to yourself");
-        }
-        
-        Document document = documentRepository.findByIdAndOwnerIdAndDeletedAtIsNull(request.getDocumentId(), ownerId)
-                .orElseThrow(() -> new IllegalArgumentException("Document not found or you don't have permission"));
-        
-        if (shareRepository.findByDocumentIdAndSharedAccountId(document.getId(), targetUser.getId()).isPresent()) {
-            throw new IllegalArgumentException("Already shared with this user");
-        }
-        
-        Account owner = accountRepository.findById(ownerId)
-                .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
-        Share share = Share.builder()
-                .document(document)
-                .owner(owner)
-                .sharedAccount(targetUser)
-                .visibility(request.getVisibility())
-                .build();
-        Share saved = shareRepository.save(share);
-        return mapToResponse(saved);
+        throw new IllegalArgumentException("Chỉ cho phép share folder, không được share document");
     }
 
     @Override
@@ -161,8 +125,8 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
-    public void removeShare(Long shareId, UUID ownerId) {
-        Share share = shareRepository.findById(shareId)
+    public void removeShare(UUID shareToken, UUID ownerId) {
+        Share share = shareRepository.findByShareToken(shareToken.toString())
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
         if (!isAdmin() && !share.getOwner().getId().equals(ownerId)) {
             throw new IllegalArgumentException("You don't have permission to remove this share");
@@ -171,10 +135,22 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
-    public ShareResponse saveToMyFolder(Long shareId, UUID folderId, String title, String description) {
-        Share share = shareRepository.findById(shareId)
+    public ShareResponse saveToMyFolder(UUID shareToken, UUID folderId, String title, String description) {
+        Share share = shareRepository.findByShareToken(shareToken.toString())
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
-        UUID newOwnerId = share.getOwner().getId();
+
+        // Get the current user's ID (the one saving the folder)
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            throw new RuntimeException("Authentication required");
+        }
+        Object principal = auth.getPrincipal();
+        UUID newOwnerId;
+        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
+            newOwnerId = userDetails.getAccount().getId();
+        } else {
+            throw new RuntimeException("Unauthorized");
+        }
 
         if (share.getDocument() != null) {
             Document original = share.getDocument();
@@ -197,7 +173,8 @@ public class ShareServiceImpl implements ShareService {
                     null,
                     List.of(),
                     savedDoc.getTitle(),
-                    null
+                    null,
+                    1
             );
         }
 
@@ -226,7 +203,8 @@ public class ShareServiceImpl implements ShareService {
                 null,
                 List.of(),
                 null,
-                share.getFolder().getName()
+                share.getFolder().getName(),
+                documents.size()
         );
     }
 
@@ -234,6 +212,19 @@ public class ShareServiceImpl implements ShareService {
     @Transactional(readOnly = true)
     public String getShareLink(UUID folderId) {
         return frontendUrl + "/shared/" + folderId;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getShareLink(String shareToken) {
+        return frontendUrl + "/shared/" + shareToken;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getDownloadUrl(String shareToken) {
+        // For now, return the share link - in reality this would be a download URL
+        return frontendUrl + "/api/shares/" + shareToken + "/download";
     }
 
     @Override
@@ -293,7 +284,8 @@ public class ShareServiceImpl implements ShareService {
                 null,
                 recipients,
                 documentTitle,
-                folderName
+                folderName,
+                0
         );
     }
 
@@ -301,6 +293,10 @@ public class ShareServiceImpl implements ShareService {
         String shareLink = frontendUrl + "/shared/" + share.getShareToken();
         String documentTitle = share.getDocument() != null ? share.getDocument().getTitle() : null;
         String folderName = share.getFolder() != null ? share.getFolder().getName() : null;
+        Integer fileCount = 0;
+        if (share.getFolder() != null) {
+            fileCount = documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(share.getFolder().getId()).size();
+        }
         return new ShareResponse(
                 share.getId(),
                 share.getFolder() != null ? share.getFolder().getId() : null,
@@ -317,7 +313,8 @@ public class ShareServiceImpl implements ShareService {
                 share.getCreatedAt(),
                 List.of(),
                 documentTitle,
-                folderName
+                folderName,
+                fileCount
         );
     }
 

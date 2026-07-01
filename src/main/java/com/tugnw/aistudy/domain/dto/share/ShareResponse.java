@@ -20,7 +20,8 @@ public record ShareResponse(
         Instant createdAt,
         List<ShareRecipient> recipients,
         String documentTitle,
-        String folderName
+        String folderName,
+        Integer fileCount
 ) {
     public record ShareRecipient(
             UUID accountId,

@@ -8,7 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -36,7 +38,7 @@ public class ShareController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteShare(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<Void> deleteShare(@PathVariable UUID id, Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         shareService.removeShare(id, ownerId);
         return ResponseEntity.noContent().build();
@@ -44,10 +46,24 @@ public class ShareController {
 
     @PostMapping("/{shareId}/save")
     public ResponseEntity<ShareResponse> saveToMyFolder(
-            @PathVariable Long shareId,
+            @PathVariable UUID shareId,
             @RequestBody com.tugnw.aistudy.domain.dto.share.SaveToFolderRequest request,
             Authentication authentication) {
         ShareResponse response = shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(), request.getDescription());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{shareToken}/link")
+    public ResponseEntity<Map<String, String>> getShareLink(@PathVariable String shareToken) {
+        Map<String, String> response = new HashMap<>();
+        response.put("url", shareService.getShareLink(shareToken));
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{shareToken}/download")
+    public ResponseEntity<Map<String, String>> getDownloadUrl(@PathVariable String shareToken) {
+        Map<String, String> response = new HashMap<>();
+        response.put("url", shareService.getDownloadUrl(shareToken));
         return ResponseEntity.ok(response);
     }
 

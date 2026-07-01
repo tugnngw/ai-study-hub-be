@@ -11,9 +11,11 @@ public interface ShareService {
     ShareResponse shareDocument(ShareRequest request, UUID ownerId);
     List<ShareResponse> getSharesByOwner(UUID ownerId);
     List<ShareResponse> getSharesWithMe(UUID userId);
-    void removeShare(Long shareId, UUID ownerId);
-    ShareResponse saveToMyFolder(Long shareId, UUID folderId, String title, String description);
+    void removeShare(UUID shareToken, UUID ownerId);
+    ShareResponse saveToMyFolder(UUID shareToken, UUID folderId, String title, String description);
     String getShareLink(UUID folderId);
+    String getShareLink(String shareToken);
+    String getDownloadUrl(String shareToken);
     Share getShareEntity(Long shareId);
     ShareResponse getShareInfo(UUID id, String type, UUID ownerId);
 }
