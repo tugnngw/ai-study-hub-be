@@ -97,6 +97,16 @@ public class DocumentController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/shared/{id}")
+    public ResponseEntity<DocumentResponse> getSharedDocumentById(
+            @PathVariable UUID id,
+            Authentication authentication) {
+
+        UUID requesterId = getCurrentUserId(authentication);
+        DocumentResponse response = documentService.getSharedDocumentById(id, requesterId);
+        return ResponseEntity.ok(response);
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<DocumentResponse> updateDocument(
             @PathVariable UUID id,

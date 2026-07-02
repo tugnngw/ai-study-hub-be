@@ -197,7 +197,8 @@ public class ShareServiceImpl implements ShareService {
                     null,
                     List.of(),
                     savedDoc.getTitle(),
-                    null
+                    null,
+                    savedDoc.getCloudinaryUrl()
             );
         }
 
@@ -226,7 +227,8 @@ public class ShareServiceImpl implements ShareService {
                 null,
                 List.of(),
                 null,
-                share.getFolder().getName()
+                share.getFolder().getName(),
+                null
         );
     }
 
@@ -276,6 +278,10 @@ public class ShareServiceImpl implements ShareService {
 
         String ownerUsername = shares.isEmpty() ? null : shares.get(0).getOwner().getUsername();
         String ownerEmail = shares.isEmpty() ? null : shares.get(0).getOwner().getEmail();
+        String cloudinaryUrl = null;
+        if (!shares.isEmpty() && shares.get(0).getDocument() != null) {
+            cloudinaryUrl = shares.get(0).getDocument().getCloudinaryUrl();
+        }
 
         return new ShareResponse(
                 shares.isEmpty() ? null : shares.get(0).getId(),
@@ -293,7 +299,8 @@ public class ShareServiceImpl implements ShareService {
                 null,
                 recipients,
                 documentTitle,
-                folderName
+                folderName,
+                cloudinaryUrl
         );
     }
 
@@ -301,6 +308,7 @@ public class ShareServiceImpl implements ShareService {
         String shareLink = frontendUrl + "/shared/" + share.getShareToken();
         String documentTitle = share.getDocument() != null ? share.getDocument().getTitle() : null;
         String folderName = share.getFolder() != null ? share.getFolder().getName() : null;
+        String cloudinaryUrl = share.getDocument() != null ? share.getDocument().getCloudinaryUrl() : null;
         return new ShareResponse(
                 share.getId(),
                 share.getFolder() != null ? share.getFolder().getId() : null,
@@ -317,7 +325,8 @@ public class ShareServiceImpl implements ShareService {
                 share.getCreatedAt(),
                 List.of(),
                 documentTitle,
-                folderName
+                folderName,
+                cloudinaryUrl
         );
     }
 

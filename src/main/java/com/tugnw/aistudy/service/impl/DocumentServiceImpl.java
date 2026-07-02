@@ -6,6 +6,7 @@ import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
 import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.domain.mapper.DocumentMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
+import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final ShareRepository shareRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
 
@@ -33,6 +35,25 @@ public class DocumentServiceImpl implements DocumentService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null && auth.getAuthorities().stream()
             .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasShareAccess(UUID documentId, UUID userId) {
+        return shareRepository.existsByDocumentIdAndSharedAccountIdAndRevokedFalse(documentId, userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DocumentResponse getSharedDocumentById(UUID id, UUID requesterId) {
+        Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId) && !hasShareAccess(id, requesterId)) {
+            throw new RuntimeException("You do not have permission to access this document");
+        }
+
+        return documentMapper.toResponse(document);
     }
 
     @Override
@@ -110,7 +131,7 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (!isAdmin() && !document.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !document.getOwnerId().equals(ownerId) && !hasShareAccess(id, ownerId)) {
             throw new RuntimeException("You do not have permission to access this document");
         }
 

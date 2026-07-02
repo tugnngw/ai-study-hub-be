@@ -17,6 +17,8 @@ public interface DocumentService {
 
     DocumentResponse getDocumentById(UUID id, UUID ownerId);
 
+    DocumentResponse getSharedDocumentById(UUID id, UUID requesterId);
+
     DocumentResponse updateDocument(UUID id, UUID ownerId, DocumentUpdateRequest request);
 
     void deleteDocument(UUID id, UUID ownerId);
@@ -28,4 +30,6 @@ public interface DocumentService {
     String getDocumentDownloadUrl(UUID id, UUID ownerId);
 
     String generateShareableLink(UUID id, UUID ownerId);
+
+    boolean hasShareAccess(UUID documentId, UUID userId);
 }
