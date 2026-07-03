@@ -20,8 +20,8 @@ import java.util.UUID;
 @Builder
 public class PaymentTransaction {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "account_id", nullable = false)
     private UUID accountId;

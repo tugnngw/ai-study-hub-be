@@ -87,6 +87,10 @@ public class Account implements UserDetails {
     @Column(name = "plan", nullable = false)
     private com.tugnw.aistudy.domain.enums.Plan plan = com.tugnw.aistudy.domain.enums.Plan.FREE;
 
+    @Builder.Default
+    @Column(name = "storage_gb", nullable = false)
+    private Integer storageGb = 1;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));

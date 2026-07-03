@@ -51,6 +51,13 @@ public class PaymentController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PostMapping("/verify/{orderCode}")
+    public ResponseEntity<?> verifyPayment(@PathVariable Long orderCode) {
+        log.info("Manual payment verification for orderCode: {}", orderCode);
+        paymentService.verifyAndProcessPayment(orderCode);
+        return ResponseEntity.ok().body("Payment verified successfully");
+    }
+
     //  Webhook endpoint (Priority 1)
     @PostMapping("/webhook")
     public ResponseEntity<?> handleWebhook(@RequestBody String payload,
@@ -62,5 +69,17 @@ public class PaymentController {
             log.error("Webhook handling failed", e);
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    @GetMapping("/my-transactions")
+    public ResponseEntity<?> getMyTransactions(Authentication authentication) {
+        Object principal = authentication.getPrincipal();
+        UUID userId;
+        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails) {
+            userId = ((com.tugnw.aistudy.security.CustomUserDetails) principal).getAccount().getId();
+        } else {
+            userId = UUID.fromString(principal.toString());
+        }
+        return ResponseEntity.ok(paymentService.getUserTransactions(userId));
     }
 }
