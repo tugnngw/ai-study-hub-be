@@ -14,7 +14,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AdminTransactionResponse {
-    private Long id;
+    private String id;
     private UUID accountId;
     private String userEmail;
     private String userName;
@@ -24,6 +24,7 @@ public class AdminTransactionResponse {
     private String description;
     private String transactionId;
     private Long payosOrderCode;
+    private String paymentMethod;
     private Instant createdAt;
     private Instant updatedAt;
 }

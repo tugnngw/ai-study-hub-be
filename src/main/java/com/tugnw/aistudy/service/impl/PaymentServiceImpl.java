@@ -340,7 +340,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     private PaymentTransactionResponse convertToUserResponse(PaymentTransaction tx) {
         return PaymentTransactionResponse.builder()
-                .id(tx.getId())
+                .id(tx.getId().toString())
                 .accountId(tx.getAccountId().toString())
                 .planName(tx.getPlan() != null ? tx.getPlan().getName() : "N/A")
                 .amount(tx.getAmount())
@@ -348,6 +348,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .description(tx.getDescription())
                 .transactionId(tx.getTransactionId())
                 .payosOrderCode(tx.getPayosOrderCode())
+                .paymentMethod(tx.getPaymentMethod())
                 .createdAt(tx.getCreatedAt())
                 .updatedAt(tx.getUpdatedAt())
                 .build();
@@ -370,7 +371,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElse(null);
         
         return AdminTransactionResponse.builder()
-                .id(tx.getId())
+                .id(tx.getId().toString())
                 .accountId(tx.getAccountId())
                 .userEmail(account != null ? account.getEmail() : "N/A")
                 .userName(account != null ? account.getFullName() : "N/A")
@@ -380,6 +381,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .description(tx.getDescription())
                 .transactionId(tx.getTransactionId())
                 .payosOrderCode(tx.getPayosOrderCode())
+                .paymentMethod(tx.getPaymentMethod())
                 .createdAt(tx.getCreatedAt())
                 .updatedAt(tx.getUpdatedAt())
                 .build();
