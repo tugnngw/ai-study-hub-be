@@ -78,9 +78,14 @@ public class Account implements UserDetails {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
-    @Version  // ← THÊM DÒNG NÀY để fix lỗi StaleObjectStateException
+    @Version
     @Column(name = "version", nullable = false)
     private Long version = 0L;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan", nullable = false)
+    private com.tugnw.aistudy.domain.enums.Plan plan = com.tugnw.aistudy.domain.enums.Plan.FREE;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
