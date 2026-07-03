@@ -1,8 +1,7 @@
-package com.tugnw.aistudy.domain.dto.admin;
+package com.tugnw.aistudy.domain.dto.account;
 
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
-import com.tugnw.aistudy.domain.enums.AuthProvider;
 import com.tugnw.aistudy.domain.enums.Plan;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +14,7 @@ import java.time.Instant;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserResponse {
+public class AccountMeResponse {
     private String id;
     private String username;
     private String email;
@@ -23,12 +22,8 @@ public class UserResponse {
     private String avatarUrl;
     private AccountRole role;
     private AccountStatus status;
-    private AuthProvider authProvider;
-    private String providerId;
-    private Instant lastLoginAt;
-    private Instant createdAt;
-    private Instant updatedAt;
-    private Instant deletedAt;
     private Plan plan;
     private Integer storageGb;
+    private Instant createdAt;
+    private Instant updatedAt;
 }

@@ -281,6 +281,9 @@ public class PaymentServiceImpl implements PaymentService {
             log.info("🔄 MAPPING: '{}' → '{}'", plan.getName(), newPlan);
 
             account.setPlan(newPlan);
+            if (plan.getStorageGb() != null) {
+                account.setStorageGb(plan.getStorageGb());
+            }
             Account savedAccount = accountRepo.save(account);
             
             log.info("╔══════════════════════════════════════════════════════════════");
@@ -289,6 +292,7 @@ public class PaymentServiceImpl implements PaymentService {
             log.info("║ Account ID    : {}                                     ", savedAccount.getId());
             log.info("║ Email         : {}                                     ", savedAccount.getEmail());
             log.info("║ NEW PLAN      : {}                                     ", savedAccount.getPlan());
+            log.info("║ STORAGE       : {} GB                                  ", savedAccount.getStorageGb());
             log.info("║ Updated At    : {}                                     ", savedAccount.getUpdatedAt());
             log.info("╚══════════════════════════════════════════════════════════════");
 
