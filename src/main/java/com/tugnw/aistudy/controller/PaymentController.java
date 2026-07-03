@@ -51,6 +51,13 @@ public class PaymentController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PostMapping("/verify/{orderCode}")
+    public ResponseEntity<?> verifyPayment(@PathVariable Long orderCode) {
+        log.info("Manual payment verification for orderCode: {}", orderCode);
+        paymentService.verifyAndProcessPayment(orderCode);
+        return ResponseEntity.ok().body("Payment verified successfully");
+    }
+
     //  Webhook endpoint (Priority 1)
     @PostMapping("/webhook")
     public ResponseEntity<?> handleWebhook(@RequestBody String payload,

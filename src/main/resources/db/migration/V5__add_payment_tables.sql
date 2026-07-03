@@ -44,7 +44,7 @@ ALTER TABLE account ADD COLUMN IF NOT EXISTS ai_questions_quota INTEGER DEFAULT 
 
 -- 5. Insert dữ liệu mẫu
 INSERT INTO payment_plan (name, description, storage_gb, ai_questions, price, is_active) VALUES
-                                                                                             ('Basic', 'Basic plan with 5GB storage and 100 AI questions', 5, 100, 50000, true),
-                                                                                             ('Pro', 'Pro plan with 20GB storage and 500 AI questions', 20, 500, 150000, true),
-                                                                                             ('Premium', 'Premium plan with 100GB storage and unlimited AI questions', 100, 999999, 300000, true)
+                                                                                             ('Free', 'Basic plan ', 1, 5, 0, true),
+                                                                                             ('Pro', 'Pro plan', 5, 20, 99000, true),
+                                                                                             ('Premium', 'Premium plan', 10, 50, 150000, true)
     ON CONFLICT (name) DO NOTHING;
