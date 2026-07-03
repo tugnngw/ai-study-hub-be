@@ -8,10 +8,12 @@ import com.tugnw.aistudy.domain.dto.payment.PaymentTransactionResponse;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.PaymentTransaction;
+import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.enums.PaymentStatus;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.PaymentPlanRepository;
 import com.tugnw.aistudy.repository.PaymentTransactionRepository;
+import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.PaymentService;
 import com.tugnw.aistudy.util.PayOSClient;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final AccountRepository accountRepo;
     private final PayOSClient payOSClient;
     private final ObjectMapper objectMapper;
+    private final ActivityLogService activityLogService;
 
     @Override
     public List<PaymentPlan> listActivePlans() {
@@ -286,6 +289,15 @@ public class PaymentServiceImpl implements PaymentService {
                 account.setStorageGb(plan.getStorageGb());
             }
             Account savedAccount = accountRepo.save(account);
+
+            // Log upgrade activity
+            activityLogService.logActivity(
+                    savedAccount.getId(),
+                    savedAccount.getUsername(),
+                    ActivityType.USER_UPGRADE,
+                    "Upgraded to " + newPlan + " plan",
+                    "Plan: " + plan.getName() + ", Amount: " + tx.getAmount() + " VND"
+            );
             
             log.info("╔══════════════════════════════════════════════════════════════");
             log.info("║              ✅ ACCOUNT UPDATED SUCCESSFULLY                  ║");

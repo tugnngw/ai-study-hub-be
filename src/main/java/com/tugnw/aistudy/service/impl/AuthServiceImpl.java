@@ -8,12 +8,14 @@ import com.tugnw.aistudy.domain.dto.auth.RegisterRequest;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
+import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.exception.InvalidTokenException;
 import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.security.JwtTokenProvider;
+import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.AuthService;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +40,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final AccountMapper accountMapper;
+    private final ActivityLogService activityLogService;
 
     @Override
     public AuthResponse register(RegisterRequest request) {
@@ -57,6 +60,14 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         accountRepository.save(account);
+
+        // Log activity for user registration
+        activityLogService.logActivity(
+                account.getId(),
+                account.getUsername(),
+                ActivityType.USER_REGISTER,
+                "User registered a new account"
+        );
 
         // Generate JWT tokens
         Authentication authentication = new UsernamePasswordAuthenticationToken(

@@ -3,10 +3,14 @@ package com.tugnw.aistudy.service.impl;
 import com.tugnw.aistudy.domain.dto.document.DocumentResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentUploadRequest;
 import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
+import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.entity.Document;
+import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.mapper.DocumentMapper;
+import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.ShareRepository;
+import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +34,8 @@ public class DocumentServiceImpl implements DocumentService {
     private final ShareRepository shareRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
+    private final ActivityLogService activityLogService;
+    private final AccountRepository accountRepository;
 
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -91,6 +97,17 @@ public class DocumentServiceImpl implements DocumentService {
             document.setStatus("COMPLETED");
 
             Document savedDocument = documentRepository.save(document);
+
+            // Log upload activity
+            Account owner = accountRepository.findById(ownerId).orElse(null);
+            if (owner != null) {
+                activityLogService.logActivity(
+                        ownerId,
+                        owner.getUsername(),
+                        ActivityType.DOCUMENT_UPLOAD,
+                        "Uploaded document: " + savedDocument.getTitle()
+                );
+            }
 
             // Add to responses
             responses.add(documentMapper.toResponse(savedDocument));
@@ -196,8 +213,25 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public String getDocumentDownloadUrl(UUID id, UUID ownerId) {
-        // TODO: Implement
-        return null;
+        Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        if (!isAdmin() && !document.getOwnerId().equals(ownerId) && !hasShareAccess(id, ownerId)) {
+            throw new RuntimeException("You do not have permission to access this document");
+        }
+
+        // Log download activity
+        Account owner = accountRepository.findById(ownerId).orElse(null);
+        if (owner != null) {
+            activityLogService.logActivity(
+                    ownerId,
+                    owner.getUsername(),
+                    ActivityType.DOCUMENT_DOWNLOAD,
+                    "Downloaded document: " + document.getTitle()
+            );
+        }
+
+        return document.getCloudinaryUrl();
     }
 
     @Override
