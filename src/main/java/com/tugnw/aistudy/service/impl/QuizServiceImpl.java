@@ -12,6 +12,8 @@ import com.tugnw.aistudy.domain.mapper.QuizMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.QuizRepository;
 import com.tugnw.aistudy.repository.QuestionRepository;
+import com.tugnw.aistudy.service.DocumentSourceResolver;
+import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.QuizService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
@@ -34,30 +36,36 @@ public class QuizServiceImpl implements QuizService {
     private final QuizRepository quizRepository;
     private final QuestionRepository questionRepository;
     private final QuizMapper quizMapper;
+    private final DocumentSourceResolver documentSourceResolver;
+    private final KnowledgePreparationService knowledgePreparationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional
-    public QuizResponse generateQuiz(UUID documentId, UUID requesterId, GenerateQuizRequest request) throws Exception {
-        System.out.println("[LOG - QUIZ] Starting quiz generation for document: " + documentId);
+    public QuizResponse generateQuiz(List<UUID> documentIds, UUID requesterId, GenerateQuizRequest request) throws Exception {
+        System.out.println("[LOG - QUIZ] Starting quiz generation for documents: " + documentIds);
 
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
-
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("You do not have permission to generate quiz for this document.");
+        // Resolve and authorize documents
+        List<Document> documents = documentSourceResolver.resolveByDocumentIds(documentIds);
+        if (documents.isEmpty()) {
+            throw new RuntimeException("No accessible documents found for the given IDs");
         }
 
-        String documentText = ragService.extractTextFromDocument(documentId, requesterId);
-        if (documentText == null || documentText.isBlank()) {
-            throw new RuntimeException("Unable to extract text from document.");
+        authorizeDocuments(documents, requesterId);
+
+        // Prepare merged knowledge from all documents
+        String mergedDocumentText = knowledgePreparationService.prepareKnowledge(documents, false);
+
+        if (mergedDocumentText == null || mergedDocumentText.isBlank()) {
+            throw new RuntimeException("Unable to extract text from documents.");
         }
 
-        System.out.println("[LOG - QUIZ] Extracted text length: " + documentText.length());
+        System.out.println("[LOG - QUIZ] Extracted merged text length: " + mergedDocumentText.length());
 
+        UUID firstDocumentId = documents.get(0).getId();
         Quiz quiz = Quiz.builder()
-                .documentId(documentId)
-                .title("AI-Generated Quiz from " + document.getTitle())
+                .documentId(firstDocumentId)
+                .title("AI-Generated Quiz from " + documents.size() + " document(s)")
                 .generatedByAi(true)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -66,7 +74,7 @@ public class QuizServiceImpl implements QuizService {
         System.out.println("[LOG - QUIZ] Created quiz with ID: " + savedQuiz.getId());
 
         List<Question> generatedQuestions = generateQuestionsFromText(
-                documentText,
+                mergedDocumentText,
                 savedQuiz.getId(),
                 request.getNumberOfQuestions()
         );
@@ -122,7 +130,7 @@ public class QuizServiceImpl implements QuizService {
                 "Document:\n%s\n\n" +
                 "Return ONLY valid JSON array, no markdown formatting, no code blocks.",
                 numberOfQuestions,
-                documentText.substring(0, Math.min(3000, documentText.length()))
+                documentText.substring(0, Math.min(5000, documentText.length()))
         );
 
         String aiResponse = ragService.generateContent(prompt);
@@ -145,7 +153,7 @@ public class QuizServiceImpl implements QuizService {
                     String correctAnswer = item.has("correctAnswer") ? item.get("correctAnswer").asText().trim() : "";
 
                     if (!content.isBlank() && !optionA.isBlank() && !optionB.isBlank() &&
-                        !optionC.isBlank() && !optionD.isBlank() && !correctAnswer.isBlank()) {
+                            !optionC.isBlank() && !optionD.isBlank() && !correctAnswer.isBlank()) {
                         Question question = Question.builder()
                                 .quizId(quizId)
                                 .content(content)
@@ -165,6 +173,14 @@ public class QuizServiceImpl implements QuizService {
             throw new RuntimeException("Failed to parse AI-generated questions.", e);
         }
         return questions;
+    }
+
+    private void authorizeDocuments(List<Document> documents, UUID requesterId) {
+        for (Document doc : documents) {
+            if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
+                throw new RuntimeException("Access denied to document: " + doc.getId());
+            }
+        }
     }
 
     private boolean isAdmin() {

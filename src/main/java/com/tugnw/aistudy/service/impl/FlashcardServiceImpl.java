@@ -9,7 +9,9 @@ import com.tugnw.aistudy.domain.entity.Flashcard;
 import com.tugnw.aistudy.domain.mapper.FlashcardMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.FlashcardRepository;
+import com.tugnw.aistudy.service.DocumentSourceResolver;
 import com.tugnw.aistudy.service.FlashcardService;
+import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -30,28 +32,31 @@ public class FlashcardServiceImpl implements FlashcardService {
     private final DocumentRepository documentRepository;
     private final FlashcardRepository flashcardRepository;
     private final FlashcardMapper flashcardMapper;
+    private final DocumentSourceResolver documentSourceResolver;
+    private final KnowledgePreparationService knowledgePreparationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional
-    public List<FlashcardResponse> generateFlashcards(UUID documentId, UUID requesterId, GenerateFlashcardsRequest request) throws Exception {
-        System.out.println("[LOG - FLASHCARD] Starting flashcard generation for document: " + documentId);
+    public List<FlashcardResponse> generateFlashcards(List<UUID> documentIds, UUID requesterId, GenerateFlashcardsRequest request) throws Exception {
+        System.out.println("[LOG - FLASHCARD] Starting flashcard generation for documents: " + documentIds);
 
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
-
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("You do not have permission to generate flashcards for this document.");
+        List<Document> documents = documentSourceResolver.resolveByDocumentIds(documentIds);
+        if (documents.isEmpty()) {
+            throw new RuntimeException("No accessible documents found for the given IDs");
         }
 
-        String documentText = ragService.extractTextFromDocument(documentId, requesterId);
-        if (documentText == null || documentText.isBlank()) {
-            throw new RuntimeException("Unable to extract text from document.");
+        authorizeDocuments(documents, requesterId);
+
+        String mergedDocumentText = knowledgePreparationService.prepareKnowledge(documents, false);
+
+        if (mergedDocumentText == null || mergedDocumentText.isBlank()) {
+            throw new RuntimeException("Unable to extract text from documents.");
         }
 
-        System.out.println("[LOG - FLASHCARD] Extracted text length: " + documentText.length());
+        System.out.println("[LOG - FLASHCARD] Extracted merged text length: " + mergedDocumentText.length());
 
-        List<Flashcard> generatedFlashcards = generateFlashcardsFromText(documentText, documentId, request.getNumberOfCards());
+        List<Flashcard> generatedFlashcards = generateFlashcardsFromText(mergedDocumentText, documentIds.get(0), request.getNumberOfCards());
         flashcardRepository.saveAll(generatedFlashcards);
 
         System.out.println("[LOG - FLASHCARD] Successfully generated and saved " + generatedFlashcards.size() + " flashcards.");
@@ -117,6 +122,14 @@ public class FlashcardServiceImpl implements FlashcardService {
             throw new RuntimeException("Failed to parse AI-generated flashcards.", e);
         }
         return flashcards;
+    }
+
+    private void authorizeDocuments(List<Document> documents, UUID requesterId) {
+        for (Document doc : documents) {
+            if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
+                throw new RuntimeException("Access denied to document: " + doc.getId());
+            }
+        }
     }
 
     private boolean isAdmin() {
