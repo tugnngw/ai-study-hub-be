@@ -70,4 +70,16 @@ public class PaymentController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @GetMapping("/my-transactions")
+    public ResponseEntity<?> getMyTransactions(Authentication authentication) {
+        Object principal = authentication.getPrincipal();
+        UUID userId;
+        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails) {
+            userId = ((com.tugnw.aistudy.security.CustomUserDetails) principal).getAccount().getId();
+        } else {
+            userId = UUID.fromString(principal.toString());
+        }
+        return ResponseEntity.ok(paymentService.getUserTransactions(userId));
+    }
 }

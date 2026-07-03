@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tugnw.aistudy.domain.dto.payment.AdminTransactionResponse;
 import com.tugnw.aistudy.domain.dto.payment.PaymentResponse;
+import com.tugnw.aistudy.domain.dto.payment.PaymentTransactionResponse;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.PaymentTransaction;
@@ -330,8 +331,26 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public List<PaymentTransaction> getUserTransactions(UUID userId) {
-        return txRepo.findByAccountIdOrderByCreatedAtDesc(userId);
+    public List<PaymentTransactionResponse> getUserTransactions(UUID userId) {
+        List<PaymentTransaction> transactions = txRepo.findByAccountIdOrderByCreatedAtDesc(userId);
+        return transactions.stream()
+                .map(this::convertToUserResponse)
+                .toList();
+    }
+
+    private PaymentTransactionResponse convertToUserResponse(PaymentTransaction tx) {
+        return PaymentTransactionResponse.builder()
+                .id(tx.getId())
+                .accountId(tx.getAccountId().toString())
+                .planName(tx.getPlan() != null ? tx.getPlan().getName() : "N/A")
+                .amount(tx.getAmount())
+                .status(tx.getStatus().name())
+                .description(tx.getDescription())
+                .transactionId(tx.getTransactionId())
+                .payosOrderCode(tx.getPayosOrderCode())
+                .createdAt(tx.getCreatedAt())
+                .updatedAt(tx.getUpdatedAt())
+                .build();
     }
 
     @Override
