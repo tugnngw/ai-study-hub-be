@@ -178,7 +178,7 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (!isAdmin() && !document.getOwnerId().equals(ownerId)) {
+        if (!document.getOwnerId().equals(ownerId)) {
             throw new RuntimeException("You do not have permission to delete this document");
         }
 

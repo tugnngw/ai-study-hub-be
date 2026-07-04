@@ -20,4 +20,5 @@ public class DocumentResponse {
     private Long fileSize;
     private String cloudinaryUrl;
     private LocalDateTime createdAt;
+    private LocalDateTime deletedAt;
 }
