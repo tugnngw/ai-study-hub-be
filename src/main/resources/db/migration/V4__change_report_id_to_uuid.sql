@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS report CASCADE;
+
 CREATE TABLE report (
                         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         reporter_id UUID NOT NULL REFERENCES account(id) ON DELETE CASCADE,
