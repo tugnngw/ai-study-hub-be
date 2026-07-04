@@ -101,6 +101,10 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException("Invalid username or password");
         }
 
+        if (account.getStatus() != AccountStatus.ACTIVE) {
+            throw new InvalidCredentialsException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để biết thêm chi tiết.");
+        }
+
         // Verify password
         if (!passwordEncoder.matches(request.password(), account.getPasswordHash())) {
             throw new InvalidCredentialsException("Invalid username or password");
@@ -148,6 +152,10 @@ public class AuthServiceImpl implements AuthService {
         Account account = accountRepository.findByUsername(username);
         if (account == null) {
             throw new InvalidTokenException("Account not found for refresh token");
+        }
+
+        if (account.getStatus() != AccountStatus.ACTIVE) {
+            throw new InvalidTokenException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để biết thêm chi tiết.");
         }
 
         // Create authentication from the account

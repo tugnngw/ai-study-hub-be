@@ -17,6 +17,7 @@ import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.QuizService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -100,7 +101,7 @@ public class QuizServiceImpl implements QuizService {
                 .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
 
         if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("You do not have permission to access quizzes for this document.");
+            throw new AccessDeniedException("You do not have permission to access quizzes for this document.");
         }
 
         List<Quiz> quizzes = quizRepository.findByDocumentIdOrderByCreatedAtDesc(documentId);
@@ -178,7 +179,7 @@ public class QuizServiceImpl implements QuizService {
     private void authorizeDocuments(List<Document> documents, UUID requesterId) {
         for (Document doc : documents) {
             if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
-                throw new RuntimeException("Access denied to document: " + doc.getId());
+                throw new AccessDeniedException("Access denied to document: " + doc.getId());
             }
         }
     }

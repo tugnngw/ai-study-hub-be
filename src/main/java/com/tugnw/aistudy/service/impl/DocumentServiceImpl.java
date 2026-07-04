@@ -14,6 +14,7 @@ import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -56,7 +57,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
         if (!isAdmin() && !document.getOwnerId().equals(requesterId) && !hasShareAccess(id, requesterId)) {
-            throw new RuntimeException("You do not have permission to access this document");
+            throw new AccessDeniedException("You do not have permission to access this document");
         }
 
         return documentMapper.toResponse(document);
@@ -147,7 +148,7 @@ public class DocumentServiceImpl implements DocumentService {
     public List<DocumentResponse> getSharedFolderDocuments(UUID userId, UUID folderId) {
         boolean hasFolderShareAccess = shareRepository.existsByFolderIdAndSharedAccountIdAndRevokedFalse(folderId, userId);
         if (!hasFolderShareAccess && !isAdmin()) {
-            throw new RuntimeException("You do not have permission to access this shared folder");
+            throw new AccessDeniedException("You do not have permission to access this shared folder");
         }
 
         List<Document> documents = documentRepository
@@ -165,7 +166,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
         if (!isAdmin() && !document.getOwnerId().equals(ownerId) && !hasShareAccess(id, ownerId)) {
-            throw new RuntimeException("You do not have permission to access this document");
+            throw new AccessDeniedException("You do not have permission to access this document");
         }
 
         return documentMapper.toResponse(document);
@@ -177,7 +178,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
         if (!isAdmin() && !document.getOwnerId().equals(ownerId)) {
-            throw new RuntimeException("You do not have permission to update this document");
+            throw new AccessDeniedException("You do not have permission to update this document");
         }
 
         if (request.getTitle() != null) document.setTitle(request.getTitle());
@@ -195,7 +196,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
         if (!document.getOwnerId().equals(ownerId)) {
-            throw new RuntimeException("You do not have permission to delete this document");
+            throw new AccessDeniedException("You do not have permission to delete this document");
         }
 
         document.setDeletedAt(LocalDateTime.now());
@@ -220,7 +221,7 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("You do not have permission to restore this document");
+            throw new AccessDeniedException("You do not have permission to restore this document");
         }
 
         document.setDeletedAt(null);
@@ -233,7 +234,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
         if (!isAdmin() && !document.getOwnerId().equals(ownerId) && !hasShareAccess(id, ownerId)) {
-            throw new RuntimeException("You do not have permission to access this document");
+            throw new AccessDeniedException("You do not have permission to access this document");
         }
 
         // Log download activity

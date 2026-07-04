@@ -8,6 +8,7 @@ import com.tugnw.aistudy.domain.mapper.FolderMapper;
 import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.service.FolderService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -69,7 +70,7 @@ public class FolderServiceImpl implements FolderService {
 
         // Check ownership
         if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
-            throw new RuntimeException("You do not have permission to access this folder");
+            throw new AccessDeniedException("You do not have permission to access this folder");
         }
 
         return folderMapper.toResponse(folder);
@@ -84,7 +85,7 @@ public class FolderServiceImpl implements FolderService {
 
         // Check ownership
         if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
-            throw new RuntimeException("You do not have permission to update this folder");
+            throw new AccessDeniedException("You do not have permission to update this folder");
         }
 
         // Check duplicate name if name is changed
@@ -109,7 +110,7 @@ public class FolderServiceImpl implements FolderService {
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
 
         if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
-            throw new RuntimeException("You do not have permission to delete this folder");
+            throw new AccessDeniedException("You do not have permission to delete this folder");
         }
 
         folder.setDeletedAt(LocalDateTime.now());

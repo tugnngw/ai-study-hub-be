@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -70,7 +71,7 @@ public class RagServiceImpl implements RagService {
                 .orElseThrow(() -> new RuntimeException("Tài liệu không tồn tại hoặc đã bị xóa."));
 
         if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("You do not have permission to access this document");
+            throw new AccessDeniedException("You do not have permission to access this document");
         }
 
         String fileUrl = document.getCloudinaryUrl();
@@ -119,7 +120,7 @@ public class RagServiceImpl implements RagService {
         Document docStatus = documentRepository.findByIdAndDeletedAtIsNull(documentId).orElse(null);
         if (docStatus != null) {
             if (!isAdmin() && !docStatus.getOwnerId().equals(requesterId)) {
-                throw new RuntimeException("You do not have permission to process this document");
+                throw new AccessDeniedException("You do not have permission to process this document");
             }
             docStatus.setStatus("READY");
             documentRepository.save(docStatus);
@@ -180,7 +181,7 @@ public class RagServiceImpl implements RagService {
         Folder folder = folderRepository.findByIdAndDeletedAtIsNull(folderId)
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
         if (!isAdmin() && !folder.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("You do not have permission to process this folder");
+            throw new AccessDeniedException("You do not have permission to process this folder");
         }
         List<Document> documents = documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
         for (Document doc : documents) {
@@ -294,12 +295,12 @@ public class RagServiceImpl implements RagService {
         if (chatRequest.getDocumentId() != null) {
             Document document = documentRepository.findByIdAndDeletedAtIsNull(chatRequest.getDocumentId()).orElse(null);
             if (document != null && !isAdmin() && !document.getOwnerId().equals(requesterId)) {
-                throw new RuntimeException("You do not have permission to access this document");
+                throw new AccessDeniedException("You do not have permission to view this document");
             }
         } else if (chatRequest.getFolderId() != null) {
             Folder folder = folderRepository.findByIdAndDeletedAtIsNull(chatRequest.getFolderId()).orElse(null);
             if (folder != null && !isAdmin() && !folder.getOwnerId().equals(requesterId)) {
-                throw new RuntimeException("You do not have permission to access this folder");
+                throw new AccessDeniedException("You do not have permission to access this folder");
             }
         }
         List<Double> queryVector = getEmbeddingFromGemini(chatRequest.getQuestion());
