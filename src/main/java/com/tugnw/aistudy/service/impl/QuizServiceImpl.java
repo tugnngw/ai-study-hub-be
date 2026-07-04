@@ -12,7 +12,6 @@ import com.tugnw.aistudy.domain.mapper.QuizMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.QuizRepository;
 import com.tugnw.aistudy.repository.QuestionRepository;
-import com.tugnw.aistudy.service.DocumentSourceResolver;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.QuizService;
 import com.tugnw.aistudy.service.RagService;
