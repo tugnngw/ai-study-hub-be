@@ -9,7 +9,6 @@ import com.tugnw.aistudy.domain.entity.Flashcard;
 import com.tugnw.aistudy.domain.mapper.FlashcardMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.FlashcardRepository;
-import com.tugnw.aistudy.service.DocumentSourceResolver;
 import com.tugnw.aistudy.service.FlashcardService;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.RagService;

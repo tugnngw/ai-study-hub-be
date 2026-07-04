@@ -1,4 +1,4 @@
-package com.tugnw.aistudy.service;
+package com.tugnw.aistudy.service.impl;
 
 import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.repository.DocumentRepository;
