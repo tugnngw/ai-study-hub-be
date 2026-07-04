@@ -4,6 +4,7 @@ import com.tugnw.aistudy.domain.dto.document.DocumentResponse;
 import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.repository.DocumentRepository;
+import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.AdminDocumentService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
 
     private final DocumentRepository documentRepository;
     private final ActivityLogService activityLogService;
+    private final ShareRepository shareRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -98,6 +100,13 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
                 .orElseThrow(() -> new RuntimeException("Document not found"));
         document.setStatus("REJECT");
         documentRepository.save(document);
+        
+        shareRepository.findByDocumentId(id).forEach(share -> {
+            log.info("[ADMIN REJECT] Revoking share {} for rejected document {}", share.getId(), id);
+            shareRepository.delete(share);
+        });
+        
+        log.info("[ADMIN REJECT] Document {} rejected and all shares revoked", id);
     }
 
     private DocumentResponse toResponse(Document document) {

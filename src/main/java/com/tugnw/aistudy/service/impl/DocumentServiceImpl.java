@@ -144,6 +144,22 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<DocumentResponse> getSharedFolderDocuments(UUID userId, UUID folderId) {
+        boolean hasFolderShareAccess = shareRepository.existsByFolderIdAndSharedAccountIdAndRevokedFalse(folderId, userId);
+        if (!hasFolderShareAccess && !isAdmin()) {
+            throw new RuntimeException("You do not have permission to access this shared folder");
+        }
+
+        List<Document> documents = documentRepository
+                .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(folderId, "READY");
+
+        return documents.stream()
+                .map(documentMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public DocumentResponse getDocumentById(UUID id, UUID ownerId) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));

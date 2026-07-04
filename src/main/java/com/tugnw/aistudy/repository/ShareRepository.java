@@ -19,6 +19,8 @@ public interface ShareRepository extends JpaRepository<Share, Long> {
     boolean existsByOwnerIdAndVisibility(UUID ownerId, String visibility);
     boolean existsByDocumentIdAndSharedAccountIdAndRevokedFalse(UUID documentId, UUID sharedAccountId);
 
+    boolean existsByFolderIdAndSharedAccountIdAndRevokedFalse(UUID folderId, UUID sharedAccountId);
+
     @Query("SELECT s FROM Share s WHERE s.folder.id = :folderId")
     List<Share> findByFolderId(@Param("folderId") UUID folderId);
     

@@ -68,6 +68,16 @@ public class DocumentController {
         return ResponseEntity.ok(responses);
     }
 
+    @GetMapping("/shared/folder/{folderId}")
+    public ResponseEntity<List<DocumentResponse>> getSharedFolderDocuments(
+            @PathVariable UUID folderId,
+            Authentication authentication) {
+
+        UUID userId = getCurrentUserId(authentication);
+        List<DocumentResponse> responses = documentService.getSharedFolderDocuments(userId, folderId);
+        return ResponseEntity.ok(responses);
+    }
+
     @GetMapping("/shared")
     public ResponseEntity<List<DocumentResponse>> getSharedDocuments(Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);

@@ -17,6 +17,8 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     List<Document> findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID folderId);
 
+    List<Document> findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(UUID folderId, String status);
+
     Long countByOwnerIdAndDeletedAtIsNull(UUID ownerId);
 
     // Kiểm tra storage usage

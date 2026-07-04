@@ -21,7 +21,8 @@ public record ShareResponse(
         List<ShareRecipient> recipients,
         String documentTitle,
         String folderName,
-        String cloudinaryUrl
+        String cloudinaryUrl,
+        String documentStatus
 ) {
     public record ShareRecipient(
             UUID accountId,

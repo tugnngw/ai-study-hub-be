@@ -42,6 +42,13 @@ public class ShareController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/token/{shareToken}")
+    public ResponseEntity<Void> deleteShareByToken(@PathVariable String shareToken, Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        shareService.removeShareByToken(shareToken, ownerId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{shareId}/save")
     public ResponseEntity<ShareResponse> saveToMyFolder(
             @PathVariable Long shareId,

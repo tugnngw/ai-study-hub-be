@@ -15,6 +15,8 @@ public interface DocumentService {
 
     List<DocumentResponse> getDocumentsByFolder(UUID ownerId, UUID folderId);
 
+    List<DocumentResponse> getSharedFolderDocuments(UUID userId, UUID folderId);
+
     DocumentResponse getDocumentById(UUID id, UUID ownerId);
 
     DocumentResponse getSharedDocumentById(UUID id, UUID requesterId);
