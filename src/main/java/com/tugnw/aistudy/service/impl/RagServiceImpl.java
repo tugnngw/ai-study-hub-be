@@ -121,7 +121,7 @@ public class RagServiceImpl implements RagService {
             if (!isAdmin() && !docStatus.getOwnerId().equals(requesterId)) {
                 throw new RuntimeException("You do not have permission to process this document");
             }
-            docStatus.setStatus("PROCESSING");
+            docStatus.setStatus("READY");
             documentRepository.save(docStatus);
         }
 
@@ -168,7 +168,7 @@ public class RagServiceImpl implements RagService {
         } catch (Exception e) {
             System.err.println("[LOG - PIPELINE LỖI] Toàn bộ tiến trình thất bại: " + e.getMessage());
             if (docStatus != null) {
-                docStatus.setStatus("failed");
+                docStatus.setStatus("REJECT");
                 documentRepository.save(docStatus);
             }
             throw e;
