@@ -7,6 +7,8 @@ import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareRequest;
 import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.ShareService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +21,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/documents")
+@Tag(name = "Documents", description = "Document CRUD, upload, share, trash")
 @Validated
 @CrossOrigin(origins = "*", allowedHeaders = "*", exposedHeaders = "Authorization")
 public class DocumentController {
@@ -32,12 +35,12 @@ public class DocumentController {
     }
 
     @PostMapping(consumes = {"multipart/form-data"})
+    @Operation(summary = "Upload documents to a folder")
     public ResponseEntity<List<DocumentResponse>> uploadDocument(
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "title", required = false) String title,
             @RequestParam(value = "description", required = false) String description,
             @RequestParam(value = "folderId", required = false) UUID folderId,
-            @RequestParam(value = "subjectId", required = false) Long subjectId,
             Authentication authentication) {
 
         DocumentUploadRequest request = new DocumentUploadRequest();
@@ -45,7 +48,6 @@ public class DocumentController {
         if (title != null) request.setTitle(title);
         if (description != null) request.setDescription(description);
         request.setFolderId(folderId);
-        request.setSubjectId(subjectId);
 
         UUID ownerId = getCurrentUserId(authentication);
         List<DocumentResponse> responses = documentService.uploadDocuments(ownerId, request);
@@ -53,12 +55,14 @@ public class DocumentController {
     }
 
     @GetMapping
+    @Operation(summary = "List current user's documents")
     public ResponseEntity<List<DocumentResponse>> getDocuments(Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         return ResponseEntity.ok(documentService.getDocumentsByOwner(ownerId));
     }
 
     @GetMapping("/folder/{folderId}")
+    @Operation(summary = "List documents in a folder")
     public ResponseEntity<List<DocumentResponse>> getDocumentsByFolder(
             @PathVariable UUID folderId,
             Authentication authentication) {
@@ -69,6 +73,7 @@ public class DocumentController {
     }
 
     @GetMapping("/shared/folder/{folderId}")
+    @Operation(summary = "List documents in a shared folder")
     public ResponseEntity<List<DocumentResponse>> getSharedFolderDocuments(
             @PathVariable UUID folderId,
             Authentication authentication) {
@@ -79,18 +84,21 @@ public class DocumentController {
     }
 
     @GetMapping("/shared")
+    @Operation(summary = "List shared documents (TODO)")
     public ResponseEntity<List<DocumentResponse>> getSharedDocuments(Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
-        return ResponseEntity.ok(List.of()); // TODO: Implement share logic
+        return ResponseEntity.ok(List.of());
     }
 
     @GetMapping("/trash")
+    @Operation(summary = "List soft-deleted documents")
     public ResponseEntity<List<DocumentResponse>> getTrashDocuments(Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         return ResponseEntity.ok(documentService.getTrashDocuments(ownerId));
     }
 
     @PostMapping("/{id}/restore")
+    @Operation(summary = "Restore document from trash")
     public ResponseEntity<Void> restoreDocument(@PathVariable UUID id, Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         documentService.restoreDocument(id, ownerId);
@@ -98,6 +106,7 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get document by ID")
     public ResponseEntity<DocumentResponse> getDocumentById(
             @PathVariable UUID id,
             Authentication authentication) {
@@ -108,6 +117,7 @@ public class DocumentController {
     }
 
     @GetMapping("/shared/{id}")
+    @Operation(summary = "Get shared document by ID")
     public ResponseEntity<DocumentResponse> getSharedDocumentById(
             @PathVariable UUID id,
             Authentication authentication) {
@@ -118,6 +128,7 @@ public class DocumentController {
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update document metadata")
     public ResponseEntity<DocumentResponse> updateDocument(
             @PathVariable UUID id,
             @RequestBody DocumentUpdateRequest request,
@@ -129,6 +140,7 @@ public class DocumentController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Soft-delete document")
     public ResponseEntity<Void> deleteDocument(@PathVariable UUID id, Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         documentService.deleteDocument(id, ownerId);
@@ -136,6 +148,7 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}/download")
+    @Operation(summary = "Get document download URL")
     public ResponseEntity<String> getDownloadUrl(
             @PathVariable UUID id,
             Authentication authentication) {
@@ -145,6 +158,7 @@ public class DocumentController {
     }
 
     @PostMapping("/{id}/share")
+    @Operation(summary = "Share a document with another user")
     public ResponseEntity<ShareResponse> shareDocument(
             @PathVariable UUID id,
             @RequestBody ShareRequest request,
@@ -155,6 +169,7 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}/share-info")
+    @Operation(summary = "Get document share info")
     public ResponseEntity<ShareResponse> getDocumentShareInfo(
             @PathVariable UUID id,
             Authentication authentication) {
@@ -166,12 +181,10 @@ public class DocumentController {
         if (authentication == null || authentication.getPrincipal() == null) {
             throw new RuntimeException("User chưa đăng nhập");
         }
-
         Object principal = authentication.getPrincipal();
         if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
             return userDetails.getAccount().getId();
         }
-
         throw new RuntimeException("Không thể xác định user");
     }
 }

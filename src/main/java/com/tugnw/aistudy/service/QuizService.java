@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface QuizService {
 
-    QuizResponse generateQuiz(List<UUID> documentIds, UUID requesterId, GenerateQuizRequest request) throws Exception;
+    QuizResponse generateQuiz(UUID documentId, UUID requesterId, GenerateQuizRequest request) throws Exception;
 
     List<QuizResponse> getQuizByDocument(UUID documentId, UUID requesterId);
 }

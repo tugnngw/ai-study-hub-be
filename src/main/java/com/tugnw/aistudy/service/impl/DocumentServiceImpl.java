@@ -184,7 +184,6 @@ public class DocumentServiceImpl implements DocumentService {
         if (request.getTitle() != null) document.setTitle(request.getTitle());
         if (request.getDescription() != null) document.setDescription(request.getDescription());
         if (request.getFolderId() != null) document.setFolderId(request.getFolderId());
-        if (request.getSubjectId() != null) document.setSubjectId(request.getSubjectId());
 
         Document updatedDocument = documentRepository.save(document);
         return documentMapper.toResponse(updatedDocument);

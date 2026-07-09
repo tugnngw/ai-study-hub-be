@@ -4,8 +4,10 @@ import com.tugnw.aistudy.domain.dto.folder.FolderCreateRequest;
 import com.tugnw.aistudy.domain.dto.folder.FolderResponse;
 import com.tugnw.aistudy.domain.dto.folder.FolderUpdateRequest;
 import com.tugnw.aistudy.domain.entity.Folder;
+import com.tugnw.aistudy.domain.entity.Subject;
 import com.tugnw.aistudy.domain.mapper.FolderMapper;
 import com.tugnw.aistudy.repository.FolderRepository;
+import com.tugnw.aistudy.repository.SubjectRepository;
 import com.tugnw.aistudy.service.FolderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -25,6 +27,7 @@ public class FolderServiceImpl implements FolderService {
 
     private final FolderRepository folderRepository;
     private final FolderMapper folderMapper;
+    private final SubjectRepository subjectRepository;
 
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -32,25 +35,24 @@ public class FolderServiceImpl implements FolderService {
             .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
-
-    //Create a new folder
     @Override
     public FolderResponse createFolder(UUID ownerId, FolderCreateRequest request) {
-        // Check if folder name already exists for this user
         boolean exists = folderRepository.existsByOwnerIdAndNameAndDeletedAtIsNull(ownerId, request.getName());
         if (exists) {
             throw new RuntimeException("Folder with this name already exists");
         }
 
+        Subject subject = subjectRepository.findById(request.getSubjectId())
+                .orElseThrow(() -> new RuntimeException("Subject not found"));
+
         Folder folder = folderMapper.toEntity(request);
         folder.setOwnerId(ownerId);
+        folder.setSubject(subject);
 
         Folder savedFolder = folderRepository.save(folder);
         return folderMapper.toResponse(savedFolder);
     }
 
-
-    //Get all folders of a user
     @Override
     @Transactional(readOnly = true)
     public List<FolderResponse> getFoldersByOwner(UUID ownerId) {
@@ -61,14 +63,12 @@ public class FolderServiceImpl implements FolderService {
                 .toList();
     }
 
-    // Get folder by ID
     @Override
     @Transactional(readOnly = true)
     public FolderResponse getFolderById(UUID id, UUID ownerId) {
         Folder folder = folderRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
 
-        // Check ownership
         if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
             throw new AccessDeniedException("You do not have permission to access this folder");
         }
@@ -76,19 +76,15 @@ public class FolderServiceImpl implements FolderService {
         return folderMapper.toResponse(folder);
     }
 
-
-    //Update folder
     @Override
     public FolderResponse updateFolder(UUID id, UUID ownerId, FolderUpdateRequest request) {
         Folder folder = folderRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
 
-        // Check ownership
         if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
             throw new AccessDeniedException("You do not have permission to update this folder");
         }
 
-        // Check duplicate name if name is changed
         if (request.getName() != null && !request.getName().trim().isEmpty()
                 && !request.getName().equals(folder.getName())) {
 
@@ -99,11 +95,16 @@ public class FolderServiceImpl implements FolderService {
             folder.setName(request.getName());
         }
 
+        if (request.getSubjectId() != null) {
+            Subject subject = subjectRepository.findById(request.getSubjectId())
+                    .orElseThrow(() -> new RuntimeException("Subject not found"));
+            folder.setSubject(subject);
+        }
+
         Folder updatedFolder = folderRepository.save(folder);
         return folderMapper.toResponse(updatedFolder);
     }
 
-    //Delete folder (Soft delete)
     @Override
     public void deleteFolder(UUID id, UUID ownerId) {
         Folder folder = folderRepository.findByIdAndDeletedAtIsNull(id)

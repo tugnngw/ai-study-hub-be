@@ -1,0 +1,99 @@
+{
+  "info": {
+    "name": "AI Study Hub",
+    "description": "Complete API collection for AI Study Hub backend.\n\nHierarchy: Semester → Subject → Folder → Document → AI Features\n\nAuth: Register/Login → copy `accessToken` → set as `{{token}}` variable.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        { "name": "Register", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "body": {"mode":"raw","raw":"{\"username\":\"testuser\",\"password\":\"TestPass123\",\"fullName\":\"Test User\"}"}, "url": {"raw":"{{baseUrl}}/api/auth/register","host":["{{baseUrl}}"],"path":["api","auth","register"]} } },
+        { "name": "Login", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "body": {"mode":"raw","raw":"{\"username\":\"testuser\",\"password\":\"TestPass123\"}"}, "url": {"raw":"{{baseUrl}}/api/auth/login","host":["{{baseUrl}}"],"path":["api","auth","login"]} } },
+        { "name": "Refresh Token", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "body": {"mode":"raw","raw":"{\"refreshToken\":\"...\""}, "url": {"raw":"{{baseUrl}}/api/auth/refresh","host":["{{baseUrl}}"],"path":["api","auth","refresh"]} } },
+        { "name": "Logout", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/auth/logout","host":["{{baseUrl}}"],"path":["api","auth","logout"]} } }
+      ]
+    },
+    {
+      "name": "Account",
+      "item": [
+        { "name": "Get Me", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/account/me","host":["{{baseUrl}}"],"path":["api","account","me"]} } }
+      ]
+    },
+    {
+      "name": "Semesters",
+      "item": [
+        { "name": "List All", "request": { "method": "GET", "url": {"raw":"{{baseUrl}}/api/semesters","host":["{{baseUrl}}"],"path":["api","semesters"]} } },
+        { "name": "Get By ID", "request": { "method": "GET", "url": {"raw":"{{baseUrl}}/api/semesters/1","host":["{{baseUrl}}"],"path":["api","semesters","1"]} } },
+        { "name": "Create (Admin)", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}], "body": {"mode":"raw","raw":"{\"name\":\"Spring 2025\",\"startDate\":\"2025-01-15\",\"endDate\":\"2025-05-20\"}"}, "url": {"raw":"{{baseUrl}}/api/semesters","host":["{{baseUrl}}"],"path":["api","semesters"]} } },
+        { "name": "Delete (Admin)", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/semesters/1","host":["{{baseUrl}}"],"path":["api","semesters","1"]} } }
+      ]
+    },
+    {
+      "name": "Subjects",
+      "item": [
+        { "name": "List By Semester", "request": { "method": "GET", "url": {"raw":"{{baseUrl}}/api/subjects/semester/1","host":["{{baseUrl}}"],"path":["api","subjects","semester","1"]} } },
+        { "name": "Get By ID", "request": { "method": "GET", "url": {"raw":"{{baseUrl}}/api/subjects/1","host":["{{baseUrl}}"],"path":["api","subjects","1"]} } },
+        { "name": "Create (Admin)", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}], "body": {"mode":"raw","raw":"{\"semesterId\":1,\"code\":\"SWP391\",\"name\":\"Software Development Project\"}"}, "url": {"raw":"{{baseUrl}}/api/subjects","host":["{{baseUrl}}"],"path":["api","subjects"]} } },
+        { "name": "Delete (Admin)", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/subjects/1","host":["{{baseUrl}}"],"path":["api","subjects","1"]} } }
+      ]
+    },
+    {
+      "name": "Folders",
+      "item": [
+        { "name": "Create", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}], "body": {"mode":"raw","raw":"{\"name\":\"Chapter 1\",\"subjectId\":1}"}, "url": {"raw":"{{baseUrl}}/api/folder/create","host":["{{baseUrl}}"],"path":["api","folder","create"]} } },
+        { "name": "List All", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/folder/getall","host":["{{baseUrl}}"],"path":["api","folder","getall"]} } },
+        { "name": "Get By ID", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/folder/getbyid/{{folderId}}","host":["{{baseUrl}}"],"path":["api","folder","getbyid","{{folderId}}"]} } },
+        { "name": "Update", "request": { "method": "PUT", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}], "body": {"mode":"raw","raw":"{\"name\":\"Updated Chapter\"}"}, "url": {"raw":"{{baseUrl}}/api/folder/update/{{folderId}}","host":["{{baseUrl}}"],"path":["api","folder","update","{{folderId}}"]} } },
+        { "name": "Delete", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/folder/delete/{{folderId}}","host":["{{baseUrl}}"],"path":["api","folder","delete","{{folderId}}"]} } }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        { "name": "Upload", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "body": {"mode":"formdata","formdata":[{"key":"files","type":"file","src":""},{"key":"title","value":"My Document"},{"key":"folderId","value":"{{folderId}}"}]}, "url": {"raw":"{{baseUrl}}/api/documents","host":["{{baseUrl}}"],"path":["api","documents"]} } },
+        { "name": "List All", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/documents","host":["{{baseUrl}}"],"path":["api","documents"]} } },
+        { "name": "List By Folder", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/documents/folder/{{folderId}}","host":["{{baseUrl}}"],"path":["api","documents","folder","{{folderId}}"]} } },
+        { "name": "Get By ID", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/documents/{{documentId}}","host":["{{baseUrl}}"],"path":["api","documents","{{documentId}}"]} } },
+        { "name": "Update", "request": { "method": "PUT", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}], "body": {"mode":"raw","raw":"{\"title\":\"Updated Title\"}"}, "url": {"raw":"{{baseUrl}}/api/documents/{{documentId}}","host":["{{baseUrl}}"],"path":["api","documents","{{documentId}}"]} } },
+        { "name": "Delete", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/documents/{{documentId}}","host":["{{baseUrl}}"],"path":["api","documents","{{documentId}}"]} } },
+        { "name": "Restore", "request": { "method": "POST", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/documents/{{documentId}}/restore","host":["{{baseUrl}}"],"path":["api","documents","{{documentId}}","restore"]} } },
+        { "name": "Trash", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/documents/trash","host":["{{baseUrl}}"],"path":["api","documents","trash"]} } },
+        { "name": "Download URL", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/documents/{{documentId}}/download","host":["{{baseUrl}}"],"path":["api","documents","{{documentId}}","download"]} } }
+      ]
+    },
+    {
+      "name": "AI Summary",
+      "item": [
+        { "name": "Generate", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}], "body": {"mode":"raw","raw":"{\"documentId\":\"{{documentId}}\",\"force\":false}"}, "url": {"raw":"{{baseUrl}}/api/ai/summary","host":["{{baseUrl}}"],"path":["api","ai","summary"]} } },
+        { "name": "Get Cached", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/ai/summary/{{documentId}}","host":["{{baseUrl}}"],"path":["api","ai","summary","{{documentId}}"]} } }
+      ]
+    },
+    {
+      "name": "Flashcards",
+      "item": [
+        { "name": "Generate", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}], "body": {"mode":"raw","raw":"{\"documentId\":\"{{documentId}}\",\"numberOfCards\":10,\"force\":false}"}, "url": {"raw":"{{baseUrl}}/api/flashcards/generate","host":["{{baseUrl}}"],"path":["api","flashcards","generate"]} } },
+        { "name": "Get By Document", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/flashcards/{{documentId}}","host":["{{baseUrl}}"],"path":["api","flashcards","{{documentId}}"]} } }
+      ]
+    },
+    {
+      "name": "Quizzes",
+      "item": [
+        { "name": "Generate", "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{token}}"}], "body": {"mode":"raw","raw":"{\"documentId\":\"{{documentId}}\",\"numberOfQuestions\":5,\"force\":false}"}, "url": {"raw":"{{baseUrl}}/api/quizzes/generate","host":["{{baseUrl}}"],"path":["api","quizzes","generate"]} } },
+        { "name": "Get By Document", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/quizzes/{{documentId}}","host":["{{baseUrl}}"],"path":["api","quizzes","{{documentId}}"]} } }
+      ]
+    },
+    {
+      "name": "Shares",
+      "item": [
+        { "name": "My Shares", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/shares/owner","host":["{{baseUrl}}"],"path":["api","shares","owner"]} } },
+        { "name": "Shared With Me", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/shares/shared-with-me","host":["{{baseUrl}}"],"path":["api","shares","shared-with-me"]} } },
+        { "name": "Delete Share", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{token}}"}], "url": {"raw":"{{baseUrl}}/api/shares/1","host":["{{baseUrl}}"],"path":["api","shares","1"]} } }
+      ]
+    }
+  ]
+}

@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface FlashcardService {
 
-    List<FlashcardResponse> generateFlashcards(List<UUID> documentIds, UUID requesterId, GenerateFlashcardsRequest request) throws Exception;
+    List<FlashcardResponse> generateFlashcards(UUID documentId, UUID requesterId, GenerateFlashcardsRequest request) throws Exception;
 
     List<FlashcardResponse> getFlashcardsByDocument(UUID documentId, UUID requesterId);
 }

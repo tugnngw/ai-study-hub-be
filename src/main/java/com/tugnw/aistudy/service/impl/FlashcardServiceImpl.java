@@ -32,31 +32,42 @@ public class FlashcardServiceImpl implements FlashcardService {
     private final DocumentRepository documentRepository;
     private final FlashcardRepository flashcardRepository;
     private final FlashcardMapper flashcardMapper;
-    private final DocumentSourceResolver documentSourceResolver;
     private final KnowledgePreparationService knowledgePreparationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional
-    public List<FlashcardResponse> generateFlashcards(List<UUID> documentIds, UUID requesterId, GenerateFlashcardsRequest request) throws Exception {
-        System.out.println("[LOG - FLASHCARD] Starting flashcard generation for documents: " + documentIds);
+    public List<FlashcardResponse> generateFlashcards(UUID documentId, UUID requesterId, GenerateFlashcardsRequest request) throws Exception {
+        System.out.println("[LOG - FLASHCARD] Starting flashcard generation for document: " + documentId);
 
-        List<Document> documents = documentSourceResolver.resolveByDocumentIds(documentIds);
-        if (documents.isEmpty()) {
-            throw new RuntimeException("No accessible documents found for the given IDs");
+        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
+                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
+
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+            throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        authorizeDocuments(documents, requesterId);
-
-        String mergedDocumentText = knowledgePreparationService.prepareKnowledge(documents, false);
-
-        if (mergedDocumentText == null || mergedDocumentText.isBlank()) {
-            throw new RuntimeException("Unable to extract text from documents.");
+        if (!request.isForce()) {
+            List<Flashcard> existing = flashcardRepository.findByDocumentId(documentId);
+            if (!existing.isEmpty()) {
+                System.out.println("[LOG - FLASHCARD] Returning " + existing.size() + " existing flashcards.");
+                return flashcardMapper.toResponseList(existing);
+            }
+        } else {
+            flashcardRepository.deleteByDocumentId(documentId);
+            flashcardRepository.flush();
+            System.out.println("[LOG - FLASHCARD] Deleted existing flashcards for regenerate.");
         }
 
-        System.out.println("[LOG - FLASHCARD] Extracted merged text length: " + mergedDocumentText.length());
+        String documentText = knowledgePreparationService.prepareKnowledge(List.of(document), false);
 
-        List<Flashcard> generatedFlashcards = generateFlashcardsFromText(mergedDocumentText, documentIds.get(0), request.getNumberOfCards());
+        if (documentText == null || documentText.isBlank()) {
+            throw new RuntimeException("Unable to extract text from document.");
+        }
+
+        System.out.println("[LOG - FLASHCARD] Extracted text length: " + documentText.length());
+
+        List<Flashcard> generatedFlashcards = generateFlashcardsFromText(documentText, document.getId(), request.getNumberOfCards());
         flashcardRepository.saveAll(generatedFlashcards);
 
         System.out.println("[LOG - FLASHCARD] Successfully generated and saved " + generatedFlashcards.size() + " flashcards.");
@@ -122,14 +133,6 @@ public class FlashcardServiceImpl implements FlashcardService {
             throw new RuntimeException("Failed to parse AI-generated flashcards.", e);
         }
         return flashcards;
-    }
-
-    private void authorizeDocuments(List<Document> documents, UUID requesterId) {
-        for (Document doc : documents) {
-            if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
-                throw new AccessDeniedException("Access denied to document: " + doc.getId());
-            }
-        }
     }
 
     private boolean isAdmin() {

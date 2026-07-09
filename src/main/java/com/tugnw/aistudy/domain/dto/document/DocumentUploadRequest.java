@@ -25,9 +25,6 @@ public class DocumentUploadRequest {
     @Schema(description = "Folder ID where documents belong", example = "d7ff12cf-2ad0-4888-a9a1-b12de5d2bc9e")
     private UUID folderId;
 
-    @Schema(description = "Subject ID", example = "1")
-    private Long subjectId;
-
     @ArraySchema(schema = @Schema(description = "Files to upload (PDF, DOCX, TXT, PPTX). Max 50MB each", requiredMode = Schema.RequiredMode.REQUIRED))
     private List<MultipartFile> files;
 }
