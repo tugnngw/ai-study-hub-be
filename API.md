@@ -543,6 +543,13 @@ GET /api/quizzes/{documentId}
 
 ## Sharing
 
+**Two distinct features:**
+
+| Concept | Operation | Effect |
+|---------|-----------|--------|
+| **Share** | Grant access | Recipient has **read-only** access. Ownership never changes. |
+| **Save to My Folder** | Copy | Creates a **personal copy** owned by the requester. Original unchanged. |
+
 ### Get Shares by Owner
 
 ```
@@ -573,12 +580,69 @@ DELETE /api/shares/token/{shareToken}
 POST /api/shares/{shareId}/save
 ```
 
+**Request:**
 ```json
 {
   "folderId": "uuid",
   "title": "Copied document",
   "description": null
 }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| folderId | UUID (required) | Destination folder (belongs to the requester) |
+| title | String (optional) | Override title; only applies to single-document shares |
+| description | String (optional) | Override description; only applies to single-document shares |
+
+**Behavior**: This is a **COPY** operation, not a transfer of ownership.
+- A personal copy of each shared document is created inside the requester's folder
+- Copied resources belong entirely to the requester (`ownerId` = requester)
+- Original shared resources and their owner are completely unchanged
+- `document.summary` is preserved (not regenerated)
+- Flashcards and quizzes are **not** copied
+
+**Duplicate Prevention** (checked in this order):
+1. `checksum` matches an existing document in the destination folder
+2. `publicId` (Cloudinary) matches an existing document
+3. `title` AND `fileSize` both match an existing document
+
+**Response** `200`:
+```json
+{
+  "total": 6,
+  "copied": 4,
+  "skipped": 2,
+  "failed": 0,
+  "copiedDocuments": [
+    { "name": "Week1.pdf", "documentId": "uuid-1", "reason": null },
+    { "name": "Chapter2.pdf", "documentId": "uuid-2", "reason": null }
+  ],
+  "skippedDocuments": [
+    { "name": "Java Basics.pdf", "documentId": null, "reason": "Already exists" },
+    { "name": "Spring Boot.pdf", "documentId": null, "reason": "Already exists" }
+  ],
+  "failedDocuments": [],
+  "message": "4 documents copied successfully. 2 documents were skipped because they already exist."
+}
+```
+
+All-zero cases covered:
+```json
+// Everything copied
+{ "total": 6, "copied": 6, "skipped": 0, "failed": 0,
+  "copiedDocuments": [...], "skippedDocuments": [], "failedDocuments": [],
+  "message": "6 documents copied successfully" }
+
+// Everything already exists
+{ "total": 6, "copied": 0, "skipped": 6, "failed": 0,
+  "copiedDocuments": [], "skippedDocuments": [...], "failedDocuments": [],
+  "message": "6 documents were skipped because they already exist" }
+
+// Everything failed
+{ "total": 6, "copied": 0, "skipped": 0, "failed": 6,
+  "copiedDocuments": [], "skippedDocuments": [], "failedDocuments": [...],
+  "message": "6 documents failed to copy" }
 ```
 
 ---

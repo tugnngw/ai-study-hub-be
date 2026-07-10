@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.service.impl;
 
+import com.tugnw.aistudy.domain.dto.share.SaveToFolderResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareRequest;
 import com.tugnw.aistudy.domain.entity.Account;
@@ -19,8 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -77,14 +77,14 @@ public class ShareServiceImpl implements ShareService {
         if (targetUser.getId().equals(ownerId)) {
             throw new IllegalArgumentException("Cannot share to yourself");
         }
-        
+
         Folder folder = folderRepository.findByIdAndOwnerIdAndDeletedAtIsNull(request.getFolderId(), ownerId)
                 .orElseThrow(() -> new IllegalArgumentException("Folder not found or you don't have permission"));
-        
+
         if (shareRepository.findByFolderIdAndSharedAccountId(folder.getId(), targetUser.getId()).isPresent()) {
             throw new IllegalArgumentException("Already shared with this user");
         }
-        
+
         Account owner = accountRepository.findById(ownerId)
                 .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
         Share share = Share.builder()
@@ -101,11 +101,11 @@ public class ShareServiceImpl implements ShareService {
     public ShareResponse shareDocument(ShareRequest request, UUID ownerId) {
         Document document = documentRepository.findByIdAndOwnerIdAndDeletedAtIsNull(request.getDocumentId(), ownerId)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found or you don't have permission"));
-        
+
         if ("REJECT".equalsIgnoreCase(document.getStatus())) {
             throw new IllegalArgumentException("Tài liệu bị từ chối duyệt, không thể chia sẻ");
         }
-        
+
         if ((request.getEmail() == null || request.getEmail().isBlank()) &&
                 (request.getUsername() == null || request.getUsername().isBlank())) {
             Account owner = accountRepository.findById(ownerId)
@@ -118,7 +118,7 @@ public class ShareServiceImpl implements ShareService {
             Share saved = shareRepository.save(share);
             return mapToResponse(saved);
         }
-        
+
         Account targetUser = findTargetUser(request);
         if (targetUser == null) {
             String searchBy = request.getEmail() != null ? request.getEmail() : request.getUsername();
@@ -127,11 +127,11 @@ public class ShareServiceImpl implements ShareService {
         if (targetUser.getId().equals(ownerId)) {
             throw new IllegalArgumentException("Cannot share to yourself");
         }
-        
+
         if (shareRepository.findByDocumentIdAndSharedAccountId(document.getId(), targetUser.getId()).isPresent()) {
             throw new IllegalArgumentException("Already shared with this user");
         }
-        
+
         Account owner = accountRepository.findById(ownerId)
                 .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
         Share share = Share.builder()
@@ -186,7 +186,7 @@ public class ShareServiceImpl implements ShareService {
     public void removeShareByToken(String shareToken, UUID userId) {
         Share share = shareRepository.findByShareToken(shareToken)
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
-        if (!isAdmin() && !share.getOwner().getId().equals(userId) && 
+        if (!isAdmin() && !share.getOwner().getId().equals(userId) &&
             !(share.getSharedAccount() != null && share.getSharedAccount().getId().equals(userId))) {
             throw new IllegalArgumentException("You don't have permission to remove this share");
         }
@@ -194,67 +194,137 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
-    public ShareResponse saveToMyFolder(Long shareId, UUID folderId, String title, String description) {
+    public SaveToFolderResponse saveToMyFolder(Long shareId, UUID folderId, String title, String description, UUID requesterId) {
         Share share = shareRepository.findById(shareId)
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
-        UUID newOwnerId = share.getOwner().getId();
+
+        List<Document> sourceDocs;
 
         if (share.getDocument() != null) {
-            Document original = share.getDocument();
-            Document copy = copyDocument(original, folderId, newOwnerId, title, description);
-            Document savedDoc = documentRepository.save(copy);
-
-            return new ShareResponse(
-                    share.getId(),
-                    folderId,
-                    savedDoc.getId(),
-                    savedDoc.getOwnerId(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    "private",
-                    null,
-                    null,
-                    null,
-                    List.of(),
-                    savedDoc.getTitle(),
-                    null,
-                    savedDoc.getCloudinaryUrl(),
-                    savedDoc.getStatus()
-            );
-        }
-
-        if (share.getFolder() == null) {
+            // Single document share — wrap in list with optional title override
+            sourceDocs = List.of(share.getDocument());
+        } else if (share.getFolder() != null) {
+            // Folder share — get all documents
+            sourceDocs = documentRepository
+                    .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(share.getFolder().getId(), "READY");
+        } else {
             throw new IllegalArgumentException("Shared item not found");
         }
 
-        List<Document> documents = documentRepository.findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(share.getFolder().getId(), "READY");
-        for (Document document : documents) {
-            documentRepository.save(copyDocument(document, folderId, newOwnerId, null, null));
+        // Collect existing documents in the destination folder for duplicate detection
+        List<Document> existingDocs = documentRepository
+                .findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
+
+        List<SaveToFolderResponse.DocumentResult> copied = new ArrayList<>();
+        List<SaveToFolderResponse.DocumentResult> skipped = new ArrayList<>();
+        List<SaveToFolderResponse.DocumentResult> failed = new ArrayList<>();
+
+        for (Document source : sourceDocs) {
+            // Determine the effective title: explicit override for single-doc share, else original title
+            String effectiveTitle = source.getTitle();
+            if (share.getDocument() != null && title != null && !title.isBlank()) {
+                effectiveTitle = title;
+            }
+
+            // --- Duplicate detection ---
+            String reason = isDuplicate(source, existingDocs);
+            if (reason != null) {
+                skipped.add(new SaveToFolderResponse.DocumentResult(effectiveTitle, null, reason));
+                continue;
+            }
+
+            // --- Copy ---
+            try {
+                Document copy = buildCopy(source, folderId, requesterId, effectiveTitle,
+                        share.getDocument() != null ? description : null);
+                Document saved = documentRepository.save(copy);
+                copied.add(new SaveToFolderResponse.DocumentResult(effectiveTitle, saved.getId(), null));
+            } catch (Exception e) {
+                failed.add(new SaveToFolderResponse.DocumentResult(effectiveTitle, null, e.getMessage()));
+            }
         }
 
-        return new ShareResponse(
-                share.getId(),
-                folderId,
-                null,
-                newOwnerId,
-                null,
-                null,
-                null,
-                null,
-                null,
-                "private",
-                null,
-                null,
-                null,
-                List.of(),
-                null,
-                share.getFolder().getName(),
-                null,
-                null
-        );
+        return buildResponse(sourceDocs.size(), copied, skipped, failed);
+    }
+
+    /**
+     * Check if a source document already exists in the destination folder.
+     * Priority: checksum → publicId → (title + fileSize).
+     * Returns the reason string if duplicate, null if not.
+     */
+    private String isDuplicate(Document source, List<Document> existingDocs) {
+        for (Document existing : existingDocs) {
+            // 1. checksum
+            if (source.getChecksum() != null && !source.getChecksum().isBlank()
+                    && source.getChecksum().equals(existing.getChecksum())) {
+                return "Already exists";
+            }
+            // 2. cloudinary publicId
+            if (source.getPublicId() != null && !source.getPublicId().isBlank()
+                    && source.getPublicId().equals(existing.getPublicId())) {
+                return "Already exists";
+            }
+            // 3. title + fileSize
+            if (source.getTitle() != null && existing.getTitle() != null
+                    && source.getTitle().equals(existing.getTitle())
+                    && source.getFileSize() != null && existing.getFileSize() != null
+                    && source.getFileSize().equals(existing.getFileSize())) {
+                return "Already exists";
+            }
+        }
+        return null;
+    }
+
+    private Document buildCopy(Document source, UUID folderId, UUID ownerId, String title, String description) {
+        return Document.builder()
+                .ownerId(ownerId)
+                .folderId(folderId)
+                .title(title)
+                .description(description != null ? description : source.getDescription())
+                .summary(source.getSummary())
+                .status("ready")
+                .cloudinaryUrl(source.getCloudinaryUrl())
+                .publicId(source.getPublicId())
+                .mimeType(source.getMimeType())
+                .checksum(source.getChecksum())
+                .fileSize(source.getFileSize())
+                .totalPages(source.getTotalPages())
+                .build();
+    }
+
+    private SaveToFolderResponse buildResponse(int total,
+                                               List<SaveToFolderResponse.DocumentResult> copied,
+                                               List<SaveToFolderResponse.DocumentResult> skipped,
+                                               List<SaveToFolderResponse.DocumentResult> failed) {
+        StringBuilder msg = new StringBuilder();
+        if (copied.size() > 0) {
+            msg.append(copied.size()).append(" document").append(copied.size() != 1 ? "s" : "")
+               .append(" copied successfully");
+        }
+        if (skipped.size() > 0) {
+            if (msg.length() > 0) msg.append(". ");
+            msg.append(skipped.size()).append(" document").append(skipped.size() != 1 ? "s were" : " was")
+               .append(" skipped because they already exist");
+        }
+        if (failed.size() > 0) {
+            if (msg.length() > 0) msg.append(". ");
+            msg.append(failed.size()).append(" document").append(failed.size() != 1 ? "s" : "")
+               .append(" failed to copy");
+        }
+        if (msg.isEmpty()) {
+            msg.append("No documents to copy");
+        }
+
+        return SaveToFolderResponse.builder()
+                .total(total)
+                .copied(copied.size())
+                .skipped(skipped.size())
+                .failed(failed.size())
+                .copiedDocuments(copied)
+                .skippedDocuments(skipped)
+                .failedDocuments(failed)
+                .message(msg.toString())
+                .build();
     }
 
     @Override
@@ -356,22 +426,5 @@ public class ShareServiceImpl implements ShareService {
                 cloudinaryUrl,
                 documentStatus
         );
-    }
-
-    private Document copyDocument(Document original, UUID folderId, UUID ownerId, String title, String description) {
-        return Document.builder()
-                .ownerId(ownerId)
-                .folderId(folderId)
-                .title(title != null && !title.isBlank() ? title : original.getTitle())
-                .description(description != null ? description : original.getDescription())
-                .summary(original.getSummary())
-                .status("ready")
-                .cloudinaryUrl(original.getCloudinaryUrl())
-                .publicId(original.getPublicId())
-                .mimeType(original.getMimeType())
-                .checksum(original.getChecksum())
-                .fileSize(original.getFileSize())
-                .totalPages(original.getTotalPages())
-                .build();
     }
 }

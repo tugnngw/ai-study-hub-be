@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.share.SaveToFolderResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareRequest;
 import com.tugnw.aistudy.service.ShareService;
@@ -50,11 +51,12 @@ public class ShareController {
     }
 
     @PostMapping("/{shareId}/save")
-    public ResponseEntity<ShareResponse> saveToMyFolder(
+    public ResponseEntity<SaveToFolderResponse> saveToMyFolder(
             @PathVariable Long shareId,
             @RequestBody com.tugnw.aistudy.domain.dto.share.SaveToFolderRequest request,
             Authentication authentication) {
-        ShareResponse response = shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(), request.getDescription());
+        UUID requesterId = getCurrentUserId(authentication);
+        SaveToFolderResponse response = shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(), request.getDescription(), requesterId);
         return ResponseEntity.ok(response);
     }
 
