@@ -15,6 +15,7 @@ import com.tugnw.aistudy.repository.PaymentPlanRepository;
 import com.tugnw.aistudy.repository.PaymentTransactionRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.PaymentService;
+import com.tugnw.aistudy.service.SubscriptionService;
 import com.tugnw.aistudy.util.PayOSClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +41,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final PayOSClient payOSClient;
     private final ObjectMapper objectMapper;
     private final ActivityLogService activityLogService;
+    private final com.tugnw.aistudy.repository.SubscriptionRepository subscriptionRepository;
+    private final SubscriptionService subscriptionService;
 
     @Override
     public List<PaymentPlan> listActivePlans() {
@@ -52,6 +55,41 @@ public class PaymentServiceImpl implements PaymentService {
         PaymentPlan plan = planRepo.findById(planId)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
 
+        // ===== BẮT ĐẦU: TÍNH TOÁN BÙ TRỪ KHI NÂNG CẤP =====
+        long finalAmount = plan.getPrice();
+        
+        // Tìm subscription active hiện tại của user
+        Optional<com.tugnw.aistudy.domain.entity.Subscription> activeSubOpt = 
+                subscriptionRepository.findByAccountIdAndStatus(userId, com.tugnw.aistudy.domain.enums.SubscriptionStatus.ACTIVE);
+                
+        if (activeSubOpt.isPresent()) {
+            com.tugnw.aistudy.domain.entity.Subscription activeSub = activeSubOpt.get();
+            java.time.Instant now = java.time.Instant.now();
+            
+            // Nếu gói đang dùng chưa hết hạn
+            if (activeSub.getEndDate() != null && activeSub.getEndDate().isAfter(now)) {
+                // Tính số ngày còn lại
+                long remainingMillis = activeSub.getEndDate().toEpochMilli() - now.toEpochMilli();
+                int remainingDays = (int) Math.ceil((double) remainingMillis / 86_400_000);
+                
+                if (remainingDays > 0) {
+                    PaymentPlan currentPlan = activeSub.getPlan();
+                    int currentDuration = currentPlan.getDurationDays() != null && currentPlan.getDurationDays() > 0 
+                            ? currentPlan.getDurationDays() : 30;
+                            
+                    // Giá trị còn lại của gói cũ = (Giá gói cũ / Thời hạn gói cũ) * Số ngày còn lại
+                    long remainingValue = Math.round(((double) currentPlan.getPrice() / currentDuration) * remainingDays);
+                    
+                    // Tính số tiền phải trả = Giá gói mới - Giá trị còn lại
+                    finalAmount = Math.max(0, plan.getPrice() - remainingValue);
+                    
+                    log.info("Proration calculated for user {}: currentPlan={}, remainingDays={}, remainingValue={}, targetPlan={}, finalAmount={}",
+                            userId, currentPlan.getName(), remainingDays, remainingValue, plan.getName(), finalAmount);
+                }
+            }
+        }
+        // ===== KẾT THÚC: TÍNH TOÁN BÙ TRỪ =====
+
         // ⚠️ orderCode MUST be <= 2,147,483,647 (PayOS requirement)
         // Use nanoTime to ensure unique, then mod with 2B to keep within limit
         int safeOrderCode = (int) (System.nanoTime() % 2_000_000_000L);
@@ -62,22 +100,23 @@ public class PaymentServiceImpl implements PaymentService {
 
         log.info("Generated orderCode: {}", orderCode);
 
+        // Tạo link thanh toán với giá tiền ĐÃ ĐƯỢC BÙ TRỪ
         String checkoutUrl = payOSClient.createCheckoutUrl(
-                plan.getPrice(), userId.toString(), orderCode, plan.getName());
+                finalAmount, userId.toString(), orderCode, plan.getName());
 
         PaymentTransaction tx = PaymentTransaction.builder()
                 .accountId(userId)
                 .plan(plan)
                 .payosOrderCode(orderCode)
-                .amount(plan.getPrice())
+                .amount(finalAmount) // Lưu đúng số tiền thực tế user phải trả
                 .status(PaymentStatus.PENDING)
-                .description("Buy plan " + plan.getName())
+                .description("Buy plan " + plan.getName() + (finalAmount < plan.getPrice() ? " (Upgraded)" : ""))
                 .build();
 
         txRepo.save(tx);
-        log.info("Created payment link for user: {}, orderCode: {}", userId, orderCode);
+        log.info("Created payment link for user: {}, orderCode: {}, amount: {}", userId, orderCode, finalAmount);
 
-        return new PaymentResponse(checkoutUrl, tx.getPayosOrderCode(), plan.getPrice());
+        return new PaymentResponse(checkoutUrl, tx.getPayosOrderCode(), finalAmount);
     }
 
     @Override
@@ -181,6 +220,7 @@ public class PaymentServiceImpl implements PaymentService {
                     log.info("║       ✅ PAYMENT SUCCESSFUL - UPGRADING USER PLAN             ║");
                     log.info("╚══════════════════════════════════════════════════════════════");
                     updateUserQuota(tx);
+                    subscriptionService.createSubscription(tx.getAccountId(), tx.getPlan(), tx);
                     log.info("╔══════════════════════════════════════════════════════════════");
                     log.info("║       ✅ USER PLAN UPGRADE COMPLETED                          ║");
                     log.info("╚══════════════════════════════════════════════════════════════");
@@ -431,6 +471,7 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("✅ Transaction {} status updated to PAID", orderCode);
 
         updateUserQuota(tx);
+        subscriptionService.createSubscription(tx.getAccountId(), tx.getPlan(), tx);
 
         log.info("╔══════════════════════════════════════════════════════════════");
         log.info("║       MANUAL VERIFICATION COMPLETED                           ║");
