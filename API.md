@@ -1,18 +1,97 @@
 # AI Study Hub — API Reference
 
-## Academic Hierarchy
+**All IDs are UUID strings.** No numeric IDs remain.
+Every entity identifier is a UUID v4 string like `"550e8400-e29b-41d4-a716-446655440000"`.
+
+---
+
+## Academic Structure
 
 ```
-Semester → Subject → Folder → Document → AI Features (Summary / Flashcards / Quiz)
+Semester → Subject → Folder → Document → AI Features
 ```
 
-Upload flow: pick Semester → pick Subject → pick Folder → upload file.
+### Upload Workflow (frontend order)
+
+1. `GET /api/semesters` → pick a Semester
+2. `GET /api/subjects/semester/{semesterId}` → pick a Subject
+3. `POST /api/folder/create` → create a Folder under that Subject (or use existing)
+4. `POST /api/documents` (multipart) → upload into the Folder
+
+Folders are the upload destination. Every Folder belongs to one Subject.
+Documents inherit their Subject through the Folder. No direct Subject-to-Document mapping.
+
+---
+
+## UUID Rule
+
+**Every** `id`, `semesterId`, `subjectId`, `folderId`, `documentId`, `ownerId`,
+`quizId`, `questionId`, `flashcardId`, `shareId`, `planId` in the API is a
+**UUID v4 string**.
+
+Example:
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "semesterId": "660e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+---
+
+## Default Subject
+
+Every Semester auto-creates one built-in Subject named "General" with
+`defaultSubject: true`. This subject:
+
+- Cannot be deleted
+- Cannot be renamed
+- Behaves identically to any other Subject for folders and uploads
+
+**Frontend must use `defaultSubject` (boolean), never compare the name "General".**
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "General",
+  "defaultSubject": true
+}
+```
+
+Display a badge/icon when `defaultSubject === true`. Disable rename and delete
+buttons for that subject.
+
+---
+
+## Response Envelope
+
+Every response uses `ApiResponse<T>`:
+
+```json
+{
+  "code": 200,
+  "message": "Success",
+  "data": { ... }
+}
+```
+
+Error:
+```json
+{
+  "code": 400,
+  "message": "Validation failed",
+  "data": null
+}
+```
 
 ---
 
 ## Authentication
 
-Base: `POST /api/auth`
+### Auth header
+```
+Authorization: Bearer <jwt-access-token>
+```
 
 ### Register
 
@@ -20,6 +99,7 @@ Base: `POST /api/auth`
 POST /api/auth/register
 ```
 
+**Request:**
 ```json
 {
   "username": "john_doe",
@@ -28,19 +108,25 @@ POST /api/auth/register
 }
 ```
 
-**Response** `200`:
+| Field | Type | Rules |
+|-------|------|-------|
+| username | string | required, 3-50 chars, alphanumeric + underscores |
+| password | string | required, 8-128 chars |
+| fullName | string | required, max 30 chars |
+
+**Response 200:**
 ```json
 {
   "code": 200,
   "message": "Registered",
   "data": {
-    "userId": "uuid",
+    "userId": "550e8400-e29b-41d4-a716-446655440000",
     "username": "john_doe",
     "email": "john@example.com",
     "fullName": "John Doe",
     "role": "USER",
-    "accessToken": "jwt...",
-    "refreshToken": null,
+    "accessToken": "eyJhbGciOi...",
+    "refreshToken": "eyJhbGciOi...",
     "expiresIn": 900000
   }
 }
@@ -52,6 +138,7 @@ POST /api/auth/register
 POST /api/auth/login
 ```
 
+**Request:**
 ```json
 {
   "username": "john_doe",
@@ -59,7 +146,7 @@ POST /api/auth/login
 }
 ```
 
-**Response** `200`: Same structure as register.
+**Response 200:** Same shape as Register.
 
 ### Refresh Token
 
@@ -67,17 +154,22 @@ POST /api/auth/login
 POST /api/auth/refresh
 ```
 
+**Request:**
 ```json
 {
-  "refreshToken": "jwt..."
+  "refreshToken": "eyJhbGciOi..."
 }
 ```
+
+**Response 200:** Same shape as Register (new accessToken and refreshToken).
 
 ### Logout
 
 ```
 POST /api/auth/logout
 ```
+
+**Response 200:** `{ "code": 200, "message": "Logged out", "data": null }`
 
 ---
 
@@ -89,15 +181,15 @@ POST /api/auth/logout
 GET /api/account/me
 ```
 
-Headers: `Authorization: Bearer <token>`
+**Headers:** `Authorization: Bearer <token>`
 
-**Response** `200`:
+**Response 200:**
 ```json
 {
   "code": 200,
   "message": "User retrieved successfully",
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "john_doe",
     "email": "john@example.com",
     "fullName": "John Doe",
@@ -118,33 +210,33 @@ Headers: `Authorization: Bearer <token>`
 
 ### List All Semesters
 
-```
-GET /api/semesters
-```
+`GET /api/semesters` (public)
 
-All entity identifiers are now UUID. No Long IDs remain.
-
-**Response** `200`:
+**Response 200:**
 ```json
 [
-  { "id": "a1b2c3d4-...", "name": "Spring 2025", "startDate": "2025-01-15", "endDate": "2025-05-20" }
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Spring 2025",
+    "startDate": "2025-01-15",
+    "endDate": "2025-05-20"
+  }
 ]
 ```
 
-**Note:** Creating a semester automatically creates a built-in "General" subject (`defaultSubject: true`) in that semester.
-
 ### Get Semester by ID
 
-```
-GET /api/semesters/{id}
-```
+`GET /api/semesters/{id}` (public)
+
+**Response 200:** Single semester object (same shape as list item).
 
 ### Create Semester (Admin)
 
-```
-POST /api/semesters
-```
+`POST /api/semesters`
 
+**Auth:** ADMIN
+
+**Request:**
 ```json
 {
   "name": "Fall 2025",
@@ -153,11 +245,18 @@ POST /api/semesters
 }
 ```
 
+**Response 201:** Semester object.
+
+**Side effect:** A default Subject named "General" with `defaultSubject: true` is
+automatically created in this semester.
+
 ### Delete Semester (Admin)
 
-```
-DELETE /api/semesters/{id}
-```
+`DELETE /api/semesters/{id}`
+
+**Auth:** ADMIN
+
+**Response 204:** No content.
 
 ---
 
@@ -165,44 +264,63 @@ DELETE /api/semesters/{id}
 
 ### List Subjects by Semester
 
-```
-GET /api/subjects/semester/{semesterId}
-```
+`GET /api/subjects/semester/{semesterId}` (public)
 
-**Response** `200`:
+**Response 200:**
 ```json
 [
-  { "id": "b2c3d4e5-...", "semesterId": "a1b2c3d4-...", "code": "SWP391", "name": "Software Development Project", "defaultSubject": false }
+  {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
+    "semesterId": "550e8400-e29b-41d4-a716-446655440000",
+    "code": "SWP391",
+    "name": "Software Development Project",
+    "defaultSubject": false
+  },
+  {
+    "id": "770e8400-e29b-41d4-a716-446655440002",
+    "semesterId": "550e8400-e29b-41d4-a716-446655440000",
+    "code": null,
+    "name": "General",
+    "defaultSubject": true
+  }
 ]
 ```
 
 ### Get Subject by ID
 
-```
-GET /api/subjects/{id}
-```
+`GET /api/subjects/{id}` (public)
+
+**Response 200:** Single subject object.
 
 ### Create Subject (Admin)
 
-```
-POST /api/subjects
-```
+`POST /api/subjects`
 
+**Auth:** ADMIN
+
+**Request:**
 ```json
 {
-  "semesterId": "a1b2c3d4-...",
+  "semesterId": "550e8400-e29b-41d4-a716-446655440000",
   "code": "SWP391",
   "name": "Software Development Project"
 }
 ```
 
+`defaultSubject` is always `false` for user-created subjects.
+
+**Response 201:** Subject object.
+
 ### Delete Subject (Admin)
 
-```
-DELETE /api/subjects/{id}
-```
+`DELETE /api/subjects/{id}`
 
-**Note:** Default subjects (General) cannot be deleted, renamed, or disabled. They are automatically created with each new semester.
+**Auth:** ADMIN
+
+**Response 204:** No content.
+
+**Fails** with 400 if the subject has `defaultSubject: true`. The default
+subject cannot be deleted.
 
 ---
 
@@ -210,24 +328,30 @@ DELETE /api/subjects/{id}
 
 ### Create Folder
 
-```
-POST /api/folder/create
-```
+`POST /api/folder/create`
 
+**Auth:** User
+
+**Request:**
 ```json
 {
   "name": "Chapter 1: Introduction",
-  "subjectId": "b2c3d4e5-..."
+  "subjectId": "660e8400-e29b-41d4-a716-446655440001"
 }
 ```
 
-**Response** `201`:
+| Field | Type | Rules |
+|-------|------|-------|
+| name | string | required, max 100 chars, unique per user |
+| subjectId | UUID | required, must exist |
+
+**Response 201:**
 ```json
 {
-  "id": "uuid",
+  "id": "880e8400-e29b-41d4-a716-446655440003",
   "name": "Chapter 1: Introduction",
   "aiSummary": null,
-  "subjectId": "b2c3d4e5-...",
+  "subjectId": "660e8400-e29b-41d4-a716-446655440001",
   "createdAt": "2025-01-15T10:00:00",
   "updatedAt": "2025-01-15T10:00:00",
   "documentCount": 0
@@ -236,41 +360,57 @@ POST /api/folder/create
 
 ### List User's Folders
 
-```
-GET /api/folder/getall
-```
+`GET /api/folder/getall`
+
+**Auth:** User
+
+**Response 200:** Array of FolderResponse.
 
 ### Get Folder by ID
 
-```
-GET /api/folder/getbyid/{id}
-```
+`GET /api/folder/getbyid/{id}`
+
+**Auth:** User (or ADMIN)
+
+**Response 200:** FolderResponse.
+
+**403** if the folder belongs to another user and caller is not ADMIN.
 
 ### Update Folder
 
-```
-PUT /api/folder/update/{id}
-```
+`PUT /api/folder/update/{id}`
 
+**Auth:** User (owner)
+
+**Request:**
 ```json
 {
   "name": "Updated Name",
-  "subjectId": "b2c3d4e5-..."
+  "subjectId": "770e8400-e29b-41d4-a716-446655440002"
 }
 ```
 
+Both fields optional. Only provided fields are updated.
+
+**Response 200:** Updated FolderResponse.
+
 ### Delete Folder (Soft)
 
-```
-DELETE /api/folder/delete/{id}
-```
+`DELETE /api/folder/delete/{id}`
+
+**Auth:** User (owner) or ADMIN
+
+**Response 204:** No content.
+
+Sets `deletedAt` timestamp. Data is preserved but hidden from normal queries.
 
 ### Share Folder
 
-```
-POST /api/folder/{id}/share
-```
+`POST /api/folder/{id}/share`
 
+**Auth:** User (owner)
+
+**Request:**
 ```json
 {
   "email": "friend@example.com",
@@ -278,11 +418,18 @@ POST /api/folder/{id}/share
 }
 ```
 
+Either `email` or `username` identifies the target user. If both are omitted,
+creates a link-only share (no specific recipient).
+
+**Response 200:** ShareResponse (see Shares section).
+
 ### Get Folder Share Info
 
-```
-GET /api/folder/{id}/share-info
-```
+`GET /api/folder/{id}/share-info`
+
+**Auth:** User (owner)
+
+**Response 200:** ShareResponse with recipient list.
 
 ---
 
@@ -290,26 +437,27 @@ GET /api/folder/{id}/share-info
 
 ### Upload Documents
 
-```
-POST /api/documents
-Content-Type: multipart/form-data
-```
+`POST /api/documents`
 
-| Field | Type | Required |
-|-------|------|----------|
-| files | MultipartFile[] | Yes |
-| title | String | No |
-| description | String | No |
-| folderId | UUID | No |
+**Auth:** User
 
-**Response** `201`:
+**Content-Type:** `multipart/form-data`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| files | MultipartFile[] | Yes | PDF, DOCX, TXT, PPTX. Max 50MB each. |
+| title | string | No | Document title. If omitted, uses filename. |
+| description | string | No | Optional description. |
+| folderId | UUID | No | Destination folder. |
+
+**Response 201:**
 ```json
 [
   {
-    "id": "uuid",
-    "ownerId": "uuid",
-    "folderId": "uuid",
-    "subjectId": "b2c3d4e5-...",
+    "id": "990e8400-e29b-41d4-a716-446655440004",
+    "ownerId": "550e8400-e29b-41d4-a716-446655440000",
+    "folderId": "880e8400-e29b-41d4-a716-446655440003",
+    "subjectId": "660e8400-e29b-41d4-a716-446655440001",
     "title": "Java Concurrency Notes",
     "description": null,
     "summary": null,
@@ -323,74 +471,108 @@ Content-Type: multipart/form-data
 ]
 ```
 
+Returns an array — one entry per uploaded file.
+
 ### List User's Documents
 
-```
-GET /api/documents
-```
+`GET /api/documents`
+
+**Auth:** User
+
+**Response 200:** Array of DocumentResponse belonging to the authenticated user.
 
 ### List Documents by Folder
 
-```
-GET /api/documents/folder/{folderId}
-```
+`GET /api/documents/folder/{folderId}`
+
+**Auth:** User (owner)
+
+**Response 200:** Array of DocumentResponse in the folder.
 
 ### List Shared Folder Documents
 
-```
-GET /api/documents/shared/folder/{folderId}
-```
+`GET /api/documents/shared/folder/{folderId}`
+
+**Auth:** User (must have share access)
+
+**Response 200:** Array of DocumentResponse with status "READY".
 
 ### Get Document by ID
 
-```
-GET /api/documents/{id}
-```
+`GET /api/documents/{id}`
+
+**Auth:** User (owner) or share recipient
+
+**Response 200:** DocumentResponse.
 
 ### Get Shared Document by ID
 
-```
-GET /api/documents/shared/{id}
-```
+`GET /api/documents/shared/{id}`
+
+**Auth:** User (share recipient)
+
+**Response 200:** DocumentResponse.
 
 ### Update Document
 
-```
-PUT /api/documents/{id}
-```
+`PUT /api/documents/{id}`
 
+**Auth:** User (owner)
+
+**Request:**
 ```json
 {
   "title": "Updated Title",
   "description": "Updated description",
-  "folderId": "uuid"
+  "folderId": "880e8400-e29b-41d4-a716-446655440003"
 }
 ```
 
+All fields optional.
+
+**Response 200:** Updated DocumentResponse.
+
 ### Delete Document (Soft)
 
-```
-DELETE /api/documents/{id}
-```
+`DELETE /api/documents/{id}`
 
-### Restore from Trash
+**Auth:** User (owner)
 
-```
-POST /api/documents/{id}/restore
-```
+**Response 204:** No content.
 
-### Get Download URL
+### Trash
 
-```
-GET /api/documents/{id}/download
-```
+#### List Trash
+
+`GET /api/documents/trash`
+
+**Auth:** User
+
+**Response 200:** Array of soft-deleted DocumentResponse.
+
+#### Restore from Trash
+
+`POST /api/documents/{id}/restore`
+
+**Auth:** User (owner)
+
+**Response 200:** No content.
+
+### Download
+
+`GET /api/documents/{id}/download`
+
+**Auth:** User (owner or share recipient)
+
+**Response 200:** Cloudinary download URL (string).
 
 ### Share Document
 
-```
-POST /api/documents/{id}/share
-```
+`POST /api/documents/{id}/share`
 
+**Auth:** User (owner)
+
+**Request:**
 ```json
 {
   "email": "friend@example.com",
@@ -398,41 +580,42 @@ POST /api/documents/{id}/share
 }
 ```
 
+Same logic as Folder share.
+
 ### Get Document Share Info
 
-```
-GET /api/documents/{id}/share-info
-```
+`GET /api/documents/{id}/share-info`
 
-### Trash Documents
+**Auth:** User (owner)
 
-```
-GET /api/documents/trash
-```
+**Response 200:** ShareResponse.
 
 ---
 
 ## AI Summary
 
+Every AI feature belongs to **one document**. AI features cannot span multiple documents.
+
 ### Generate or Regenerate Summary
 
-```
-POST /api/ai/summary
-```
+`POST /api/ai/summary`
 
+**Auth:** User (document owner)
+
+**Request:**
 ```json
 {
-  "documentId": "uuid",
+  "documentId": "990e8400-e29b-41d4-a716-446655440004",
   "force": false
 }
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| documentId | UUID (required) | — | Document to summarize |
-| force | boolean | false | `false` → return cached if exists; `true` → regenerate and overwrite cache |
+| documentId | UUID | — | Document to summarize (required) |
+| force | boolean | false | `false` → return cached summary if exists; `true` → regenerate and overwrite |
 
-**Response** `200`:
+**Response 200:**
 ```json
 {
   "code": 200,
@@ -445,11 +628,22 @@ POST /api/ai/summary
 
 ### Get Cached Summary (Read-only)
 
-```
-GET /api/ai/summary/{documentId}
+`GET /api/ai/summary/{documentId}`
+
+**Auth:** User (document owner)
+
+**Response 200:**
+```json
+{
+  "code": 200,
+  "message": "Cached summary retrieved",
+  "data": {
+    "markdown": "# Key Concepts\n\n..."
+  }
+}
 ```
 
-Returns cached summary without generating. Returns empty `markdown` if none exists.
+Returns `markdown: ""` if no cached summary exists (never calls AI).
 
 ---
 
@@ -457,13 +651,14 @@ Returns cached summary without generating. Returns empty `markdown` if none exis
 
 ### Generate Flashcards
 
-```
-POST /api/flashcards/generate
-```
+`POST /api/flashcards/generate`
 
+**Auth:** User (document owner)
+
+**Request:**
 ```json
 {
-  "documentId": "uuid",
+  "documentId": "990e8400-e29b-41d4-a716-446655440004",
   "numberOfCards": 10,
   "force": false
 }
@@ -471,15 +666,15 @@ POST /api/flashcards/generate
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| documentId | UUID (required) | — | Document to generate from |
-| numberOfCards | integer (min: 1) | — | Number of flashcards |
-| force | boolean | false | `false` → return existing; `true` → delete old, generate new |
+| documentId | UUID | — | Document to generate from (required) |
+| numberOfCards | integer | — | Number of flashcards (min: 1) |
+| force | boolean | false | `false` → return existing cards; `true` → delete old, generate new |
 
-**Response** `201`:
+**Response 201:**
 ```json
 [
   {
-    "id": "c3d4e5f6-...",
+    "id": "aa0e8400-e29b-41d4-a716-446655440005",
     "frontContent": "What is polymorphism?",
     "backContent": "The ability of objects to take multiple forms...",
     "generatedByAi": true,
@@ -490,9 +685,11 @@ POST /api/flashcards/generate
 
 ### Get Flashcards by Document
 
-```
-GET /api/flashcards/{documentId}
-```
+`GET /api/flashcards/{documentId}`
+
+**Auth:** User (document owner)
+
+**Response 200:** Array of FlashcardResponse (same shape as generate response).
 
 ---
 
@@ -500,13 +697,14 @@ GET /api/flashcards/{documentId}
 
 ### Generate Quiz
 
-```
-POST /api/quizzes/generate
-```
+`POST /api/quizzes/generate`
 
+**Auth:** User (document owner)
+
+**Request:**
 ```json
 {
-  "documentId": "uuid",
+  "documentId": "990e8400-e29b-41d4-a716-446655440004",
   "numberOfQuestions": 5,
   "force": false
 }
@@ -514,20 +712,20 @@ POST /api/quizzes/generate
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| documentId | UUID (required) | — | Document to generate from |
-| numberOfQuestions | integer (min: 1) | — | Number of questions |
-| force | boolean | false | `false` → return existing; `true` → delete old, generate new |
+| documentId | UUID | — | Document to generate from (required) |
+| numberOfQuestions | integer | — | Number of questions (min: 1) |
+| force | boolean | false | `false` → return existing quiz; `true` → delete old, generate new |
 
-**Response** `201`:
+**Response 201:**
 ```json
 {
-  "id": "d4e5f6a7-...",
+  "id": "bb0e8400-e29b-41d4-a716-446655440006",
   "title": "AI-Generated Quiz",
   "generatedByAi": true,
   "createdAt": "2025-01-15T10:00:00",
   "questions": [
     {
-      "id": "e5f6a7b8-...",
+      "id": "cc0e8400-e29b-41d4-a716-446655440007",
       "content": "What is the time complexity of binary search?",
       "optionA": "O(n)",
       "optionB": "O(log n)",
@@ -539,81 +737,95 @@ POST /api/quizzes/generate
 }
 ```
 
+`correctAnswer` is a single letter (`A`, `B`, `C`, or `D`). The frontend uses
+it for grading user selections.
+
 ### Get Quizzes by Document
 
-```
-GET /api/quizzes/{documentId}
-```
+`GET /api/quizzes/{documentId}`
+
+**Auth:** User (document owner)
+
+**Response 200:** Array of QuizResponse.
 
 ---
 
-## Sharing
+## Shares
 
-**Two distinct features:**
+### Two Distinct Operations
 
 | Concept | Operation | Effect |
 |---------|-----------|--------|
-| **Share** | Grant access | Recipient has **read-only** access. Ownership never changes. |
-| **Save to My Folder** | Copy | Creates a **personal copy** owned by the requester. Original unchanged. |
+| **Share** | Grant read-only access | Recipient views the original. Ownership unchanged. |
+| **Save to My Folder** | Copy to own workspace | Recipient receives personal copies. Ownership transfers. |
 
 ### Get Shares by Owner
 
-```
-GET /api/shares/owner
-```
+`GET /api/shares/owner`
+
+**Auth:** User
+
+**Response 200:** Array of ShareResponse.
 
 ### Get Shares with Me
 
-```
-GET /api/shares/shared-with-me
-```
+`GET /api/shares/shared-with-me`
+
+**Auth:** User
+
+**Response 200:** Array of ShareResponse filtered to items shared with the
+caller.
 
 ### Delete Share
 
-```
-DELETE /api/shares/{id}
-```
+`DELETE /api/shares/{id}`
+
+**Auth:** User (share owner) or ADMIN
+
+**Response 204:** No content.
 
 ### Delete Share by Token
 
-```
-DELETE /api/shares/token/{shareToken}
-```
+`DELETE /api/shares/token/{shareToken}`
+
+**Auth:** User (share owner or shared recipient) or ADMIN
+
+**Response 204:** No content.
 
 ### Save Shared Content to My Folder
 
-```
-POST /api/shares/{shareId}/save
-```
+`POST /api/shares/{shareId}/save`
+
+**Auth:** User
 
 **Request:**
 ```json
 {
-  "folderId": "uuid",
-  "title": "Copied document",
+  "folderId": "880e8400-e29b-41d4-a716-446655440003",
+  "title": "Copied document (optional)",
   "description": null
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| folderId | UUID (required) | Destination folder (belongs to the requester) |
-| title | String (optional) | Override title; only applies to single-document shares |
-| description | String (optional) | Override description; only applies to single-document shares |
+| folderId | UUID | Destination folder (required, belongs to requester) |
+| title | string | Override title (optional, single-document shares only) |
+| description | string | Override description (optional, single-document shares only) |
 
-**Behavior**: This is a **COPY** operation, not a transfer of ownership.
-- A personal copy of each shared document is created inside the requester's folder
-- Copied resources belong entirely to the requester (`ownerId` = requester)
-- Original shared resources and their owner are completely unchanged
-- `document.summary` is preserved (not regenerated)
-- Flashcards and quizzes are **not** copied
+**Behavior:** COPY operation (not transfer).
+- Personal copy created in requester's folder
+- `ownerId` = requester
+- Original unchanged
+- `document.summary` preserved
+- Flashcards/quizzes NOT copied
 
-**Duplicate Prevention** (checked in this order):
-1. `checksum` matches an existing document in the destination folder
-2. `publicId` (Cloudinary) matches an existing document
-3. `title` AND `fileSize` both match an existing document
+**Duplicate Prevention** (checked in order):
+1. `checksum` match → skip
+2. `publicId` (Cloudinary) match → skip
+3. `title` + `fileSize` match → skip
 
-**Response** `200`:
+**Response 200:**
 ```json
 {
   "total": 6,
@@ -621,35 +833,82 @@ POST /api/shares/{shareId}/save
   "skipped": 2,
   "failed": 0,
   "copiedDocuments": [
-    { "name": "Week1.pdf", "documentId": "uuid-1", "reason": null },
-    { "name": "Chapter2.pdf", "documentId": "uuid-2", "reason": null }
+    { "name": "Week1.pdf", "documentId": "990e8400-...", "reason": null }
   ],
   "skippedDocuments": [
-    { "name": "Java Basics.pdf", "documentId": null, "reason": "Already exists" },
-    { "name": "Spring Boot.pdf", "documentId": null, "reason": "Already exists" }
+    { "name": "Java Basics.pdf", "documentId": null, "reason": "Already exists" }
   ],
   "failedDocuments": [],
   "message": "4 documents copied successfully. 2 documents were skipped because they already exist."
 }
 ```
 
-All-zero cases covered:
+---
+
+## Reports
+
+### Create Report
+
+`POST /api/reports`
+
+**Auth:** User
+
+**Request:**
 ```json
-// Everything copied
-{ "total": 6, "copied": 6, "skipped": 0, "failed": 0,
-  "copiedDocuments": [...], "skippedDocuments": [], "failedDocuments": [],
-  "message": "6 documents copied successfully" }
-
-// Everything already exists
-{ "total": 6, "copied": 0, "skipped": 6, "failed": 0,
-  "copiedDocuments": [], "skippedDocuments": [...], "failedDocuments": [],
-  "message": "6 documents were skipped because they already exist" }
-
-// Everything failed
-{ "total": 6, "copied": 0, "skipped": 0, "failed": 6,
-  "copiedDocuments": [], "skippedDocuments": [], "failedDocuments": [...],
-  "message": "6 documents failed to copy" }
+{
+  "documentId": "990e8400-e29b-41d4-a716-446655440004",
+  "reason": "Inappropriate content",
+  "description": "Optional details"
+}
 ```
+
+**Response 200:** `{ "code": 200, "message": "Report submitted", "data": null }`
+
+### List Reports (Admin)
+
+`GET /api/reports`
+
+**Auth:** ADMIN
+
+**Query:** Pagination (`page`, `size`, `sort`)
+
+**Response 200:** Paginated list of ReportResponse.
+
+### List My Reports
+
+`GET /api/reports/my`
+
+**Auth:** User
+
+**Response 200:** Paginated list of ReportResponse by the caller.
+
+### List All Reports History (Admin)
+
+`GET /api/reports/history`
+
+**Auth:** ADMIN
+
+**Response 200:** Paginated list of all ReportResponse.
+
+### Handle Report Decision (Admin)
+
+`POST /api/reports/{id}/decision`
+
+**Auth:** ADMIN
+
+**Request:**
+```json
+{
+  "decision": "approved"
+}
+```
+
+Decisions: `"approved"`, `"rejected"`, `"removed"`.
+
+Approving a report sets the document's status to `"REJECT"` (hidden from normal
+queries).
+
+**Response 200:** `{ "code": 200, "message": "Report decision processed", "data": null }`
 
 ---
 
@@ -659,59 +918,176 @@ All admin endpoints require `ROLE_ADMIN`.
 
 ### Dashboard Stats
 
-```
-GET /api/admin/dashboard/stats
-```
+`GET /api/admin/dashboard/stats`
 
-### Users
-
-```
-GET /api/admin/users
-```
-
-### Documents
-
-```
-GET /api/admin/documents
-GET /api/admin/documents/trash
-PATCH /api/admin/documents/{id}/approve
-PATCH /api/admin/documents/{id}/reject
-POST /api/admin/documents/{id}/restore
-GET /api/admin/documents/status/{status}
-```
-
-### Payments
-
-```
-GET /api/admin/payments
-```
-
----
-
-## Response Format
-
-All API responses follow the `ApiResponse<T>` wrapper:
-
+**Response 200:**
 ```json
 {
   "code": 200,
-  "message": "Success",
-  "data": { ... }
+  "message": "Dashboard stats",
+  "data": {
+    "totalUsers": 150,
+    "totalUsersTrend": 12.5,
+    "totalDocs": 420,
+    "totalDocsTrend": 8.3,
+    "totalDownloads": 89,
+    "totalDownloadsTrend": -2.1
+  }
 }
 ```
 
-Error responses:
+### Recent Activity
+
+`GET /api/admin/dashboard/activity?limit=15`
+
+**Response 200:**
 ```json
 {
-  "code": 400,
-  "message": "Validation failed",
-  "data": null
+  "code": 200,
+  "message": "Recent activities",
+  "data": [
+    {
+      "id": "uuid",
+      "title": "Uploaded document: Chapter1.pdf",
+      "actor": "john_doe",
+      "type": "upload",
+      "time": "5 phút trước",
+      "createdAt": "2025-01-15T10:00:00Z"
+    }
+  ]
 }
 ```
+
+### Users (Admin)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/users` | List all users (paginated) |
+| GET | `/api/admin/users/{id}` | Get user by ID |
+| PATCH | `/api/admin/users/{id}/lock` | Lock a user |
+| PATCH | `/api/admin/users/{id}/unlock` | Unlock a user |
+| PATCH | `/api/admin/users/{id}/toggle-status` | Toggle lock/unlock |
+| DELETE | `/api/admin/users/{id}` | Soft-delete a user |
+| PATCH | `/api/admin/users/{id}/restore` | Restore soft-deleted user |
+
+### Documents (Admin)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/documents` | List all documents |
+| GET | `/api/admin/documents/trash` | List trashed documents |
+| GET | `/api/admin/documents/status/{status}` | Filter by status |
+| PATCH | `/api/admin/documents/{id}/approve` | Approve document (sets status to READY) |
+| PATCH | `/api/admin/documents/{id}/reject` | Reject document (sets status to REJECT) |
+| POST | `/api/admin/documents/{id}/restore` | Restore from trash |
+
+### Transactions (Admin)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/admin/transactions` | All transactions (paginated) |
+| GET | `/api/admin/transactions/status/{status}` | Filter by status |
+| GET | `/api/admin/transactions/user/{accountId}` | By user |
 
 ---
 
-## Common HTTP Status Codes
+## Payments
+
+### List Active Plans
+
+`GET /api/payment/plans`
+
+**Auth:** No auth required
+
+**Response 200:** Array of PaymentPlan.
+
+### Create Payment Link
+
+`POST /api/payment/create`
+
+**Auth:** User
+
+**Request:**
+```json
+{
+  "planId": "dd0e8400-e29b-41d4-a716-446655440008"
+}
+```
+
+**Response 200:**
+```json
+{
+  "checkoutUrl": "https://payos.vn/checkout/...",
+  "orderCode": 123456789,
+  "amount": 99000
+}
+```
+
+### Check Payment Status
+
+`GET /api/payment/status/{orderCode}`
+
+### Webhook (PayOS)
+
+`POST /api/payment/webhook`
+
+PayOS callback endpoint.
+
+### My Transactions
+
+`GET /api/payment/my-transactions`
+
+**Auth:** User
+
+**Response 200:** Array of user's payment transactions.
+
+---
+
+## AI Feature Behaviors
+
+### `force=false` (default, read-cached)
+
+| Feature | Returns |
+|---------|---------|
+| Summary | Cached `Document.summary` if non-empty, else generates new |
+| Flashcards | Existing flashcards for this document if any |
+| Quiz | Existing quiz for this document if any |
+
+### `force=true` (regenerate)
+
+| Feature | Action |
+|---------|--------|
+| Summary | Calls AI → overwrites `Document.summary` → returns new markdown |
+| Flashcards | Deletes all flashcards for this document → generates new → saves |
+| Quiz | Deletes all quizzes + questions for this document → generates new → saves |
+
+Every AI feature belongs to exactly one document. No multi-document generation.
+
+---
+
+## Frontend Integration Notes
+
+1. **All IDs are UUID strings.** Pass them as-is in URLs and JSON bodies.
+2. **Subject.defaultSubject** — use this boolean. Never compare `name === "General"`.
+3. **Folder is the upload destination.** Documents go into a Folder, which belongs to a Subject. The hierarchy is always Semester → Subject → Folder → Document.
+4. **Every AI feature belongs to one document.** No batch/collection AI features.
+5. **Backend is frozen after UUID migration.** No further schema changes are expected.
+
+---
+
+## Removed Features
+
+The following features no longer exist in this API:
+
+- NotebookLM integration
+- Multi-document AI generation
+- `documentIds[]` array parameter (all AI endpoints accept a single `documentId`)
+- Knowledge Sources / Document selector
+- Subject name comparison (use `defaultSubject` flag)
+
+---
+
+## HTTP Status Codes
 
 | Code | Meaning |
 |------|---------|
@@ -723,17 +1099,3 @@ Error responses:
 | 403 | Forbidden (wrong role/permission) |
 | 404 | Not Found |
 | 500 | Internal Server Error |
-
----
-
-## AI Feature Behaviors
-
-### `force=false` (default)
-- AI Summary: returns cached `Document.summary` if non-empty
-- Flashcards: returns existing flashcards for this document if any
-- Quiz: returns existing quiz for this document if any
-
-### `force=true`
-- AI Summary: calls AI → overwrites `Document.summary` → returns new markdown
-- Flashcards: deletes all flashcards for this document → generates new → saves → returns
-- Quiz: deletes all quizzes + questions for this document → generates new → saves → returns
