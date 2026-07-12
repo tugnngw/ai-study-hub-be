@@ -42,7 +42,7 @@ public class AccountMeResponse {
     private Plan plan;
 
     @Schema(description = "Storage limit in GB", example = "1")
-    private Integer storageGb;
+    private Double storageGb;
 
     @Schema(description = "Account creation timestamp")
     private Instant createdAt;

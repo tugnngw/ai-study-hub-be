@@ -1,0 +1,183 @@
+package com.tugnw.aistudy.service.impl;
+
+import com.tugnw.aistudy.domain.dto.subscription.SubscriptionResponse;
+import com.tugnw.aistudy.domain.dto.subscription.UpgradePreviewResponse;
+import com.tugnw.aistudy.domain.entity.Account;
+import com.tugnw.aistudy.domain.entity.PaymentPlan;
+import com.tugnw.aistudy.domain.entity.PaymentTransaction;
+import com.tugnw.aistudy.domain.entity.Subscription;
+import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
+import com.tugnw.aistudy.repository.AccountRepository;
+import com.tugnw.aistudy.repository.PaymentPlanRepository;
+import com.tugnw.aistudy.repository.SubscriptionRepository;
+import com.tugnw.aistudy.service.SubscriptionService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class SubscriptionServiceImpl implements SubscriptionService {
+
+    private final SubscriptionRepository subscriptionRepository;
+    private final AccountRepository accountRepository;
+    private final PaymentPlanRepository paymentPlanRepository;
+
+    private SubscriptionResponse mapToSubscriptionResponse(Subscription sub) {
+        long daysRemaining = ChronoUnit.DAYS.between(Instant.now(), sub.getEndDate());
+        return SubscriptionResponse.builder()
+                .id(sub.getId().toString())
+                .planId(sub.getPlan().getId())
+                .planName(sub.getPlan().getName())
+                .status(sub.getStatus().name())
+                .startDate(sub.getStartDate())
+                .endDate(sub.getEndDate())
+                .pricePaid(sub.getPricePaid())
+                .storageGbGranted(sub.getStorageGbGranted())
+                .aiQuestionsGranted(sub.getAiQuestionsGranted())
+                .daysRemaining(Math.max(0, daysRemaining))
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public Subscription createSubscription(UUID accountId, PaymentPlan plan, PaymentTransaction tx) {
+        Instant now = Instant.now();
+        Instant endDate = now.plus(plan.getDurationDays(), ChronoUnit.DAYS);
+
+        Subscription subscription = Subscription.builder()
+                .accountId(accountId)
+                .plan(plan)
+                .paymentTransaction(tx)
+                .status(SubscriptionStatus.ACTIVE)
+                .startDate(now)
+                .endDate(endDate)
+                .pricePaid(plan.getPrice()) // Assuming price paid is plan price for new subscription
+                .storageGbGranted(plan.getStorageGb())
+                .aiQuestionsGranted(plan.getAiQuestions())
+                .build();
+
+        log.info("Creating new subscription for account {} to plan {}. End date: {}", accountId, plan.getName(), endDate);
+        return subscriptionRepository.save(subscription);
+    }
+
+    @Override
+    public Optional<SubscriptionResponse> getActiveSubscription(UUID accountId) {
+        return subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE)
+                .map(this::mapToSubscriptionResponse);
+    }
+
+    @Override
+    public UpgradePreviewResponse calculateUpgradePreview(UUID accountId, UUID newPlanId) {
+        Subscription currentSubscription = subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE)
+                .orElse(null); // Can be null if no active subscription
+
+        PaymentPlan newPlan = paymentPlanRepository.findById(newPlanId)
+                .orElseThrow(() -> new IllegalArgumentException("New plan not found"));
+
+        if (currentSubscription != null && currentSubscription.getPlan().getId().equals(newPlanId)) {
+            throw new IllegalArgumentException("Cannot upgrade to the same plan");
+        }
+
+        long remainingDays = 0L;
+        long remainingCredit = 0L;
+        Instant newEndDate = Instant.now().plus(newPlan.getDurationDays(), ChronoUnit.DAYS); // Default for new purchase
+
+        if (currentSubscription != null) {
+            // Proration logic
+            Instant now = Instant.now();
+            if (currentSubscription.getEndDate().isAfter(now)) {
+                remainingDays = ChronoUnit.DAYS.between(now, currentSubscription.getEndDate());
+                if (currentSubscription.getPlan().getDurationDays() > 0) {
+                    long dailyRate = currentSubscription.getPricePaid() / currentSubscription.getPlan().getDurationDays();
+                    remainingCredit = dailyRate * remainingDays;
+                }
+            }
+            newEndDate = now.plus(remainingDays, ChronoUnit.DAYS).plus(newPlan.getDurationDays(), ChronoUnit.DAYS);
+        }
+
+        long amountToPay = Math.max(0, newPlan.getPrice() - remainingCredit);
+
+        return UpgradePreviewResponse.builder()
+                .currentPlanName(currentSubscription != null ? currentSubscription.getPlan().getName() : "N/A")
+                .newPlanName(newPlan.getName())
+                .remainingDays(remainingDays)
+                .remainingCredit(remainingCredit)
+                .newPlanPrice(newPlan.getPrice())
+                .amountToPay(amountToPay)
+                .newEndDate(newEndDate)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public Subscription upgradeSubscription(UUID accountId, UUID newPlanId, PaymentTransaction tx) {
+        Subscription currentSubscription = subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE)
+                .orElse(null);
+
+        PaymentPlan newPlan = paymentPlanRepository.findById(newPlanId)
+                .orElseThrow(() -> new IllegalArgumentException("New plan not found"));
+
+        if (currentSubscription != null) {
+            // Mark current subscription as UPGRADED
+            currentSubscription.setStatus(SubscriptionStatus.UPGRADED);
+            currentSubscription.setCancelledAt(Instant.now());
+            subscriptionRepository.save(currentSubscription);
+            log.info("Marked subscription {} as UPGRADED", currentSubscription.getId());
+        }
+
+        // Create new subscription
+        Instant now = Instant.now();
+        long remainingDays = 0L;
+        if (currentSubscription != null && currentSubscription.getEndDate().isAfter(now)) {
+            remainingDays = ChronoUnit.DAYS.between(now, currentSubscription.getEndDate());
+        }
+        Instant newEndDate = now.plus(remainingDays, ChronoUnit.DAYS).plus(newPlan.getDurationDays(), ChronoUnit.DAYS);
+
+        Subscription newSubscription = Subscription.builder()
+                .accountId(accountId)
+                .plan(newPlan)
+                .paymentTransaction(tx)
+                .status(SubscriptionStatus.ACTIVE)
+                .startDate(now)
+                .endDate(newEndDate)
+                .pricePaid(newPlan.getPrice())
+                .storageGbGranted(newPlan.getStorageGb())
+                .aiQuestionsGranted(newPlan.getAiQuestions())
+                .upgradedToSubscription(currentSubscription)
+                .build();
+
+        Subscription saved = subscriptionRepository.save(newSubscription);
+        log.info("Created new subscription {} for upgraded plan {}", saved.getId(), newPlan.getName());
+        return saved;
+    }
+
+    @Override
+    public List<SubscriptionResponse> getSubscriptionHistory(UUID accountId) {
+        return subscriptionRepository.findByAccountIdOrderByCreatedAtDesc(accountId).stream()
+                .map(this::mapToSubscriptionResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void expireSubscriptions() {
+        Instant now = Instant.now();
+        List<Subscription> expiredSubscriptions = subscriptionRepository.findByStatusAndEndDateBefore(SubscriptionStatus.ACTIVE, now);
+        for (Subscription sub : expiredSubscriptions) {
+            sub.setStatus(SubscriptionStatus.EXPIRED);
+            subscriptionRepository.save(sub);
+            log.info("Expired subscription {} for account {}", sub.getId(), sub.getAccountId());
+        }
+        log.info("Processed {} expired subscriptions", expiredSubscriptions.size());
+    }
+}

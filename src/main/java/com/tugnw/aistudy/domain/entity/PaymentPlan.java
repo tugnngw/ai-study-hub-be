@@ -26,7 +26,7 @@ public class PaymentPlan {
     private String description;
 
     @Column(name = "storage_gb")
-    private Integer storageGb;
+    private Double storageGb;
 
     @Column(name = "ai_questions")
     private Integer aiQuestions;
@@ -37,4 +37,21 @@ public class PaymentPlan {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @Column(name = "tagline")
+    private String tagline;
+
+    @Column(name = "duration_days")
+    private Integer durationDays;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "features")
+    private String features;
+
+    @Column(name = "is_popular")
+    @Builder.Default
+    private Boolean isPopular = false;
+
+    @Column(name = "display_order")
+    private Integer displayOrder;
 }

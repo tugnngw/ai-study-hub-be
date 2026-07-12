@@ -89,7 +89,7 @@ public class Account implements UserDetails {
 
     @Builder.Default
     @Column(name = "storage_gb", nullable = false)
-    private Integer storageGb = 1;
+    private Double storageGb = 1.0D;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

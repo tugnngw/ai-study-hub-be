@@ -1,0 +1,165 @@
+package com.tugnw.aistudy.service.impl;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tugnw.aistudy.domain.dto.plan.CreatePlanRequest;
+import com.tugnw.aistudy.domain.dto.plan.PlanResponse;
+import com.tugnw.aistudy.domain.dto.plan.UpdatePlanRequest;
+import com.tugnw.aistudy.domain.entity.PaymentPlan;
+import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
+import com.tugnw.aistudy.repository.PaymentPlanRepository;
+import com.tugnw.aistudy.repository.SubscriptionRepository;
+import com.tugnw.aistudy.service.AdminPlanService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class AdminPlanServiceImpl implements AdminPlanService {
+
+    private final PaymentPlanRepository paymentPlanRepository;
+    private final SubscriptionRepository subscriptionRepository;
+    private final ObjectMapper objectMapper;
+
+    private PlanResponse mapToPlanResponse(PaymentPlan plan) {
+        List<String> features = null;
+        if (plan.getFeatures() != null) {
+            try {
+                features = objectMapper.readValue(plan.getFeatures(), new TypeReference<List<String>>() {});
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to parse features JSON for plan {}: {}", plan.getId(), e.getMessage());
+            }
+        }
+        long activeCount = subscriptionRepository.countByPlan_IdAndStatus(plan.getId(), SubscriptionStatus.ACTIVE);
+        return PlanResponse.builder()
+                .id(plan.getId())
+                .name(plan.getName())
+                .tagline(plan.getTagline())
+                .description(plan.getDescription())
+                .price(plan.getPrice())
+                .durationDays(plan.getDurationDays())
+                .storageGb(plan.getStorageGb())
+                .aiQuestions(plan.getAiQuestions())
+                .features(features)
+                .isPopular(plan.getIsPopular())
+                .displayOrder(plan.getDisplayOrder())
+                .isActive(plan.getIsActive())
+                .activeSubscriptionCount(activeCount)
+                .build();
+    }
+
+    private String serializeFeatures(List<String> features) {
+        if (features == null || features.isEmpty()) return null;
+        try {
+            return objectMapper.writeValueAsString(features);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize features: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    @Override
+    public List<PlanResponse> getAllPlans() {
+        return paymentPlanRepository.findAll().stream()
+                .map(this::mapToPlanResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public PlanResponse createPlan(CreatePlanRequest request) {
+        if (paymentPlanRepository.existsByName(request.getName())) {
+            throw new IllegalArgumentException("Plan name already exists: " + request.getName());
+        }
+        PaymentPlan plan = PaymentPlan.builder()
+                .name(request.getName())
+                .tagline(request.getTagline())
+                .description(request.getDescription())
+                .price(request.getPrice())
+                .durationDays(request.getDurationDays())
+                .storageGb(request.getStorageGb())
+                .aiQuestions(request.getAiQuestions())
+                .features(serializeFeatures(request.getFeatures()))
+                .isPopular(request.getIsPopular() != null ? request.getIsPopular() : false)
+                .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
+                .isActive(true)
+                .build();
+        PaymentPlan saved = paymentPlanRepository.save(plan);
+        log.info("Created new plan: {}", saved.getName());
+        return mapToPlanResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public PlanResponse updatePlan(UUID id, UpdatePlanRequest request) {
+        PaymentPlan plan = paymentPlanRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
+        if ("Free".equalsIgnoreCase(plan.getName())) {
+            throw new IllegalArgumentException("Cannot modify Free plan");
+        }
+        if (request.getName() != null && !request.getName().equals(plan.getName())) {
+            if (paymentPlanRepository.existsByName(request.getName())) {
+                throw new IllegalArgumentException("Plan name already exists: " + request.getName());
+            }
+            plan.setName(request.getName());
+        }
+        if (request.getTagline() != null) plan.setTagline(request.getTagline());
+        if (request.getDescription() != null) plan.setDescription(request.getDescription());
+        if (request.getPrice() != null) {
+            log.info("Price change for plan {}: {} -> {}", plan.getName(), plan.getPrice(), request.getPrice());
+            plan.setPrice(request.getPrice());
+        }
+        if (request.getDurationDays() != null) plan.setDurationDays(request.getDurationDays());
+        if (request.getStorageGb() != null) plan.setStorageGb(request.getStorageGb());
+        if (request.getAiQuestions() != null) plan.setAiQuestions(request.getAiQuestions());
+        if (request.getFeatures() != null) plan.setFeatures(serializeFeatures(request.getFeatures()));
+        if (request.getIsPopular() != null) plan.setIsPopular(request.getIsPopular());
+        if (request.getDisplayOrder() != null) plan.setDisplayOrder(request.getDisplayOrder());
+        if (request.getIsActive() != null) plan.setIsActive(request.getIsActive());
+        PaymentPlan saved = paymentPlanRepository.save(plan);
+        log.info("Updated plan: {}", saved.getName());
+        return mapToPlanResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public void hidePlan(UUID id) {
+        PaymentPlan plan = paymentPlanRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
+        if ("Free".equalsIgnoreCase(plan.getName())) {
+            throw new IllegalArgumentException("Cannot hide Free plan");
+        }
+        long activeCount = subscriptionRepository.countByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
+        if (activeCount > 0) {
+            log.warn("Hiding plan {} with {} active subscriptions", plan.getName(), activeCount);
+        }
+        plan.setIsActive(false);
+        paymentPlanRepository.save(plan);
+        log.info("Hidden plan: {}", plan.getName());
+    }
+
+    @Override
+    @Transactional
+    public void restorePlan(UUID id) {
+        PaymentPlan plan = paymentPlanRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
+        plan.setIsActive(true);
+        paymentPlanRepository.save(plan);
+        log.info("Restored plan: {}", plan.getName());
+    }
+
+    @Override
+    public PlanResponse getPlanById(UUID id) {
+        return paymentPlanRepository.findById(id)
+                .map(this::mapToPlanResponse)
+                .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
+    }
+}
