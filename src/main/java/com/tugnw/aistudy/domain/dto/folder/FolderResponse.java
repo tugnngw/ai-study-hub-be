@@ -19,8 +19,8 @@ public class FolderResponse {
     @Schema(description = "AI-generated summary of folder contents")
     private String aiSummary;
 
-    @Schema(description = "Subject this folder belongs to", example = "1")
-    private Long subjectId;
+    @Schema(description = "Subject this folder belongs to", example = "b2c3d4e5-...")
+    private UUID subjectId;
 
     @Schema(description = "Creation timestamp")
     private LocalDateTime createdAt;

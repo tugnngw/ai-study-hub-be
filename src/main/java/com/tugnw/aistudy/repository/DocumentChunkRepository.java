@@ -11,12 +11,12 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Long> {
+public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UUID> {
 
     @Modifying
     @Transactional
     @Query(value = "INSERT INTO document_chunk (document_id, chunk_index, content, embedding_vector) " +
-                   "VALUES (:documentId, :chunkIndex, :content, CAST(:embedding AS vector))", 
+                   "VALUES (:documentId, :chunkIndex, :content, CAST(:embedding AS vector))",
            nativeQuery = true)
     void saveChunkWithVector(@Param("documentId") UUID documentId,
                              @Param("chunkIndex") Integer chunkIndex,
@@ -27,16 +27,16 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
                    "JOIN document d ON dc.document_id = d.id " +
                    "WHERE d.folder_id = :folderId AND d.deleted_at IS NULL " +
                    "ORDER BY dc.embedding_vector <=> CAST(:queryEmbedding AS vector) " +
-                   "LIMIT 5", 
+                   "LIMIT 5",
            nativeQuery = true)
-    List<DocumentChunk> findTopChunksByFolderAndVector(@Param("folderId") java.util.UUID folderId, 
+    List<DocumentChunk> findTopChunksByFolderAndVector(@Param("folderId") UUID folderId,
                                                        @Param("queryEmbedding") String queryEmbeddingString);
 
     @Query(value = "SELECT dc.* FROM document_chunk dc " +
                    "WHERE dc.document_id = :documentId " +
                    "ORDER BY dc.embedding_vector <=> CAST(:queryEmbedding AS vector) " +
-                   "LIMIT 5", 
+                   "LIMIT 5",
            nativeQuery = true)
-    List<DocumentChunk> findTopChunksByDocumentAndVector(@Param("documentId") java.util.UUID documentId, 
-                                                         @Param("queryEmbedding") String queryEmbeddingString);                        
+    List<DocumentChunk> findTopChunksByDocumentAndVector(@Param("documentId") UUID documentId,
+                                                         @Param("queryEmbedding") String queryEmbeddingString);
 }

@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ShareRepository extends JpaRepository<Share, Long> {
+public interface ShareRepository extends JpaRepository<Share, UUID> {
     List<Share> findByOwnerId(UUID ownerId);
     List<Share> findBySharedAccountId(UUID sharedAccountId);
     Optional<Share> findByFolderIdAndSharedAccountId(UUID folderId, UUID sharedAccountId);
@@ -23,9 +23,9 @@ public interface ShareRepository extends JpaRepository<Share, Long> {
 
     @Query("SELECT s FROM Share s WHERE s.folder.id = :folderId")
     List<Share> findByFolderId(@Param("folderId") UUID folderId);
-    
+
     @Query("SELECT s FROM Share s WHERE s.document.id = :documentId")
     List<Share> findByDocumentId(@Param("documentId") UUID documentId);
-    
+
     Optional<Share> findByShareToken(String shareToken);
 }

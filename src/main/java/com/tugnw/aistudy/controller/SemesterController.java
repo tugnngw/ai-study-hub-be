@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/semesters")
@@ -30,7 +31,7 @@ public class SemesterController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get semester by ID")
-    public ResponseEntity<SemesterResponse> getSemesterById(@PathVariable Long id) {
+    public ResponseEntity<SemesterResponse> getSemesterById(@PathVariable UUID id) {
         return ResponseEntity.ok(semesterService.getSemesterById(id));
     }
 
@@ -48,7 +49,7 @@ public class SemesterController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete a semester (admin only)")
-    public ResponseEntity<Void> deleteSemester(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteSemester(@PathVariable UUID id) {
         semesterService.deleteSemester(id);
         return ResponseEntity.noContent().build();
     }

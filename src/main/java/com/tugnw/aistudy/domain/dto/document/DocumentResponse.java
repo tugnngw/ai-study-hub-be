@@ -19,8 +19,8 @@ public class DocumentResponse {
     @Schema(description = "Folder this document belongs to", example = "d7ff12cf-2ad0-4888-a9a1-b12de5d2bc9e")
     private UUID folderId;
 
-    @Schema(description = "Subject ID", example = "1")
-    private Long subjectId;
+    @Schema(description = "Subject ID", example = "b2c3d4e5-...")
+    private UUID subjectId;
 
     @Schema(description = "Document title", example = "Java Concurrency Notes")
     private String title;

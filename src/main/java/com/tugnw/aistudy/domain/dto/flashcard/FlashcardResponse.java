@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -14,8 +15,8 @@ import java.time.LocalDateTime;
 @Schema(description = "Flashcard information")
 public class FlashcardResponse {
 
-    @Schema(description = "Flashcard ID", example = "1")
-    private Long id;
+    @Schema(description = "Flashcard ID", example = "c3d4e5f6-...")
+    private UUID id;
 
     @Schema(description = "Front content (question)", example = "What is polymorphism?")
     private String frontContent;

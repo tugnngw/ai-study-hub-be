@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record ShareResponse(
-        Long id,
+        UUID id,
         UUID folderId,
         UUID documentId,
         UUID ownerId,

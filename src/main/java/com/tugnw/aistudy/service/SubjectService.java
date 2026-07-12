@@ -3,14 +3,15 @@ package com.tugnw.aistudy.service;
 import com.tugnw.aistudy.domain.dto.subject.SubjectResponse;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface SubjectService {
 
-    List<SubjectResponse> getSubjectsBySemester(Long semesterId);
+    List<SubjectResponse> getSubjectsBySemester(UUID semesterId);
 
-    SubjectResponse getSubjectById(Long id);
+    SubjectResponse getSubjectById(UUID id);
 
-    SubjectResponse createSubject(Long semesterId, String code, String name);
+    SubjectResponse createSubject(UUID semesterId, String code, String name);
 
-    void deleteSubject(Long id);
+    void deleteSubject(UUID id);
 }

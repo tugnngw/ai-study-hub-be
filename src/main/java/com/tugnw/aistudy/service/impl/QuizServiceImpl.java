@@ -145,7 +145,7 @@ public class QuizServiceImpl implements QuizService {
         return responses;
     }
 
-    private List<Question> generateQuestionsFromText(String documentText, Long quizId, Integer numberOfQuestions) throws Exception {
+    private List<Question> generateQuestionsFromText(String documentText, UUID quizId, Integer numberOfQuestions) throws Exception {
         String prompt = String.format(
                 "Based on the following document content, generate exactly %d multiple-choice questions in JSON format. " +
                 "Each question should have: 'content' (the question), 'optionA', 'optionB', 'optionC', 'optionD' (the answer choices), " +
@@ -163,7 +163,7 @@ public class QuizServiceImpl implements QuizService {
         return parseQuestionsFromResponse(aiResponse, quizId);
     }
 
-    private List<Question> parseQuestionsFromResponse(String jsonResponse, Long quizId) throws Exception {
+    private List<Question> parseQuestionsFromResponse(String jsonResponse, UUID quizId) throws Exception {
         List<Question> questions = new ArrayList<>();
         try {
             JsonNode node = objectMapper.readTree(jsonResponse);

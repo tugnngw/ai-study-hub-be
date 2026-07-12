@@ -15,7 +15,7 @@ import java.util.UUID;
 
 public interface PaymentService {
     List<PaymentPlan> listActivePlans();
-    PaymentResponse createPaymentLink(UUID userId, Long planId);
+    PaymentResponse createPaymentLink(UUID userId, UUID planId);
     Optional<PaymentTransaction> getTransactionByOrderCode(Long orderCode);
     void handleWebhook(String payload, String signature);
     List<PaymentTransactionResponse> getUserTransactions(UUID userId);

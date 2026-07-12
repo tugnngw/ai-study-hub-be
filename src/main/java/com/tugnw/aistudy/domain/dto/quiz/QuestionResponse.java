@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -13,8 +15,8 @@ import lombok.NoArgsConstructor;
 @Schema(description = "Quiz question with multiple-choice options")
 public class QuestionResponse {
 
-    @Schema(description = "Question ID", example = "1")
-    private Long id;
+    @Schema(description = "Question ID", example = "e5f6a7b8-...")
+    private UUID id;
 
     @Schema(description = "Question content", example = "What is the time complexity of binary search?")
     private String content;

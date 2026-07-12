@@ -27,7 +27,7 @@ public class Document {
     private UUID ownerId;
 
     @Column(name = "subject_id")
-    private Long subjectId;
+    private UUID subjectId;
 
     @Column(name = "folder_id")
     private UUID folderId;

@@ -37,7 +37,7 @@ public class ShareController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteShare(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<Void> deleteShare(@PathVariable UUID id, Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         shareService.removeShare(id, ownerId);
         return ResponseEntity.noContent().build();
@@ -52,7 +52,7 @@ public class ShareController {
 
     @PostMapping("/{shareId}/save")
     public ResponseEntity<SaveToFolderResponse> saveToMyFolder(
-            @PathVariable Long shareId,
+            @PathVariable UUID shareId,
             @RequestBody com.tugnw.aistudy.domain.dto.share.SaveToFolderRequest request,
             Authentication authentication) {
         UUID requesterId = getCurrentUserId(authentication);

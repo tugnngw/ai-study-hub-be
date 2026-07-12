@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -15,8 +16,8 @@ import java.util.List;
 @Schema(description = "Quiz with questions")
 public class QuizResponse {
 
-    @Schema(description = "Quiz ID", example = "1")
-    private Long id;
+    @Schema(description = "Quiz ID", example = "d4e5f6a7-...")
+    private UUID id;
 
     @Schema(description = "Quiz title", example = "AI-Generated Quiz")
     private String title;

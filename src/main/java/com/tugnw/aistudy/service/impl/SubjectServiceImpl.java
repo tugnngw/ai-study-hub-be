@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -21,7 +22,7 @@ public class SubjectServiceImpl implements SubjectService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<SubjectResponse> getSubjectsBySemester(Long semesterId) {
+    public List<SubjectResponse> getSubjectsBySemester(UUID semesterId) {
         return subjectRepository.findBySemesterIdOrderByNameAsc(semesterId).stream()
                 .map(this::toResponse)
                 .toList();
@@ -29,14 +30,15 @@ public class SubjectServiceImpl implements SubjectService {
 
     @Override
     @Transactional(readOnly = true)
-    public SubjectResponse getSubjectById(Long id) {
+    public SubjectResponse getSubjectById(UUID id) {
         Subject subject = subjectRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Subject not found"));
         return toResponse(subject);
     }
 
     @Override
-    public SubjectResponse createSubject(Long semesterId, String code, String name) {
+    @Transactional
+    public SubjectResponse createSubject(UUID semesterId, String code, String name) {
         Semester semester = semesterRepository.findById(semesterId)
                 .orElseThrow(() -> new RuntimeException("Semester not found"));
 
@@ -44,15 +46,21 @@ public class SubjectServiceImpl implements SubjectService {
                 .semester(semester)
                 .code(code)
                 .name(name)
+                .defaultSubject(false)
                 .build();
         return toResponse(subjectRepository.save(subject));
     }
 
     @Override
-    public void deleteSubject(Long id) {
-        if (!subjectRepository.existsById(id)) {
-            throw new RuntimeException("Subject not found");
+    @Transactional
+    public void deleteSubject(UUID id) {
+        Subject subject = subjectRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Subject not found"));
+
+        if (Boolean.TRUE.equals(subject.getDefaultSubject())) {
+            throw new RuntimeException("Cannot delete the default subject");
         }
+
         subjectRepository.deleteById(id);
     }
 
@@ -62,6 +70,7 @@ public class SubjectServiceImpl implements SubjectService {
                 .semesterId(subject.getSemester().getId())
                 .code(subject.getCode())
                 .name(subject.getName())
+                .defaultSubject(subject.getDefaultSubject())
                 .build();
     }
 }

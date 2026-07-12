@@ -173,7 +173,7 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
-    public void removeShare(Long shareId, UUID ownerId) {
+    public void removeShare(UUID shareId, UUID ownerId) {
         Share share = shareRepository.findById(shareId)
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
         if (!isAdmin() && !share.getOwner().getId().equals(ownerId)) {
@@ -194,24 +194,21 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
-    public SaveToFolderResponse saveToMyFolder(Long shareId, UUID folderId, String title, String description, UUID requesterId) {
+    public SaveToFolderResponse saveToMyFolder(UUID shareId, UUID folderId, String title, String description, UUID requesterId) {
         Share share = shareRepository.findById(shareId)
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
 
         List<Document> sourceDocs;
 
         if (share.getDocument() != null) {
-            // Single document share — wrap in list with optional title override
             sourceDocs = List.of(share.getDocument());
         } else if (share.getFolder() != null) {
-            // Folder share — get all documents
             sourceDocs = documentRepository
                     .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(share.getFolder().getId(), "READY");
         } else {
             throw new IllegalArgumentException("Shared item not found");
         }
 
-        // Collect existing documents in the destination folder for duplicate detection
         List<Document> existingDocs = documentRepository
                 .findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
 
@@ -220,20 +217,17 @@ public class ShareServiceImpl implements ShareService {
         List<SaveToFolderResponse.DocumentResult> failed = new ArrayList<>();
 
         for (Document source : sourceDocs) {
-            // Determine the effective title: explicit override for single-doc share, else original title
             String effectiveTitle = source.getTitle();
             if (share.getDocument() != null && title != null && !title.isBlank()) {
                 effectiveTitle = title;
             }
 
-            // --- Duplicate detection ---
             String reason = isDuplicate(source, existingDocs);
             if (reason != null) {
                 skipped.add(new SaveToFolderResponse.DocumentResult(effectiveTitle, null, reason));
                 continue;
             }
 
-            // --- Copy ---
             try {
                 Document copy = buildCopy(source, folderId, requesterId, effectiveTitle,
                         share.getDocument() != null ? description : null);
@@ -247,24 +241,16 @@ public class ShareServiceImpl implements ShareService {
         return buildResponse(sourceDocs.size(), copied, skipped, failed);
     }
 
-    /**
-     * Check if a source document already exists in the destination folder.
-     * Priority: checksum → publicId → (title + fileSize).
-     * Returns the reason string if duplicate, null if not.
-     */
     private String isDuplicate(Document source, List<Document> existingDocs) {
         for (Document existing : existingDocs) {
-            // 1. checksum
             if (source.getChecksum() != null && !source.getChecksum().isBlank()
                     && source.getChecksum().equals(existing.getChecksum())) {
                 return "Already exists";
             }
-            // 2. cloudinary publicId
             if (source.getPublicId() != null && !source.getPublicId().isBlank()
                     && source.getPublicId().equals(existing.getPublicId())) {
                 return "Already exists";
             }
-            // 3. title + fileSize
             if (source.getTitle() != null && existing.getTitle() != null
                     && source.getTitle().equals(existing.getTitle())
                     && source.getFileSize() != null && existing.getFileSize() != null
@@ -335,7 +321,7 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     @Transactional(readOnly = true)
-    public Share getShareEntity(Long shareId) {
+    public Share getShareEntity(UUID shareId) {
         return shareRepository.findById(shareId).orElseThrow(() -> new IllegalArgumentException("Share not found"));
     }
 

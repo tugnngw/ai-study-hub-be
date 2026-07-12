@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "subject")
 @Data
@@ -15,8 +17,8 @@ import lombok.NoArgsConstructor;
 public class Subject {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "semester_id")
@@ -27,4 +29,8 @@ public class Subject {
 
     @Column(length = 255)
     private String name;
+
+    @Column(name = "default_subject", nullable = false)
+    @Builder.Default
+    private Boolean defaultSubject = false;
 }

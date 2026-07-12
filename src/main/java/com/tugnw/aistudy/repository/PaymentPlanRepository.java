@@ -5,8 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
-public interface PaymentPlanRepository extends JpaRepository<PaymentPlan, Long> {
+public interface PaymentPlanRepository extends JpaRepository<PaymentPlan, UUID> {
     List<PaymentPlan> findByIsActiveTrue();
 }

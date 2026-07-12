@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/subjects")
@@ -23,13 +24,13 @@ public class SubjectController {
 
     @GetMapping("/semester/{semesterId}")
     @Operation(summary = "List subjects by semester")
-    public ResponseEntity<List<SubjectResponse>> getSubjectsBySemester(@PathVariable Long semesterId) {
+    public ResponseEntity<List<SubjectResponse>> getSubjectsBySemester(@PathVariable UUID semesterId) {
         return ResponseEntity.ok(subjectService.getSubjectsBySemester(semesterId));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get subject by ID")
-    public ResponseEntity<SubjectResponse> getSubjectById(@PathVariable Long id) {
+    public ResponseEntity<SubjectResponse> getSubjectById(@PathVariable UUID id) {
         return ResponseEntity.ok(subjectService.getSubjectById(id));
     }
 
@@ -37,7 +38,7 @@ public class SubjectController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create a subject (admin only)")
     public ResponseEntity<SubjectResponse> createSubject(@RequestBody Map<String, Object> body) {
-        Long semesterId = Long.valueOf(body.get("semesterId").toString());
+        UUID semesterId = UUID.fromString(body.get("semesterId").toString());
         String code = (String) body.get("code");
         String name = (String) body.get("name");
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -47,7 +48,7 @@ public class SubjectController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete a subject (admin only)")
-    public ResponseEntity<Void> deleteSubject(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteSubject(@PathVariable UUID id) {
         subjectService.deleteSubject(id);
         return ResponseEntity.noContent().build();
     }

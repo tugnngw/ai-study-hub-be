@@ -20,11 +20,11 @@ import java.util.UUID;
 public class FlashcardProgress {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "flashcard_id", nullable = false)
-    private Long flashcardId;
+    private UUID flashcardId;
 
     @Column(name = "account_id", nullable = false)
     private UUID accountId;

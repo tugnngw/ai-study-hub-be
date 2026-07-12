@@ -18,5 +18,5 @@ public interface FolderRepository extends JpaRepository<Folder, UUID>, JpaSpecif
 
     Optional<Folder> findByOwnerIdAndNameIgnoreCaseAndDeletedAtIsNull(UUID ownerId, String name);
 
-    List<Folder> findBySubjectIdAndDeletedAtIsNull(Long subjectId);
+    List<Folder> findBySubjectIdAndDeletedAtIsNull(UUID subjectId);
 }

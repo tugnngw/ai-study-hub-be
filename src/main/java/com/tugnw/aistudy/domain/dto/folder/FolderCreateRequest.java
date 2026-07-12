@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.UUID;
+
 @Data
 @Schema(description = "Request to create a new folder")
 public class FolderCreateRequest {
@@ -16,6 +18,6 @@ public class FolderCreateRequest {
     private String name;
 
     @NotNull(message = "Subject ID must not be null")
-    @Schema(description = "Subject this folder belongs to", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
-    private Long subjectId;
+    @Schema(description = "Subject this folder belongs to", example = "b2c3d4e5-...", requiredMode = Schema.RequiredMode.REQUIRED)
+    private UUID subjectId;
 }

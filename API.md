@@ -122,12 +122,16 @@ Headers: `Authorization: Bearer <token>`
 GET /api/semesters
 ```
 
+All entity identifiers are now UUID. No Long IDs remain.
+
 **Response** `200`:
 ```json
 [
-  { "id": 1, "name": "Spring 2025", "startDate": "2025-01-15", "endDate": "2025-05-20" }
+  { "id": "a1b2c3d4-...", "name": "Spring 2025", "startDate": "2025-01-15", "endDate": "2025-05-20" }
 ]
 ```
+
+**Note:** Creating a semester automatically creates a built-in "General" subject (`defaultSubject: true`) in that semester.
 
 ### Get Semester by ID
 
@@ -168,7 +172,7 @@ GET /api/subjects/semester/{semesterId}
 **Response** `200`:
 ```json
 [
-  { "id": 1, "semesterId": 1, "code": "SWP391", "name": "Software Development Project" }
+  { "id": "b2c3d4e5-...", "semesterId": "a1b2c3d4-...", "code": "SWP391", "name": "Software Development Project", "defaultSubject": false }
 ]
 ```
 
@@ -186,7 +190,7 @@ POST /api/subjects
 
 ```json
 {
-  "semesterId": 1,
+  "semesterId": "a1b2c3d4-...",
   "code": "SWP391",
   "name": "Software Development Project"
 }
@@ -197,6 +201,8 @@ POST /api/subjects
 ```
 DELETE /api/subjects/{id}
 ```
+
+**Note:** Default subjects (General) cannot be deleted, renamed, or disabled. They are automatically created with each new semester.
 
 ---
 
@@ -211,7 +217,7 @@ POST /api/folder/create
 ```json
 {
   "name": "Chapter 1: Introduction",
-  "subjectId": 1
+  "subjectId": "b2c3d4e5-..."
 }
 ```
 
@@ -221,7 +227,7 @@ POST /api/folder/create
   "id": "uuid",
   "name": "Chapter 1: Introduction",
   "aiSummary": null,
-  "subjectId": 1,
+  "subjectId": "b2c3d4e5-...",
   "createdAt": "2025-01-15T10:00:00",
   "updatedAt": "2025-01-15T10:00:00",
   "documentCount": 0
@@ -249,7 +255,7 @@ PUT /api/folder/update/{id}
 ```json
 {
   "name": "Updated Name",
-  "subjectId": 2
+  "subjectId": "b2c3d4e5-..."
 }
 ```
 
@@ -303,7 +309,7 @@ Content-Type: multipart/form-data
     "id": "uuid",
     "ownerId": "uuid",
     "folderId": "uuid",
-    "subjectId": 1,
+    "subjectId": "b2c3d4e5-...",
     "title": "Java Concurrency Notes",
     "description": null,
     "summary": null,
@@ -473,7 +479,7 @@ POST /api/flashcards/generate
 ```json
 [
   {
-    "id": 1,
+    "id": "c3d4e5f6-...",
     "frontContent": "What is polymorphism?",
     "backContent": "The ability of objects to take multiple forms...",
     "generatedByAi": true,
@@ -515,13 +521,13 @@ POST /api/quizzes/generate
 **Response** `201`:
 ```json
 {
-  "id": 1,
+  "id": "d4e5f6a7-...",
   "title": "AI-Generated Quiz",
   "generatedByAi": true,
   "createdAt": "2025-01-15T10:00:00",
   "questions": [
     {
-      "id": 1,
+      "id": "e5f6a7b8-...",
       "content": "What is the time complexity of binary search?",
       "optionA": "O(n)",
       "optionB": "O(log n)",

@@ -12,10 +12,10 @@ public interface ShareService {
     ShareResponse shareDocument(ShareRequest request, UUID ownerId);
     List<ShareResponse> getSharesByOwner(UUID ownerId);
     List<ShareResponse> getSharesWithMe(UUID userId);
-    void removeShare(Long shareId, UUID ownerId);
+    void removeShare(UUID shareId, UUID ownerId);
     void removeShareByToken(String shareToken, UUID ownerId);
-    SaveToFolderResponse saveToMyFolder(Long shareId, UUID folderId, String title, String description, UUID requesterId);
+    SaveToFolderResponse saveToMyFolder(UUID shareId, UUID folderId, String title, String description, UUID requesterId);
     String getShareLink(UUID folderId);
-    Share getShareEntity(Long shareId);
+    Share getShareEntity(UUID shareId);
     ShareResponse getShareInfo(UUID id, String type, UUID ownerId);
 }

@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -15,8 +16,8 @@ import java.time.LocalDate;
 @Schema(description = "Semester information")
 public class SemesterResponse {
 
-    @Schema(description = "Semester ID", example = "1")
-    private Long id;
+    @Schema(description = "Semester ID", example = "a1b2c3d4-...")
+    private UUID id;
 
     @Schema(description = "Semester name", example = "Spring 2025")
     private String name;
