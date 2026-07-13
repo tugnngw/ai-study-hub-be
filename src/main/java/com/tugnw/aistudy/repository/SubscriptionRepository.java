@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @Repository
 public interface SubscriptionRepository extends JpaRepository<Subscription, UUID> {
-    Optional<Subscription> findByAccountIdAndStatus(UUID accountId, SubscriptionStatus status);
+    List<Subscription> findByAccountIdAndStatus(UUID accountId, SubscriptionStatus status);
 
     List<Subscription> findByStatusAndEndDateBefore(SubscriptionStatus status, Instant date);
 

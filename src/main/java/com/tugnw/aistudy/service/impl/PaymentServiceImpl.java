@@ -59,11 +59,11 @@ public class PaymentServiceImpl implements PaymentService {
         long finalAmount = plan.getPrice();
         
         // Tìm subscription active hiện tại của user
-        Optional<com.tugnw.aistudy.domain.entity.Subscription> activeSubOpt = 
+        List<com.tugnw.aistudy.domain.entity.Subscription> activeSubs = 
                 subscriptionRepository.findByAccountIdAndStatus(userId, com.tugnw.aistudy.domain.enums.SubscriptionStatus.ACTIVE);
                 
-        if (activeSubOpt.isPresent()) {
-            com.tugnw.aistudy.domain.entity.Subscription activeSub = activeSubOpt.get();
+        if (!activeSubs.isEmpty()) {
+            com.tugnw.aistudy.domain.entity.Subscription activeSub = activeSubs.get(0);
             java.time.Instant now = java.time.Instant.now();
             
             // Nếu gói đang dùng chưa hết hạn

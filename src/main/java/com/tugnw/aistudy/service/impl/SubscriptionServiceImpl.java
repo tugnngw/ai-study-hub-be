@@ -72,14 +72,22 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     @Override
     public Optional<SubscriptionResponse> getActiveSubscription(UUID accountId) {
-        return subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE)
-                .map(this::mapToSubscriptionResponse);
+        List<Subscription> activeSubs = subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE);
+        if (activeSubs.isEmpty()) {
+            return Optional.empty();
+        }
+        if (activeSubs.size() > 1) {
+            log.warn("Multiple ACTIVE subscriptions found for account {}. Using the most recent one.", accountId);
+            activeSubs.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+            return Optional.of(mapToSubscriptionResponse(activeSubs.get(0)));
+        }
+        return Optional.of(mapToSubscriptionResponse(activeSubs.get(0)));
     }
 
     @Override
     public UpgradePreviewResponse calculateUpgradePreview(UUID accountId, UUID newPlanId) {
-        Subscription currentSubscription = subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE)
-                .orElse(null); // Can be null if no active subscription
+        List<Subscription> activeSubs = subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE);
+        Subscription currentSubscription = activeSubs.isEmpty() ? null : activeSubs.get(0); // Can be null if no active subscription
 
         PaymentPlan newPlan = paymentPlanRepository.findById(newPlanId)
                 .orElseThrow(() -> new IllegalArgumentException("New plan not found"));
@@ -121,21 +129,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     @Transactional
     public Subscription upgradeSubscription(UUID accountId, UUID newPlanId, PaymentTransaction tx) {
-        Subscription currentSubscription = subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE)
-                .orElse(null);
+        List<Subscription> activeSubs = subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE);
+        Subscription currentSubscription = activeSubs.isEmpty() ? null : activeSubs.get(0);
 
         PaymentPlan newPlan = paymentPlanRepository.findById(newPlanId)
                 .orElseThrow(() -> new IllegalArgumentException("New plan not found"));
 
-        if (currentSubscription != null) {
-            // Mark current subscription as UPGRADED
-            currentSubscription.setStatus(SubscriptionStatus.UPGRADED);
-            currentSubscription.setCancelledAt(Instant.now());
-            subscriptionRepository.save(currentSubscription);
-            log.info("Marked subscription {} as UPGRADED", currentSubscription.getId());
-        }
-
-        // Create new subscription
         Instant now = Instant.now();
         long remainingDays = 0L;
         if (currentSubscription != null && currentSubscription.getEndDate().isAfter(now)) {
@@ -150,11 +149,18 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .status(SubscriptionStatus.ACTIVE)
                 .startDate(now)
                 .endDate(newEndDate)
-                .pricePaid(newPlan.getPrice())
+                .pricePaid(tx.getAmount())
                 .storageGbGranted(newPlan.getStorageGb())
                 .aiQuestionsGranted(newPlan.getAiQuestions())
-                .upgradedToSubscription(currentSubscription)
                 .build();
+
+        if (currentSubscription != null) {
+            currentSubscription.setStatus(SubscriptionStatus.UPGRADED);
+            currentSubscription.setCancelledAt(now);
+            currentSubscription.setUpgradedToSubscription(newSubscription);
+            subscriptionRepository.save(currentSubscription);
+            log.info("Marked subscription {} as UPGRADED", currentSubscription.getId());
+        }
 
         Subscription saved = subscriptionRepository.save(newSubscription);
         log.info("Created new subscription {} for upgraded plan {}", saved.getId(), newPlan.getName());
