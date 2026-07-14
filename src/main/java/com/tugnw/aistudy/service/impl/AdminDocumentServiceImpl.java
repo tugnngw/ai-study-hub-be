@@ -95,10 +95,11 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     }
 
     @Override
-    public void rejectDocument(UUID id) {
+    public void rejectDocument(UUID id, String reason) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
         document.setStatus("REJECT");
+        document.setRejectReason(reason);
         documentRepository.save(document);
         
         shareRepository.findByDocumentId(id).forEach(share -> {
@@ -106,7 +107,7 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
             shareRepository.delete(share);
         });
         
-        log.info("[ADMIN REJECT] Document {} rejected and all shares revoked", id);
+        log.info("[ADMIN REJECT] Document {} rejected with reason: {} - all shares revoked", id, reason);
     }
 
     private DocumentResponse toResponse(Document document) {
@@ -124,6 +125,7 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
         response.setCloudinaryUrl(document.getCloudinaryUrl());
         response.setCreatedAt(document.getCreatedAt());
         response.setDeletedAt(document.getDeletedAt());
+        response.setRejectReason(document.getRejectReason());
         return response;
     }
 }

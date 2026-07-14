@@ -1,0 +1,1 @@
+ALTER TABLE report ADD COLUMN IF NOT EXISTS admin_comment TEXT;

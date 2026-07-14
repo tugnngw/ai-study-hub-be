@@ -102,9 +102,38 @@ public class AdminPlanServiceImpl implements AdminPlanService {
     public PlanResponse updatePlan(UUID id, UpdatePlanRequest request) {
         PaymentPlan plan = paymentPlanRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
-        if ("Free".equalsIgnoreCase(plan.getName())) {
-            throw new IllegalArgumentException("Cannot modify Free plan");
+
+        boolean isFree = "Free".equalsIgnoreCase(plan.getName());
+        long activeCount = isFree ? 0 : subscriptionRepository.countByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
+
+        if (!isFree && activeCount > 0) {
+            log.info("Plan {} has active subscriptions, creating new version for update.", plan.getName());
+            
+            // Ẩn gói cũ
+            plan.setIsActive(false);
+            paymentPlanRepository.save(plan);
+
+            // Tạo gói mới dựa trên thông tin cập nhật
+            PaymentPlan newPlan = PaymentPlan.builder()
+                    .name(request.getName() != null ? request.getName() : plan.getName() + " (v2)")
+                    .tagline(request.getTagline() != null ? request.getTagline() : plan.getTagline())
+                    .description(request.getDescription() != null ? request.getDescription() : plan.getDescription())
+                    .price(request.getPrice() != null ? request.getPrice() : plan.getPrice())
+                    .durationDays(request.getDurationDays() != null ? request.getDurationDays() : plan.getDurationDays())
+                    .storageGb(request.getStorageGb() != null ? request.getStorageGb() : plan.getStorageGb())
+                    .aiQuestions(request.getAiQuestions() != null ? request.getAiQuestions() : plan.getAiQuestions())
+                    .features(request.getFeatures() != null ? serializeFeatures(request.getFeatures()) : plan.getFeatures())
+                    .isPopular(request.getIsPopular() != null ? request.getIsPopular() : plan.getIsPopular())
+                    .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : plan.getDisplayOrder())
+                    .isActive(true)
+                    .build();
+            
+            PaymentPlan saved = paymentPlanRepository.save(newPlan);
+            log.info("Created new version of plan: {}", saved.getName());
+            return mapToPlanResponse(saved);
         }
+
+        // Cập nhật trực tiếp cho gói Free hoặc các gói không có người dùng
         if (request.getName() != null && !request.getName().equals(plan.getName())) {
             if (paymentPlanRepository.existsByName(request.getName())) {
                 throw new IllegalArgumentException("Plan name already exists: " + request.getName());
@@ -113,10 +142,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         }
         if (request.getTagline() != null) plan.setTagline(request.getTagline());
         if (request.getDescription() != null) plan.setDescription(request.getDescription());
-        if (request.getPrice() != null) {
-            log.info("Price change for plan {}: {} -> {}", plan.getName(), plan.getPrice(), request.getPrice());
-            plan.setPrice(request.getPrice());
-        }
+        if (request.getPrice() != null) plan.setPrice(request.getPrice());
         if (request.getDurationDays() != null) plan.setDurationDays(request.getDurationDays());
         if (request.getStorageGb() != null) plan.setStorageGb(request.getStorageGb());
         if (request.getAiQuestions() != null) plan.setAiQuestions(request.getAiQuestions());
@@ -124,6 +150,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (request.getIsPopular() != null) plan.setIsPopular(request.getIsPopular());
         if (request.getDisplayOrder() != null) plan.setDisplayOrder(request.getDisplayOrder());
         if (request.getIsActive() != null) plan.setIsActive(request.getIsActive());
+
         PaymentPlan saved = paymentPlanRepository.save(plan);
         log.info("Updated plan: {}", saved.getName());
         return mapToPlanResponse(saved);
@@ -134,9 +161,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
     public void hidePlan(UUID id) {
         PaymentPlan plan = paymentPlanRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
-        if ("Free".equalsIgnoreCase(plan.getName())) {
-            throw new IllegalArgumentException("Cannot hide Free plan");
-        }
+
         long activeCount = subscriptionRepository.countByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
         if (activeCount > 0) {
             log.warn("Hiding plan {} with {} active subscriptions", plan.getName(), activeCount);

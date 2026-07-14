@@ -48,4 +48,7 @@ public class DocumentResponse {
 
     @Schema(description = "Soft-delete timestamp")
     private LocalDateTime deletedAt;
+
+    @Schema(description = "Reason for rejection if status is REJECT")
+    private String rejectReason;
 }

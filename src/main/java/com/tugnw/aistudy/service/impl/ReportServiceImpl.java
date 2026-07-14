@@ -2,6 +2,7 @@ package com.tugnw.aistudy.service.impl;
 
 import com.tugnw.aistudy.domain.dto.report.ReportDecisionRequest;
 import com.tugnw.aistudy.domain.dto.report.ReportRequest;
+import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.service.ReportService;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +21,12 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     public void reportDocument(ReportRequest request, UUID reporterId) {
-        documentRepository.findByIdAndDeletedAtIsNull(request.getDocumentId())
+        Document doc = documentRepository.findByIdAndDeletedAtIsNull(request.getDocumentId())
                 .orElseThrow(() -> new IllegalArgumentException("Document not found"));
+
+        // Cập nhật trạng thái document thành REPORTED
+        doc.setStatus(com.tugnw.aistudy.domain.enums.DocumentStatus.REPORTED.name());
+        documentRepository.save(doc);
 
         // Check if document has existing approved reports, if so, reject them
         String checkApprovedSql = "SELECT COUNT(*) FROM report WHERE document_id = ? AND status = 'approved'";
@@ -33,8 +38,8 @@ public class ReportServiceImpl implements ReportService {
             jdbcTemplate.update(updateApprovedSql, request.getDocumentId());
         }
         
-        String sql = "INSERT INTO report (document_id, reporter_id, reason, status) VALUES (?, ?, ?, ?)";
-        jdbcTemplate.update(sql, request.getDocumentId(), reporterId, request.getReason(), "pending");
+        String sql = "INSERT INTO report (document_id, reporter_id, reason, status) VALUES (?, ?, ?, 'pending')";
+        jdbcTemplate.update(sql, request.getDocumentId(), reporterId, request.getReason());
     }
 
     @Override
@@ -45,21 +50,35 @@ public class ReportServiceImpl implements ReportService {
             throw new IllegalArgumentException("Report not found");
         }
 
-        String updateSql = "UPDATE report SET status = ? WHERE id = ?";
+        String updateSql = "UPDATE report SET status = ?, admin_comment = ? WHERE id = ?";
         String newStatus = decision.getDecision();
-        jdbcTemplate.update(updateSql, newStatus, reportId);
+        String comment = decision.getComment();
+        jdbcTemplate.update(updateSql, newStatus, comment, reportId);
 
-        // If approved, document should be rejected (changed from READY to REJECT)
+        // If approved, document should be BANNED (changed from READY to BANNED)
         if ("accepted".equals(newStatus) || "approved".equals(newStatus)) {
             // Find the document id from this report
             String docIdSql = "SELECT document_id FROM report WHERE id = ?";
             UUID docId = jdbcTemplate.queryForObject(docIdSql, UUID.class, reportId);
             
             if (docId != null) {
-                // Update document status to REJECT
-                String updateDocSql = "UPDATE document SET status = 'REJECT' WHERE id = ? AND status = 'READY'";
+                // Update document status to BANNED
+                String updateDocSql = "UPDATE document SET status = 'BANNED' WHERE id = ?";
+                jdbcTemplate.update(updateDocSql, docId);
+            }
+        } else if ("rejected".equals(newStatus) || "removed".equals(newStatus)) {
+            // If report is rejected/removed, revert document to READY (assuming it was REPORTED)
+            String docIdSql = "SELECT document_id FROM report WHERE id = ?";
+            UUID docId = jdbcTemplate.queryForObject(docIdSql, UUID.class, reportId);
+            
+            if (docId != null) {
+                // Update document status to READY
+                String updateDocSql = "UPDATE document SET status = 'READY' WHERE id = ?";
                 jdbcTemplate.update(updateDocSql, docId);
             }
         }
+        // Always enforce BANNED status visibility: Banned documents cannot be accessed
+        String enforceBanSql = "UPDATE document SET status = 'BANNED' WHERE status = 'REPORTED' AND id IN (SELECT document_id FROM report WHERE status = 'approved' OR status = 'accepted')";
+        jdbcTemplate.update(enforceBanSql);
     }
 }

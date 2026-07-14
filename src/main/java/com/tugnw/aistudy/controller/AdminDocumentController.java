@@ -45,8 +45,9 @@ public class AdminDocumentController {
 
     @PatchMapping("/{id}/reject")
     @Operation(summary = "Reject document")
-    public ResponseEntity<ApiResponse<Void>> rejectDocument(@PathVariable String id) {
-        adminDocumentService.rejectDocument(UUID.fromString(id));
+    public ResponseEntity<ApiResponse<Void>> rejectDocument(@PathVariable String id, @RequestBody(required = false) String reason) {
+        String cleanReason = (reason == null || reason.equals("undefined")) ? "" : reason;
+        adminDocumentService.rejectDocument(UUID.fromString(id), cleanReason);
         return ResponseEntity.ok(ApiResponse.success("Document rejected", null));
     }
 

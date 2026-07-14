@@ -11,5 +11,5 @@ public interface AdminDocumentService {
     void deleteDocument(UUID id);
     void restoreDocument(UUID id, UUID adminId, String adminName);
     void approveDocument(UUID id);
-    void rejectDocument(UUID id);
+    void rejectDocument(UUID id, String reason);
 }

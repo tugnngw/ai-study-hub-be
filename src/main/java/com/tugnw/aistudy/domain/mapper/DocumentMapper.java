@@ -10,6 +10,7 @@ import org.mapstruct.Mapping;
 public interface DocumentMapper {
 
     @Mapping(target = "summary", ignore = true) // AI sẽ generate sau
+    @Mapping(target = "rejectReason", source = "rejectReason")
     DocumentResponse toResponse(Document document);
 
     @Mapping(target = "id", ignore = true)
