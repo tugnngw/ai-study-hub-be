@@ -9,7 +9,6 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface FolderMapper {
 
-    @Mapping(target = "documentCount", ignore = true)
     @Mapping(target = "subjectId", expression = "java(folder.getSubject() != null ? folder.getSubject().getId() : null)")
     FolderResponse toResponse(Folder folder);
 
