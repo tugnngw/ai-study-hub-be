@@ -157,6 +157,30 @@ public class AdminPlanServiceImpl implements AdminPlanService {
     }
 
     @Override
+    @Transactional
+    public PlanResponse setPopular(UUID id) {
+        PaymentPlan plan = paymentPlanRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
+        
+        // Unmark other popular plans
+        List<PaymentPlan> allPlans = paymentPlanRepository.findAll();
+        for (PaymentPlan otherPlan : allPlans) {
+            if (otherPlan.getIsPopular() && !otherPlan.getId().equals(id)) {
+                otherPlan.setIsPopular(false);
+                paymentPlanRepository.save(otherPlan);
+                log.info("Unmarked plan {} as popular", otherPlan.getName());
+            }
+        }
+        
+        // Mark this plan as popular
+        plan.setIsPopular(true);
+        PaymentPlan saved = paymentPlanRepository.save(plan);
+        log.info("Marked plan {} as popular", saved.getName());
+        
+        return mapToPlanResponse(saved);
+    }
+
+    @Override
     public PlanResponse getPlanById(UUID id) {
         return paymentPlanRepository.findById(id)
                 .map(this::mapToPlanResponse)

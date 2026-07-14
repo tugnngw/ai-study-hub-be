@@ -19,4 +19,6 @@ public interface AdminPlanService {
     void restorePlan(UUID id);
 
     PlanResponse getPlanById(UUID id);
+
+    PlanResponse setPopular(UUID id);
 }

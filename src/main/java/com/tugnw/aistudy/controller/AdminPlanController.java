@@ -54,4 +54,9 @@ public class AdminPlanController {
         adminPlanService.restorePlan(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{id}/popular")
+    public ResponseEntity<PlanResponse> setPopular(@PathVariable UUID id) {
+        return ResponseEntity.ok(adminPlanService.setPopular(id));
+    }
 }
