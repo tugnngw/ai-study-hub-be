@@ -51,4 +51,6 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
            nativeQuery = true)
     List<DocumentChunk> findTopChunksByDocumentIdsAndVector(@Param("documentIds") List<UUID> documentIds,
                                                             @Param("queryEmbedding") String queryEmbeddingString);
+
+    long countByDocumentId(UUID documentId);
 }

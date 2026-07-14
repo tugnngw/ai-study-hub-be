@@ -8,6 +8,7 @@ import com.tugnw.aistudy.domain.entity.Folder;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.DocumentChunkRepository;
 import com.tugnw.aistudy.repository.FolderRepository;
+import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +47,7 @@ public class RagServiceImpl implements RagService {
     private final FolderRepository folderRepository;
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
+    private final QuotaService quotaService;
 
     private final Tika tika = new Tika();
     private final RestTemplate restTemplate = new RestTemplate();
@@ -129,6 +131,13 @@ public class RagServiceImpl implements RagService {
 
         if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
             throw new AccessDeniedException("You do not have permission to process this document");
+        }
+
+        // Skip if already processed (has chunks)
+        long chunkCount = chunkRepository.countByDocumentId(documentId);
+        if (chunkCount > 0 && ("READY".equals(doc.getStatus()) || "COMPLETED".equals(doc.getStatus()))) {
+            log.info("[PIPELINE] Document {} already processed, skipping", documentId);
+            return;
         }
 
         // Non-transactional phase: external HTTP calls
@@ -351,6 +360,11 @@ public class RagServiceImpl implements RagService {
     @Transactional(readOnly = true)
     public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) throws Exception {
         log.info("[CHAT] Question: {}", truncate(chatRequest.getQuestion(), 80));
+
+        // Check quota
+        if (!quotaService.checkQuota(requesterId, "question")) {
+            throw new RuntimeException("Bạn đã đạt giới hạn số lượng câu hỏi AI cho gói hiện tại.");
+        }
 
         // Resolve which documents to search
         List<UUID> searchDocIds = resolveSearchDocumentIds(chatRequest, requesterId);

@@ -49,8 +49,8 @@ public class FlashcardServiceImpl implements FlashcardService {
             throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        // Check quota before generating flashcards
-        if (!quotaService.checkQuota(requesterId, "flashcard")) {
+        // Check quota before generating flashcards with the number of cards to be generated
+        if (!quotaService.checkQuotaForGeneration(requesterId, "flashcard", request.getNumberOfCards())) {
             throw new RuntimeException("Bạn đã đạt giới hạn số lượng flashcard cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
         }
 

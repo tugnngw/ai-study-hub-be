@@ -36,6 +36,17 @@ public class QuotaService {
      * @return true if allowed, false if exceeded quota
      */
     public boolean checkQuota(UUID accountId, String featureType) {
+        return checkQuotaForGeneration(accountId, featureType, 1);
+    }
+
+    /**
+     * Check if user has quota to generate a specific quantity
+     * @param accountId User account ID
+     * @param featureType Type of feature: "flashcard", "question", "summary"
+     * @param quantity Number of items to be generated
+     * @return true if allowed, false if would exceed quota
+     */
+    public boolean checkQuotaForGeneration(UUID accountId, String featureType, int quantity) {
         Optional<Subscription> activeSubscriptionOpt = subscriptionRepository.findFirstByAccountIdAndStatusOrderByEndDateDesc(accountId, SubscriptionStatus.ACTIVE);
         
         if (activeSubscriptionOpt.isEmpty()) {
@@ -72,8 +83,9 @@ public class QuotaService {
         }
 
         Integer currentUsage = getCurrentUsage(accountId, featureType);
-        if (currentUsage >= limit) {
-            log.warn("Quota exceeded for feature {}: {}/{}", featureType, currentUsage, limit);
+        if (currentUsage + quantity > limit) {
+            log.warn("Quota would be exceeded for feature {}: current={}, requested={}, limit={}", 
+                featureType, currentUsage, quantity, limit);
             return false;
         }
 

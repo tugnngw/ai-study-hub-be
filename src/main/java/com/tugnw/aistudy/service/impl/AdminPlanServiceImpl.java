@@ -113,33 +113,10 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         long activeCount = isFree ? 0 : subscriptionRepository.countByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
 
         if (!isFree && activeCount > 0) {
-            log.info("Plan {} has active subscriptions, creating new version for update.", plan.getName());
-            
-            // Ẩn gói cũ
-            plan.setIsActive(false);
-            paymentPlanRepository.save(plan);
-
-            // Tạo gói mới dựa trên thông tin cập nhật
-            PaymentPlan newPlan = PaymentPlan.builder()
-                    .name(request.getName() != null ? request.getName() : plan.getName() + " (v2)")
-                    .tagline(request.getTagline() != null ? request.getTagline() : plan.getTagline())
-                    .description(request.getDescription() != null ? request.getDescription() : plan.getDescription())
-                    .price(request.getPrice() != null ? request.getPrice() : plan.getPrice())
-                    .durationDays(request.getDurationDays() != null ? request.getDurationDays() : plan.getDurationDays())
-                    .storageGb(request.getStorageGb() != null ? request.getStorageGb() : plan.getStorageGb())
-                    .aiQuestions(request.getAiQuestions() != null ? request.getAiQuestions() : plan.getAiQuestions())
-                    .features(request.getFeatures() != null ? serializeFeatures(request.getFeatures()) : plan.getFeatures())
-                    .isPopular(request.getIsPopular() != null ? request.getIsPopular() : plan.getIsPopular())
-                .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : plan.getDisplayOrder())
-                .flashcardLimit(request.getFlashcardLimit() != null ? request.getFlashcardLimit() : plan.getFlashcardLimit())
-                .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : plan.getQuestionLimit())
-                .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : plan.getSummaryLimit())
-                .isActive(true)
-                .build();
-            
-            PaymentPlan saved = paymentPlanRepository.save(newPlan);
-            log.info("Created new version of plan: {}", saved.getName());
-            return mapToPlanResponse(saved);
+            throw new IllegalArgumentException(
+                "Không thể cập nhật gói '" + plan.getName() + "' vì đang có " + activeCount + " người dùng đang sử dụng. " +
+                "Vui lòng tạo gói mới và ẩn gói cũ để thay đổi chỉ áp dụng cho người dùng mới."
+            );
         }
 
         // Cập nhật trực tiếp cho gói Free hoặc các gói không có người dùng

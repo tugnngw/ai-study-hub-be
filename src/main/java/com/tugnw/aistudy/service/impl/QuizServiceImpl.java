@@ -53,8 +53,8 @@ public class QuizServiceImpl implements QuizService {
             throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        // Check quota before generating quiz
-        if (!quotaService.checkQuota(requesterId, "question")) {
+        // Check quota before generating quiz with the number of questions to be generated
+        if (!quotaService.checkQuotaForGeneration(requesterId, "question", request.getNumberOfQuestions())) {
             throw new RuntimeException("Bạn đã đạt giới hạn số lượng câu hỏi AI cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
         }
 
