@@ -11,6 +11,7 @@ import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.FlashcardRepository;
 import com.tugnw.aistudy.service.FlashcardService;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
+import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -33,6 +34,7 @@ public class FlashcardServiceImpl implements FlashcardService {
     private final FlashcardRepository flashcardRepository;
     private final FlashcardMapper flashcardMapper;
     private final KnowledgePreparationService knowledgePreparationService;
+    private final QuotaService quotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -45,6 +47,11 @@ public class FlashcardServiceImpl implements FlashcardService {
 
         if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
             throw new AccessDeniedException("You do not have permission to access this document");
+        }
+
+        // Check quota before generating flashcards
+        if (!quotaService.checkQuota(requesterId, "flashcard")) {
+            throw new RuntimeException("Bạn đã đạt giới hạn số lượng flashcard cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
         }
 
         // Always regenerate — delete existing, create fresh

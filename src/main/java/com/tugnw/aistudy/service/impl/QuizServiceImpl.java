@@ -13,6 +13,7 @@ import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.QuizRepository;
 import com.tugnw.aistudy.repository.QuestionRepository;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
+import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.QuizService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class QuizServiceImpl implements QuizService {
     private final QuestionRepository questionRepository;
     private final QuizMapper quizMapper;
     private final KnowledgePreparationService knowledgePreparationService;
+    private final QuotaService quotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -49,6 +51,11 @@ public class QuizServiceImpl implements QuizService {
 
         if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
             throw new AccessDeniedException("You do not have permission to access this document");
+        }
+
+        // Check quota before generating quiz
+        if (!quotaService.checkQuota(requesterId, "question")) {
+            throw new RuntimeException("Bạn đã đạt giới hạn số lượng câu hỏi AI cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
         }
 
         // Always regenerate — delete existing quizzes + questions, create fresh

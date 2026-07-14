@@ -9,7 +9,8 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface DocumentMapper {
 
-    @Mapping(target = "summary", ignore = true) // AI sẽ generate sau
+    @Mapping(target = "subjectId", source = "subjectId")
+    @Mapping(target = "summary", source = "summary")
     @Mapping(target = "rejectReason", source = "rejectReason")
     DocumentResponse toResponse(Document document);
 

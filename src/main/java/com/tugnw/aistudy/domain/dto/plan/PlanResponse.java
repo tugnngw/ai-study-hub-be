@@ -24,6 +24,9 @@ public class PlanResponse {
     private List<String> features;
     private Boolean isPopular;
     private Integer displayOrder;
+    private Integer flashcardLimit;
+    private Integer questionLimit;
+    private Integer summaryLimit;
     private Boolean isActive;
     private Long activeSubscriptionCount;
 }

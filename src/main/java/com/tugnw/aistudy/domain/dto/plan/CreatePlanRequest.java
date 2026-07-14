@@ -39,4 +39,10 @@ public class CreatePlanRequest {
     private Boolean isPopular;
 
     private Integer displayOrder;
+
+    private Integer flashcardLimit;
+
+    private Integer questionLimit;
+
+    private Integer summaryLimit;
 }

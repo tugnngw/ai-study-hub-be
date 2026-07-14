@@ -53,6 +53,9 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .displayOrder(plan.getDisplayOrder())
                 .isActive(plan.getIsActive())
                 .activeSubscriptionCount(activeCount)
+                .flashcardLimit(plan.getFlashcardLimit())
+                .questionLimit(plan.getQuestionLimit())
+                .summaryLimit(plan.getSummaryLimit())
                 .build();
     }
 
@@ -90,6 +93,9 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .features(serializeFeatures(request.getFeatures()))
                 .isPopular(request.getIsPopular() != null ? request.getIsPopular() : false)
                 .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
+                .flashcardLimit(request.getFlashcardLimit() != null ? request.getFlashcardLimit() : 0)
+                .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : 0)
+                .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : 0)
                 .isActive(true)
                 .build();
         PaymentPlan saved = paymentPlanRepository.save(plan);
@@ -124,9 +130,12 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                     .aiQuestions(request.getAiQuestions() != null ? request.getAiQuestions() : plan.getAiQuestions())
                     .features(request.getFeatures() != null ? serializeFeatures(request.getFeatures()) : plan.getFeatures())
                     .isPopular(request.getIsPopular() != null ? request.getIsPopular() : plan.getIsPopular())
-                    .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : plan.getDisplayOrder())
-                    .isActive(true)
-                    .build();
+                .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : plan.getDisplayOrder())
+                .flashcardLimit(request.getFlashcardLimit() != null ? request.getFlashcardLimit() : plan.getFlashcardLimit())
+                .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : plan.getQuestionLimit())
+                .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : plan.getSummaryLimit())
+                .isActive(true)
+                .build();
             
             PaymentPlan saved = paymentPlanRepository.save(newPlan);
             log.info("Created new version of plan: {}", saved.getName());
@@ -149,6 +158,9 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (request.getFeatures() != null) plan.setFeatures(serializeFeatures(request.getFeatures()));
         if (request.getIsPopular() != null) plan.setIsPopular(request.getIsPopular());
         if (request.getDisplayOrder() != null) plan.setDisplayOrder(request.getDisplayOrder());
+        if (request.getFlashcardLimit() != null) plan.setFlashcardLimit(request.getFlashcardLimit());
+        if (request.getQuestionLimit() != null) plan.setQuestionLimit(request.getQuestionLimit());
+        if (request.getSummaryLimit() != null) plan.setSummaryLimit(request.getSummaryLimit());
         if (request.getIsActive() != null) plan.setIsActive(request.getIsActive());
 
         PaymentPlan saved = paymentPlanRepository.save(plan);

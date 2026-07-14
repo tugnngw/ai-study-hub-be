@@ -54,4 +54,16 @@ public class PaymentPlan {
 
     @Column(name = "display_order")
     private Integer displayOrder;
+
+    @Column(name = "flashcard_limit")
+    @Builder.Default
+    private Integer flashcardLimit = 0;
+
+    @Column(name = "question_limit")
+    @Builder.Default
+    private Integer questionLimit = 0;
+
+    @Column(name = "summary_limit")
+    @Builder.Default
+    private Integer summaryLimit = 0;
 }

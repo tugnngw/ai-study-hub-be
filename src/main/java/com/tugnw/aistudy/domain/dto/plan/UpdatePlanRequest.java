@@ -36,4 +36,10 @@ public class UpdatePlanRequest {
     private Integer displayOrder;
 
     private Boolean isActive;
+
+    private Integer flashcardLimit;
+
+    private Integer questionLimit;
+
+    private Integer summaryLimit;
 }
