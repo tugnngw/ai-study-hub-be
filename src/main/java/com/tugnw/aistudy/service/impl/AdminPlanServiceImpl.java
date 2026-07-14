@@ -113,13 +113,36 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         long activeCount = isFree ? 0 : subscriptionRepository.countByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
 
         if (!isFree && activeCount > 0) {
-            throw new IllegalArgumentException(
-                "Không thể cập nhật gói '" + plan.getName() + "' vì đang có " + activeCount + " người dùng đang sử dụng. " +
-                "Vui lòng tạo gói mới và ẩn gói cũ để thay đổi chỉ áp dụng cho người dùng mới."
-            );
+            log.info("Plan {} has {} active subscriptions, creating new version.", plan.getName(), activeCount);
+            
+            plan.setIsActive(false);
+            paymentPlanRepository.save(plan);
+            paymentPlanRepository.flush();
+
+            String newName = generateUniquePlanName(plan.getName());
+
+            PaymentPlan newPlan = PaymentPlan.builder()
+                    .name(newName)
+                    .tagline(request.getTagline() != null ? request.getTagline() : plan.getTagline())
+                    .description(request.getDescription() != null ? request.getDescription() : plan.getDescription())
+                    .price(request.getPrice() != null ? request.getPrice() : plan.getPrice())
+                    .durationDays(request.getDurationDays() != null ? request.getDurationDays() : plan.getDurationDays())
+                    .storageGb(request.getStorageGb() != null ? request.getStorageGb() : plan.getStorageGb())
+                    .aiQuestions(request.getAiQuestions() != null ? request.getAiQuestions() : plan.getAiQuestions())
+                    .features(request.getFeatures() != null ? serializeFeatures(request.getFeatures()) : plan.getFeatures())
+                    .isPopular(request.getIsPopular() != null ? request.getIsPopular() : plan.getIsPopular())
+                    .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : plan.getDisplayOrder())
+                    .flashcardLimit(request.getFlashcardLimit() != null ? request.getFlashcardLimit() : plan.getFlashcardLimit())
+                    .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : plan.getQuestionLimit())
+                    .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : plan.getSummaryLimit())
+                    .isActive(true)
+                    .build();
+            
+            PaymentPlan saved = paymentPlanRepository.save(newPlan);
+            log.info("Created new version: {} (old plan {} kept for {} existing users)", saved.getName(), plan.getName(), activeCount);
+            return buildPlanResponse(saved, 0L);
         }
 
-        // Cập nhật trực tiếp cho gói Free hoặc các gói không có người dùng
         if (request.getName() != null && !request.getName().equals(plan.getName())) {
             if (paymentPlanRepository.existsByName(request.getName())) {
                 throw new IllegalArgumentException("Plan name already exists: " + request.getName());
@@ -199,5 +222,44 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         return paymentPlanRepository.findById(id)
                 .map(this::mapToPlanResponse)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
+    }
+
+    private String generateUniquePlanName(String baseName) {
+        String newName = baseName;
+        int version = 2;
+        while (paymentPlanRepository.existsByName(newName)) {
+            newName = baseName + " v" + version;
+            version++;
+        }
+        return newName;
+    }
+
+    private PlanResponse buildPlanResponse(PaymentPlan plan, Long activeCount) {
+        List<String> features = null;
+        if (plan.getFeatures() != null) {
+            try {
+                features = objectMapper.readValue(plan.getFeatures(), new TypeReference<List<String>>() {});
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to parse features JSON: {}", e.getMessage());
+            }
+        }
+        return PlanResponse.builder()
+                .id(plan.getId())
+                .name(plan.getName())
+                .tagline(plan.getTagline())
+                .description(plan.getDescription())
+                .price(plan.getPrice())
+                .durationDays(plan.getDurationDays())
+                .storageGb(plan.getStorageGb())
+                .aiQuestions(plan.getAiQuestions())
+                .features(features)
+                .isPopular(plan.getIsPopular())
+                .displayOrder(plan.getDisplayOrder())
+                .isActive(plan.getIsActive())
+                .activeSubscriptionCount(activeCount)
+                .flashcardLimit(plan.getFlashcardLimit())
+                .questionLimit(plan.getQuestionLimit())
+                .summaryLimit(plan.getSummaryLimit())
+                .build();
     }
 }
