@@ -25,6 +25,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -111,6 +112,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .amount(finalAmount) // Lưu đúng số tiền thực tế user phải trả
                 .status(PaymentStatus.PENDING)
                 .description("Buy plan " + plan.getName() + (finalAmount < plan.getPrice() ? " (Upgraded)" : ""))
+                .expiredAt(java.time.Instant.now().plus(1, ChronoUnit.MINUTES))
                 .build();
 
         txRepo.save(tx);
