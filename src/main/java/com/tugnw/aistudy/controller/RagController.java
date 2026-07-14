@@ -1,5 +1,7 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.rag.RagChatResponse;
+import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -52,12 +54,12 @@ public class RagController {
     }
 
     @PostMapping("/chat")
-    public ResponseEntity<com.tugnw.aistudy.domain.dto.rag.RagChatResponse> chatWithFolder(
+    public ResponseEntity<RagChatResponse> chatWithFolder(
             @RequestBody com.tugnw.aistudy.domain.dto.rag.RagChatRequest request,
             Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         try {
-            com.tugnw.aistudy.domain.dto.rag.RagChatResponse response = ragService.chatWithFolderContext(request, ownerId);
+            RagChatResponse response = ragService.chatWithFolderContext(request, ownerId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(
@@ -72,7 +74,7 @@ public class RagController {
         }
 
         Object principal = authentication.getPrincipal();
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
+        if (principal instanceof CustomUserDetails userDetails) {
             return userDetails.getAccount().getId();
         }
 

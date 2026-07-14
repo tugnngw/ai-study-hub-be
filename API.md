@@ -336,6 +336,7 @@ subject cannot be deleted.
 ```json
 {
   "name": "Chapter 1: Introduction",
+  "description": "Lecture notes and slides for Chapter 1",
   "subjectId": "660e8400-e29b-41d4-a716-446655440001"
 }
 ```
@@ -343,6 +344,7 @@ subject cannot be deleted.
 | Field | Type | Rules |
 |-------|------|-------|
 | name | string | required, max 100 chars, unique per user |
+| description | string | optional, max 500 chars |
 | subjectId | UUID | required, must exist |
 
 **Response 201:**
@@ -350,6 +352,7 @@ subject cannot be deleted.
 {
   "id": "880e8400-e29b-41d4-a716-446655440003",
   "name": "Chapter 1: Introduction",
+  "description": "Lecture notes and slides for Chapter 1",
   "aiSummary": null,
   "subjectId": "660e8400-e29b-41d4-a716-446655440001",
   "createdAt": "2025-01-15T10:00:00",
@@ -386,11 +389,12 @@ subject cannot be deleted.
 ```json
 {
   "name": "Updated Name",
+  "description": "Updated description for this folder",
   "subjectId": "770e8400-e29b-41d4-a716-446655440002"
 }
 ```
 
-Both fields optional. Only provided fields are updated.
+All fields optional. Only provided fields are updated.
 
 **Response 200:** Updated FolderResponse.
 
@@ -403,6 +407,21 @@ Both fields optional. Only provided fields are updated.
 **Response 204:** No content.
 
 Sets `deletedAt` timestamp. Data is preserved but hidden from normal queries.
+
+### Folder Response Shape
+
+```json
+{
+  "id": "880e8400-e29b-41d4-a716-446655440003",
+  "name": "Chapter 1: Introduction",
+  "description": "Lecture notes and slides for Chapter 1",
+  "aiSummary": null,
+  "subjectId": "660e8400-e29b-41d4-a716-446655440001",
+  "createdAt": "2025-01-15T10:00:00",
+  "updatedAt": "2025-01-15T10:00:00",
+  "documentCount": 0
+}
+```
 
 ### Share Folder
 
@@ -647,6 +666,92 @@ Returns `markdown: ""` if no cached summary exists (never calls AI).
 
 ---
 
+## RAG Chat
+
+Ask questions about your documents using vector search + AI.
+
+### Chat with Documents
+
+`POST /api/v1/rag/chat`
+
+**Auth:** User
+
+**Request — by multiple document IDs (recommended):**
+```json
+{
+  "documentIds": [
+    "a1b2c3d4-...",
+    "e5f6g7h8-..."
+  ],
+  "question": "Giải thích polymorphism?"
+}
+```
+
+**Request — by single document:**
+```json
+{
+  "documentId": "a1b2c3d4-...",
+  "question": "Summary of chapter 2?"
+}
+```
+
+**Request — by folder (all documents in folder):**
+```json
+{
+  "folderId": "880e8400-e29b-41d4-a716-446655440003",
+  "question": "What are the key concepts?"
+}
+```
+
+| Field | Type | Priority | Description |
+|-------|------|----------|-------------|
+| documentIds | UUID[] | 1 (highest) | Chat with specific selected files |
+| documentId | UUID | 2 | Chat with a single file |
+| folderId | UUID | 3 | Chat with all files in a folder |
+| question | string | — | Question to ask (required) |
+
+Only one scope field is used. If multiple are provided, lower priority fields are ignored.
+
+**Response 200:**
+```json
+{
+  "answer": "# Polymorphism\n\nPolymorphism là khả năng...",
+  "referencedDocumentIds": ["a1b2c3d4-..."]
+}
+```
+
+`referencedDocumentIds` — list of documents the AI read to answer the question.
+
+### Pipeline: Process Document
+
+`POST /api/v1/rag/process/{documentId}`
+
+Triggers full RAG pipeline: download from Cloudinary → extract text (Tika) → chunk → embed (Gemini) → store vector.
+
+**Response 200:** `"Xử lý tài liệu và nạp cơ sở dữ liệu Vector RAG thành công!"`
+
+### Pipeline: Process Folder
+
+`POST /api/v1/rag/process-folder/{folderId}`
+
+Runs pipeline on every document in the folder.
+
+### Pipeline: Check Status
+
+`GET /api/v1/rag/status/{documentId}`
+
+**Response 200:**
+```json
+{
+  "documentId": "a1b2c3d4-...",
+  "status": "COMPLETED"
+}
+```
+
+Status values: `PENDING`, `READY`, `COMPLETED`, `REJECT`, `not_found`.
+
+---
+
 ## Flashcards
 
 ### Generate Flashcards
@@ -659,16 +764,16 @@ Returns `markdown: ""` if no cached summary exists (never calls AI).
 ```json
 {
   "documentId": "990e8400-e29b-41d4-a716-446655440004",
-  "numberOfCards": 10,
-  "force": false
+  "numberOfCards": 10
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| documentId | UUID | — | Document to generate from (required) |
-| numberOfCards | integer | — | Number of flashcards (min: 1) |
-| force | boolean | false | `false` → return existing cards; `true` → delete old, generate new |
+| Field | Type | Rules |
+|-------|------|-------|
+| documentId | UUID | required |
+| numberOfCards | integer | optional, min: 1 |
+
+**Behavior:** Always regenerates. Any existing flashcards for this document are deleted and replaced.
 
 **Response 201:**
 ```json
@@ -705,16 +810,16 @@ Returns `markdown: ""` if no cached summary exists (never calls AI).
 ```json
 {
   "documentId": "990e8400-e29b-41d4-a716-446655440004",
-  "numberOfQuestions": 5,
-  "force": false
+  "numberOfQuestions": 5
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| documentId | UUID | — | Document to generate from (required) |
-| numberOfQuestions | integer | — | Number of questions (min: 1) |
-| force | boolean | false | `false` → return existing quiz; `true` → delete old, generate new |
+| Field | Type | Rules |
+|-------|------|-------|
+| documentId | UUID | required |
+| numberOfQuestions | integer | optional, min: 1 |
+
+**Behavior:** Always regenerates. Any existing quiz for this document is deleted and replaced.
 
 **Response 201:**
 ```json
@@ -1045,21 +1150,17 @@ PayOS callback endpoint.
 
 ## AI Feature Behaviors
 
-### `force=false` (default, read-cached)
+### Summary — `force` behavior
 
-| Feature | Returns |
-|---------|---------|
-| Summary | Cached `Document.summary` if non-empty, else generates new |
-| Flashcards | Existing flashcards for this document if any |
-| Quiz | Existing quiz for this document if any |
+| `force` | Behavior |
+|---------|----------|
+| `false` (default) | Returns cached `Document.summary` if non-empty, else generates new |
+| `true` | Calls AI → overwrites cached summary → returns new markdown |
 
-### `force=true` (regenerate)
+### Flashcards & Quizzes — always regenerate
 
-| Feature | Action |
-|---------|--------|
-| Summary | Calls AI → overwrites `Document.summary` → returns new markdown |
-| Flashcards | Deletes all flashcards for this document → generates new → saves |
-| Quiz | Deletes all quizzes + questions for this document → generates new → saves |
+Every call deletes any existing content for that document and generates fresh results.
+The `force` field is not accepted (always treated as `true`).
 
 Every AI feature belongs to exactly one document. No multi-document generation.
 

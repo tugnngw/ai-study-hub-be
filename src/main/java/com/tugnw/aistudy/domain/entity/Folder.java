@@ -26,6 +26,9 @@ public class Folder {
     @Column(nullable = false, length = 30)
     private String name;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @Column(name = "ai_summary")
     private String aiSummary;
 

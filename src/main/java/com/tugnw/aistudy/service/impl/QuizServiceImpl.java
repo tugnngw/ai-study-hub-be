@@ -51,32 +51,16 @@ public class QuizServiceImpl implements QuizService {
             throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        if (!request.isForce()) {
-            List<Quiz> existing = quizRepository.findByDocumentId(documentId);
-            if (!existing.isEmpty()) {
-                System.out.println("[LOG - QUIZ] Returning " + existing.size() + " existing quizzes.");
-                List<QuizResponse> responses = new ArrayList<>();
-                for (Quiz q : existing) {
-                    List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(q.getId());
-                    responses.add(QuizResponse.builder()
-                            .id(q.getId())
-                            .title(q.getTitle())
-                            .generatedByAi(q.getGeneratedByAi())
-                            .createdAt(q.getCreatedAt())
-                            .questions(quizMapper.toQuestionResponseList(questions))
-                            .build());
-                }
-                return responses.get(0);
-            }
-        } else {
-            List<Quiz> existing = quizRepository.findByDocumentId(documentId);
-            for (Quiz q : existing) {
-                List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(q.getId());
-                questionRepository.deleteAll(questions);
-            }
-            quizRepository.deleteAll(existing);
-            quizRepository.flush();
-            System.out.println("[LOG - QUIZ] Deleted existing quizzes for regenerate.");
+        // Always regenerate — delete existing quizzes + questions, create fresh
+        List<Quiz> existing = quizRepository.findByDocumentId(documentId);
+        for (Quiz q : existing) {
+            List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(q.getId());
+            questionRepository.deleteAll(questions);
+        }
+        quizRepository.deleteAll(existing);
+        quizRepository.flush();
+        if (!existing.isEmpty()) {
+            System.out.println("[LOG - QUIZ] Deleted " + existing.size() + " existing quizzes.");
         }
 
         String documentText = knowledgePreparationService.prepareKnowledge(List.of(document), false);

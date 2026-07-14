@@ -16,6 +16,9 @@ public class FolderResponse {
     @Schema(description = "Folder name", example = "Chapter 1: Introduction")
     private String name;
 
+    @Schema(description = "Folder description")
+    private String description;
+
     @Schema(description = "AI-generated summary of folder contents")
     private String aiSummary;
 

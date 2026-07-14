@@ -107,6 +107,10 @@ public class FolderServiceImpl implements FolderService {
             folder.setName(request.getName());
         }
 
+        if (request.getDescription() != null) {
+            folder.setDescription(request.getDescription());
+        }
+
         if (request.getSubjectId() != null) {
             Subject subject = subjectRepository.findById(request.getSubjectId())
                     .orElseThrow(() -> new RuntimeException("Subject not found"));

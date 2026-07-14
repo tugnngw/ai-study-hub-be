@@ -17,7 +17,4 @@ public class GenerateQuizRequest {
     @Min(value = 1, message = "Number of questions must be at least 1")
     @Schema(description = "Number of questions to generate", example = "5", minimum = "1")
     private Integer numberOfQuestions;
-
-    @Schema(description = "Force regeneration (replaces existing)", example = "false", defaultValue = "false")
-    private boolean force;
 }

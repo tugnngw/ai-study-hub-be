@@ -17,7 +17,4 @@ public class GenerateFlashcardsRequest {
     @Min(value = 1, message = "Number of cards must be at least 1")
     @Schema(description = "Number of flashcards to generate", example = "10", minimum = "1")
     private Integer numberOfCards;
-
-    @Schema(description = "Force regeneration (replaces existing)", example = "false", defaultValue = "false")
-    private boolean force;
 }

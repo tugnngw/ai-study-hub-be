@@ -3,16 +3,21 @@ package com.tugnw.aistudy.service.impl;
 import com.tugnw.aistudy.domain.dto.rag.RagChatRequest;
 import com.tugnw.aistudy.domain.dto.rag.RagChatResponse;
 import com.tugnw.aistudy.domain.entity.Document;
+import com.tugnw.aistudy.domain.entity.DocumentChunk;
 import com.tugnw.aistudy.domain.entity.Folder;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.DocumentChunkRepository;
 import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -24,12 +29,14 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.*;
+import java.util.stream.IntStream;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RagServiceImpl implements RagService {
@@ -37,6 +44,8 @@ public class RagServiceImpl implements RagService {
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository chunkRepository;
     private final FolderRepository folderRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private final TransactionTemplate transactionTemplate;
 
     private final Tika tika = new Tika();
     private final RestTemplate restTemplate = new RestTemplate();
@@ -55,6 +64,8 @@ public class RagServiceImpl implements RagService {
 
     private static final int MAX_CHUNK_SIZE = 1000;
     private static final int CHUNK_OVERLAP = 200;
+    private static final int MAX_RETRIES = 3;
+    private static final long RETRY_BACKOFF_MS = 1000;
 
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -66,6 +77,7 @@ public class RagServiceImpl implements RagService {
     // GIAI ĐOẠN 1: TẢI FILE & TRÍCH XUẤT VĂN BẢN
     // ==========================================
     @Override
+    @Transactional(readOnly = true)
     public String extractTextFromDocument(UUID documentId, UUID requesterId) throws Exception {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
                 .orElseThrow(() -> new RuntimeException("Tài liệu không tồn tại hoặc đã bị xóa."));
@@ -79,34 +91,28 @@ public class RagServiceImpl implements RagService {
             throw new RuntimeException("Tài liệu chưa có URL lưu trữ trên Cloudinary.");
         }
 
-        if (fileUrl.startsWith("http://")) {
-            fileUrl = fileUrl.replace("http://", "https://");
-        }
-
-        System.out.println("[LOG - EXTRACT] 2. Bắt đầu tải file từ Cloudinary: " + fileUrl);
+        fileUrl = fileUrl.replace("http://", "https://");
+        log.info("[EXTRACT] Downloading from Cloudinary: {}", fileUrl);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fileUrl))
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                 .header("Accept", "application/pdf, text/plain, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*")
                 .GET()
                 .build();
 
         HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        System.out.println("[LOG - EXTRACT] 3. Cloudinary trả về Status: " + response.statusCode());
+        log.info("[EXTRACT] Cloudinary status: {}", response.statusCode());
 
         if (response.statusCode() != 200) {
-            throw new RuntimeException("Lỗi khi tải file từ Cloudinary. Mã trạng thái: " + response.statusCode());
+            throw new RuntimeException("Cloudinary trả về mã lỗi: " + response.statusCode());
         }
 
         try (InputStream inputStream = response.body()) {
             String extractedText = tika.parseToString(inputStream);
             extractedText = extractedText.replaceAll("(?m)^[ \t]*\r?\n", "");
-            System.out.println("[LOG - EXTRACT] 4. Tika bóc tách thành công: " + extractedText.length() + " ký tự.");
+            log.info("[EXTRACT] Tika trích xuất {} ký tự", extractedText.length());
             return extractedText;
-        } catch (Exception e) {
-            System.err.println("[LOG - EXTRACT LỖI] Lỗi bóc tách chữ: " + e.getMessage());
-            throw e;
         }
     }
 
@@ -114,67 +120,115 @@ public class RagServiceImpl implements RagService {
     // GIAI ĐOẠN 2: CHUNKING & EMBEDDING PIPELINE
     // ==========================================
     @Override
-    @Transactional
     public void processAndSaveDocumentPipeline(UUID documentId, UUID requesterId) throws Exception {
-        System.out.println("\n========== BẮT ĐẦU PIPELINE RAG ==========");
-        Document docStatus = documentRepository.findByIdAndDeletedAtIsNull(documentId).orElse(null);
-        if (docStatus != null) {
-            if (!isAdmin() && !docStatus.getOwnerId().equals(requesterId)) {
-                throw new AccessDeniedException("You do not have permission to process this document");
-            }
-            docStatus.setStatus("READY");
-            documentRepository.save(docStatus);
+        log.info("=== BẮT ĐẦU PIPELINE RAG cho document {} ===", documentId);
+        Instant start = Instant.now();
+
+        Document doc = documentRepository.findByIdAndDeletedAtIsNull(documentId)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
+            throw new AccessDeniedException("You do not have permission to process this document");
         }
 
+        // Non-transactional phase: external HTTP calls
+        doc.setStatus("READY");
+        documentRepository.save(doc);
+
         try {
+            // Phase 1: extract text (HTTP → Cloudinary + Tika)
             String rawText = extractTextFromDocument(documentId, requesterId);
             if (rawText == null || rawText.isBlank()) {
-                throw new RuntimeException("Không thể bóc tách nội dung văn bản từ tài liệu này.");
+                throw new RuntimeException("Không thể trích xuất nội dung từ tài liệu.");
             }
 
+            // Phase 2: chunking (pure Java)
             List<String> textChunks = recursiveChunking(rawText);
-            System.out.println("[LOG - PIPELINE] Băm được tổng cộng: " + textChunks.size() + " chunks.");
+            log.info("[PIPELINE] {} chunk(s) từ {} ký tự", textChunks.size(), rawText.length());
 
-            for (int i = 0; i < textChunks.size(); i++) {
-                System.out.println("[LOG - PIPELINE] ---> Đang xử lý chunk thứ " + i);
-                String chunkContent = textChunks.get(i);
+            // Phase 3: embed all chunks (parallel HTTP calls)
+            List<ChunkData> chunkDataList = embedAllChunks(documentId, textChunks);
 
-                List<Double> vector = getEmbeddingFromGemini(chunkContent);
+            // Phase 4: batch save (transactional)
+            saveChunksBatch(documentId, chunkDataList);
 
-                if (!vector.isEmpty()) {
-                    System.out.println("[LOG - PIPELINE]      Đã lấy Vector thành công (Size: " + vector.size() + "). Chuẩn bị lưu DB...");
+            doc.setStatus("COMPLETED");
+            documentRepository.save(doc);
 
-                    // SỬA LỖI ĐỊNH DẠNG VECTOR Ở ĐÂY (CỰC KỲ QUAN TRỌNG)
-                    String vectorString = vector.toString().replace(" ", "");
-
-                    try {
-                        chunkRepository.saveChunkWithVector(documentId, i, chunkContent, vectorString);
-                        System.out.println("[LOG - PIPELINE]      ✅ Lưu DATABASE thành công chunk: " + i);
-                    } catch (Exception dbErr) {
-                        System.err.println("[LOG - LỖI DB] ❌ KHÔNG THỂ LƯU CHUNK " + i + " VÀO DATABASE!");
-                        System.err.println("Chi tiết lỗi: " + dbErr.getMessage());
-                        dbErr.printStackTrace(); // In toàn bộ lỗi ra console
-                        throw dbErr; // Bắt buộc throw để Rollback
-                    }
-                } else {
-                    throw new RuntimeException("Thất bại trong việc tạo vector ở chunk thứ: " + i);
-                }
-            }
-
-            if (docStatus != null) {
-                docStatus.setStatus("COMPLETED");
-                documentRepository.save(docStatus);
-                System.out.println("========== PIPELINE HOÀN TẤT THÀNH CÔNG ==========\n");
-            }
+            Duration elapsed = Duration.between(start, Instant.now());
+            log.info("=== PIPELINE HOÀN TẤT cho document {} ({}s) ===", documentId, elapsed.getSeconds());
         } catch (Exception e) {
-            System.err.println("[LOG - PIPELINE LỖI] Toàn bộ tiến trình thất bại: " + e.getMessage());
-            if (docStatus != null) {
-                docStatus.setStatus("REJECT");
-                documentRepository.save(docStatus);
-            }
+            log.error("[PIPELINE] Thất bại cho document {}: {}", documentId, e.getMessage());
+            doc.setStatus("REJECT");
+            documentRepository.save(doc);
             throw e;
         }
     }
+
+    /** Embed all chunks, optionally parallel. Returns list paired with index. */
+    private List<ChunkData> embedAllChunks(UUID documentId, List<String> textChunks) {
+        // ponytail: sequential embedding to avoid Gemini rate limits.
+        // Parallel with ExecutorService if rate limit allows.
+        List<ChunkData> results = new ArrayList<>(textChunks.size());
+        for (int i = 0; i < textChunks.size(); i++) {
+            log.debug("[PIPELINE] Embedding chunk {}/{}", i + 1, textChunks.size());
+            String vectorStr = getEmbeddingWithRetry(textChunks.get(i));
+            results.add(new ChunkData(i, textChunks.get(i), vectorStr));
+        }
+        return results;
+    }
+
+    private String getEmbeddingWithRetry(String text) {
+        Exception lastEx = null;
+        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+                List<Double> vector = getEmbeddingFromGemini(text);
+                if (!vector.isEmpty()) {
+                    return vector.toString().replace(" ", "");
+                }
+            } catch (Exception e) {
+                lastEx = e;
+                log.warn("[RETRY] Embedding attempt {}/{} thất bại: {}", attempt + 1, MAX_RETRIES, e.getMessage());
+                if (attempt < MAX_RETRIES - 1) {
+                    try { Thread.sleep(RETRY_BACKOFF_MS * (attempt + 1)); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
+                }
+            }
+        }
+        throw new RuntimeException("Embedding thất bại sau " + MAX_RETRIES + " lần thử", lastEx);
+    }
+
+    /** Transactional batch write: delete old + batch insert new chunks. */
+    private void saveChunksBatch(UUID documentId, List<ChunkData> chunks) {
+        transactionTemplate.executeWithoutResult(status -> {
+            // xoá chunk cũ
+            chunkRepository.deleteByDocumentId(documentId);
+            chunkRepository.flush();
+
+            // batch insert qua JdbcTemplate
+            String sql = "INSERT INTO document_chunk (id, document_id, chunk_index, content, embedding_vector) " +
+                         "VALUES (gen_random_uuid(), ?, ?, ?, CAST(? AS vector))";
+
+            jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+                @Override
+                public void setValues(PreparedStatement ps, int i) throws SQLException {
+                    ChunkData c = chunks.get(i);
+                    ps.setObject(1, documentId);
+                    ps.setInt(2, c.index);
+                    ps.setString(3, c.content);
+                    ps.setString(4, c.vectorString);
+                }
+
+                @Override
+                public int getBatchSize() {
+                    return chunks.size();
+                }
+            });
+
+            log.info("[BATCH] Đã lưu {} chunk(s) vào database", chunks.size());
+        });
+    }
+
+    private record ChunkData(int index, String content, String vectorString) {}
 
     @Override
     public void processFolderPipeline(UUID folderId, UUID requesterId) throws Exception {
@@ -183,19 +237,22 @@ public class RagServiceImpl implements RagService {
         if (!isAdmin() && !folder.getOwnerId().equals(requesterId)) {
             throw new AccessDeniedException("You do not have permission to process this folder");
         }
+
         List<Document> documents = documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
+        log.info("[FOLDER-PIPELINE] Processing folder {} with {} document(s)", folderId, documents.size());
+
         for (Document doc : documents) {
-            if ("pending".equalsIgnoreCase(doc.getStatus()) || "ready".equalsIgnoreCase(doc.getStatus()) || "failed".equalsIgnoreCase(doc.getStatus()) || "COMPLETED".equalsIgnoreCase(doc.getStatus())) {
-                try {
-                    processAndSaveDocumentPipeline(doc.getId(), requesterId);
-                } catch (Exception e) {
-                    System.err.println("Pipeline failed for document " + doc.getId() + ": " + e.getMessage());
-                }
+            // Process all documents regardless of status (always regenerate)
+            try {
+                processAndSaveDocumentPipeline(doc.getId(), requesterId);
+            } catch (Exception e) {
+                log.error("[FOLDER-PIPELINE] Document {} thất bại: {}", doc.getId(), e.getMessage());
             }
         }
     }
 
     @Override
+    @Transactional(readOnly = true)
     public String getDocumentProcessingStatus(UUID documentId, UUID requesterId) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId).orElse(null);
         if (document != null) {
@@ -208,17 +265,14 @@ public class RagServiceImpl implements RagService {
     }
 
     private List<Double> getEmbeddingFromGemini(String text) {
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/" + embeddingModel + ":embedContent?key=" + geminiApiKey;
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                + embeddingModel + ":embedContent?key=" + geminiApiKey;
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, Object> textPart = new HashMap<>();
-        textPart.put("text", text);
-
-        Map<String, Object> contentPart = new HashMap<>();
-        contentPart.put("parts", List.of(textPart));
-
+        Map<String, Object> textPart = Map.of("text", text);
+        Map<String, Object> contentPart = Map.of("parts", List.of(textPart));
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("content", contentPart);
         requestBody.put("outputDimensionality", 768);
@@ -232,27 +286,31 @@ public class RagServiceImpl implements RagService {
                 return (List<Double>) embeddingResult.get("values");
             }
         } catch (Exception e) {
-            System.err.println("[LOG - LỖI API] Lỗi nghiêm trọng khi gọi Gemini Embedding: " + e.getMessage());
+            log.error("[EMBEDDING] Gemini API lỗi: {}", e.getMessage());
         }
-        return new ArrayList<>();
+        return List.of();
     }
 
     private List<String> recursiveChunking(String text) {
+        List<String> result = new ArrayList<>();
         String[] separators = {"\n\n", "\n", ". ", " "};
-        return splitTextWithOverlap(text, MAX_CHUNK_SIZE, CHUNK_OVERLAP, separators, 0);
+        splitTextWithOverlap(text, MAX_CHUNK_SIZE, CHUNK_OVERLAP, separators, 0, result);
+        return result;
     }
 
-    private List<String> splitTextWithOverlap(String text, int maxSize, int overlap, String[] separators, int sepIndex) {
-        List<String> chunks = new ArrayList<>();
+    private void splitTextWithOverlap(String text, int maxSize, int overlap,
+                                       String[] separators, int sepIndex,
+                                       List<String> result) {
         if (text.length() <= maxSize) {
-            chunks.add(text.trim());
-            return chunks;
+            result.add(text.trim());
+            return;
         }
 
         if (sepIndex >= separators.length) {
-            chunks.add(text.substring(0, maxSize));
-            chunks.addAll(splitTextWithOverlap(text.substring(maxSize - overlap), maxSize, overlap, separators, sepIndex));
-            return chunks;
+            result.add(text.substring(0, maxSize));
+            splitTextWithOverlap(text.substring(maxSize - overlap), maxSize, overlap,
+                    separators, sepIndex, result);
+            return;
         }
 
         String separator = separators[sepIndex];
@@ -266,7 +324,7 @@ public class RagServiceImpl implements RagService {
                 currentChunk.append(combined);
             } else {
                 if (currentChunk.length() > 0) {
-                    chunks.add(currentChunk.toString().trim());
+                    result.add(currentChunk.toString().trim());
                 }
 
                 String overlapText = currentChunk.length() > overlap
@@ -274,7 +332,7 @@ public class RagServiceImpl implements RagService {
                         : currentChunk.toString();
 
                 if (part.length() > maxSize) {
-                    chunks.addAll(splitTextWithOverlap(part, maxSize, overlap, separators, sepIndex + 1));
+                    splitTextWithOverlap(part, maxSize, overlap, separators, sepIndex + 1, result);
                     currentChunk = new StringBuilder();
                 } else {
                     currentChunk = new StringBuilder(overlapText + separator + part);
@@ -282,27 +340,26 @@ public class RagServiceImpl implements RagService {
             }
         }
         if (currentChunk.length() > 0) {
-            chunks.add(currentChunk.toString().trim());
+            result.add(currentChunk.toString().trim());
         }
-        return chunks;
     }
 
     // ==========================================
     // GIAI ĐOẠN 3: RETRIEVAL & GENERATION (CHAT)
     // ==========================================
     @Override
+    @Transactional(readOnly = true)
     public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) throws Exception {
-        if (chatRequest.getDocumentId() != null) {
-            Document document = documentRepository.findByIdAndDeletedAtIsNull(chatRequest.getDocumentId()).orElse(null);
-            if (document != null && !isAdmin() && !document.getOwnerId().equals(requesterId)) {
-                throw new AccessDeniedException("You do not have permission to view this document");
-            }
-        } else if (chatRequest.getFolderId() != null) {
-            Folder folder = folderRepository.findByIdAndDeletedAtIsNull(chatRequest.getFolderId()).orElse(null);
-            if (folder != null && !isAdmin() && !folder.getOwnerId().equals(requesterId)) {
-                throw new AccessDeniedException("You do not have permission to access this folder");
-            }
+        log.info("[CHAT] Question: {}", truncate(chatRequest.getQuestion(), 80));
+
+        // Resolve which documents to search
+        List<UUID> searchDocIds = resolveSearchDocumentIds(chatRequest, requesterId);
+
+        if (searchDocIds.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy tài liệu hợp lệ để tra cứu.");
         }
+
+        // Embed question
         List<Double> queryVector = getEmbeddingFromGemini(chatRequest.getQuestion());
         if (queryVector.isEmpty()) {
             throw new RuntimeException("Không thể tạo vector cho câu hỏi.");
@@ -310,58 +367,90 @@ public class RagServiceImpl implements RagService {
 
         String queryVectorString = queryVector.toString().replace(" ", "");
 
-        List<com.tugnw.aistudy.domain.entity.DocumentChunk> relevantChunks;
-        if (chatRequest.getDocumentId() != null) {
-            relevantChunks = chunkRepository.findTopChunksByDocumentAndVector(chatRequest.getDocumentId(), queryVectorString);
+        // Vector search
+        List<DocumentChunk> relevantChunks;
+        if (searchDocIds.size() == 1) {
+            relevantChunks = chunkRepository.findTopChunksByDocumentAndVector(
+                    searchDocIds.get(0), queryVectorString);
         } else {
-            relevantChunks = chunkRepository.findTopChunksByFolderAndVector(chatRequest.getFolderId(), queryVectorString);
+            relevantChunks = chunkRepository.findTopChunksByDocumentIdsAndVector(
+                    searchDocIds, queryVectorString);
         }
 
+        // Build context + referenced doc list
         StringBuilder contextBuilder = new StringBuilder();
-        java.util.Set<UUID> referencedDocIds = new java.util.HashSet<>();
+        Set<UUID> referencedDocIds = new HashSet<>();
 
-        for (com.tugnw.aistudy.domain.entity.DocumentChunk chunk : relevantChunks) {
-            contextBuilder.append("--- Đoạn trích từ Tài liệu ID ").append(chunk.getDocumentId()).append(" ---\n");
+        for (DocumentChunk chunk : relevantChunks) {
+            contextBuilder.append("--- Tài liệu ID ").append(chunk.getDocumentId()).append(" ---\n");
             contextBuilder.append(chunk.getContent()).append("\n\n");
-            referencedDocIds.add((UUID) (Object) chunk.getDocumentId());
+            referencedDocIds.add(chunk.getDocumentId());
         }
 
-        String prompt = "Bạn là một trợ lý học tập AI thông minh, đóng vai trò là một giáo viên tài năng của hệ thống AI Study Hub.\n"
-                + "Nhiệm vụ của bạn là trả lời câu hỏi của học sinh dựa trên các tài liệu học tập được cung cấp dưới đây.\n\n"
-                + "--- TÀI LIỆU THAM KHẢO ---\n"
-                + contextBuilder.toString()
-                + "--- CÂU HỎI CỦA HỌC SINH ---\n"
-                + chatRequest.getQuestion() + "\n\n"
-                + "YÊU CẦU TRẢ LỜI:\n"
-                + "1. Chỉ trả lời dựa trên thông tin có trong phần 'TÀI LIỆU THAM KHẢO'. Không tự bịa đặt thông tin nằm ngoài tài liệu.\n"
-                + "2. Trả lời một cách mạch lạc, rõ ràng, có phân tích cấu trúc, định dạng Markdown (bôi đậm, gạch đầu dòng) để học sinh dễ tiếp thu.\n"
-                + "3. Nếu tài liệu tham khảo không chứa câu trả lời, hãy lịch sự đáp: 'Xin lỗi, kiến thức này nằm ngoài các tài liệu hiện có trong thư mục học tập của bạn.'";
+        log.info("[CHAT] Tìm thấy {} chunk(s) từ {} tài liệu", relevantChunks.size(), referencedDocIds.size());
 
+        // Build prompt
+        String prompt = buildChatPrompt(contextBuilder.toString(), chatRequest.getQuestion());
+
+        // Generate answer
         String aiAnswer = generateTextFromGemini(prompt);
         return new RagChatResponse(aiAnswer, referencedDocIds);
     }
 
+    private List<UUID> resolveSearchDocumentIds(RagChatRequest req, UUID userId) {
+        List<UUID> ids = new ArrayList<>();
+
+        if (req.getDocumentIds() != null && !req.getDocumentIds().isEmpty()) {
+            for (UUID docId : req.getDocumentIds()) {
+                Document doc = documentRepository.findByIdAndDeletedAtIsNull(docId).orElse(null);
+                if (doc != null && (isAdmin() || doc.getOwnerId().equals(userId))) {
+                    ids.add(docId);
+                }
+            }
+        } else if (req.getDocumentId() != null) {
+            Document doc = documentRepository.findByIdAndDeletedAtIsNull(req.getDocumentId()).orElse(null);
+            if (doc != null && (isAdmin() || doc.getOwnerId().equals(userId))) {
+                ids.add(req.getDocumentId());
+            }
+        } else if (req.getFolderId() != null) {
+            Folder folder = folderRepository.findByIdAndDeletedAtIsNull(req.getFolderId()).orElse(null);
+            if (folder == null || (!isAdmin() && !folder.getOwnerId().equals(userId))) {
+                throw new AccessDeniedException("No permission for this folder");
+            }
+            List<Document> docs = documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(req.getFolderId());
+            docs.forEach(d -> ids.add(d.getId()));
+        }
+
+        return ids;
+    }
+
+    private String buildChatPrompt(String context, String question) {
+        return "Bạn là trợ lý học tập AI thông minh của hệ thống AI Study Hub.\n"
+                + "Trả lời câu hỏi dựa trên tài liệu tham khảo dưới đây.\n\n"
+                + "--- TÀI LIỆU THAM KHẢO ---\n" + context + "\n"
+                + "--- CÂU HỎI ---\n" + question + "\n\n"
+                + "YÊU CẦU:\n"
+                + "1. Chỉ dùng thông tin trong tài liệu. Không bịa đặt.\n"
+                + "2. Dùng Markdown (đậm, bullet) để dễ đọc.\n"
+                + "3. Nếu tài liệu không có câu trả lời, nói: 'Xin lỗi, kiến thức này nằm ngoài các tài liệu hiện có.'";
+    }
+
     @Override
     public String generateContent(String prompt) {
-        System.out.println("[LOG - RAG] Generating text from prompt using Gemini.");
+        log.debug("[GENERATE] Generating text from prompt");
         return generateTextFromGemini(prompt);
     }
 
     private String generateTextFromGemini(String prompt) {
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/" + chatModel + ":generateContent?key=" + geminiApiKey;
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                + chatModel + ":generateContent?key=" + geminiApiKey;
+
+        Map<String, Object> textPart = Map.of("text", prompt);
+        Map<String, Object> parts = Map.of("parts", List.of(textPart));
+        Map<String, Object> contents = Map.of("contents", List.of(parts));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-
-        Map<String, Object> textPart = new HashMap<>();
-        textPart.put("text", prompt);
-
-        Map<String, Object> parts = new HashMap<>();
-        parts.put("parts", List.of(textPart));
-
-        Map<String, Object> contents = new HashMap<>();
-        contents.put("contents", List.of(parts));
-
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(contents, headers);
 
         try {
@@ -373,8 +462,12 @@ public class RagServiceImpl implements RagService {
                 return (String) partsList.get(0).get("text");
             }
         } catch (Exception e) {
-            System.err.println("Lỗi nghiêm trọng khi gọi Gemini Chat API: " + e.getMessage());
+            log.error("[GEMINI] Chat API lỗi: {}", e.getMessage());
         }
-        return "Hệ thống AI gặp sự cố khi xử lý câu hỏi của bạn. Vui lòng thử lại sau.";
+        return "Xin lỗi, hệ thống AI đang gặp sự cố. Vui lòng thử lại sau.";
+    }
+
+    private String truncate(String s, int max) {
+        return s != null && s.length() > max ? s.substring(0, max) + "..." : s;
     }
 }

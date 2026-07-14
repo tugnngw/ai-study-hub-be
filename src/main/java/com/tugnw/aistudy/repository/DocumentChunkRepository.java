@@ -15,8 +15,8 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
 
     @Modifying
     @Transactional
-    @Query(value = "INSERT INTO document_chunk (document_id, chunk_index, content, embedding_vector) " +
-                   "VALUES (:documentId, :chunkIndex, :content, CAST(:embedding AS vector))",
+    @Query(value = "INSERT INTO document_chunk (id, document_id, chunk_index, content, embedding_vector) " +
+                   "VALUES (gen_random_uuid(), :documentId, :chunkIndex, :content, CAST(:embedding AS vector))",
            nativeQuery = true)
     void saveChunkWithVector(@Param("documentId") UUID documentId,
                              @Param("chunkIndex") Integer chunkIndex,
@@ -39,4 +39,16 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
            nativeQuery = true)
     List<DocumentChunk> findTopChunksByDocumentAndVector(@Param("documentId") UUID documentId,
                                                          @Param("queryEmbedding") String queryEmbeddingString);
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM document_chunk WHERE document_id = :documentId", nativeQuery = true)
+    void deleteByDocumentId(@Param("documentId") UUID documentId);
+
+    @Query(value = "SELECT dc.* FROM document_chunk dc " +
+                   "WHERE dc.document_id IN :documentIds " +
+                   "ORDER BY dc.embedding_vector <=> CAST(:queryEmbedding AS vector) " +
+                   "LIMIT 5",
+           nativeQuery = true)
+    List<DocumentChunk> findTopChunksByDocumentIdsAndVector(@Param("documentIds") List<UUID> documentIds,
+                                                            @Param("queryEmbedding") String queryEmbeddingString);
 }

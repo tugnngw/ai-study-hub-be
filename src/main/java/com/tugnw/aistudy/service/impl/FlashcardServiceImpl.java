@@ -47,16 +47,12 @@ public class FlashcardServiceImpl implements FlashcardService {
             throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        if (!request.isForce()) {
-            List<Flashcard> existing = flashcardRepository.findByDocumentId(documentId);
-            if (!existing.isEmpty()) {
-                System.out.println("[LOG - FLASHCARD] Returning " + existing.size() + " existing flashcards.");
-                return flashcardMapper.toResponseList(existing);
-            }
-        } else {
+        // Always regenerate — delete existing, create fresh
+        List<Flashcard> existing = flashcardRepository.findByDocumentId(documentId);
+        if (!existing.isEmpty()) {
             flashcardRepository.deleteByDocumentId(documentId);
             flashcardRepository.flush();
-            System.out.println("[LOG - FLASHCARD] Deleted existing flashcards for regenerate.");
+            System.out.println("[LOG - FLASHCARD] Deleted " + existing.size() + " existing flashcards.");
         }
 
         String documentText = knowledgePreparationService.prepareKnowledge(List.of(document), false);
