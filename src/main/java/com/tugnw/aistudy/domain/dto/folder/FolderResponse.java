@@ -25,6 +25,9 @@ public class FolderResponse {
     @Schema(description = "Subject this folder belongs to", example = "b2c3d4e5-...")
     private UUID subjectId;
 
+    @Schema(description = "Semester of this folder (via subject)", example = "a1b2c3d4-...")
+    private UUID semesterId;
+
     @Schema(description = "Creation timestamp")
     private LocalDateTime createdAt;
 

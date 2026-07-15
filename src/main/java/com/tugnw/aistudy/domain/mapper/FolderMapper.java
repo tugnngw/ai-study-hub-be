@@ -11,6 +11,7 @@ public interface FolderMapper {
 
     @Mapping(target = "documentCount", ignore = true)
     @Mapping(target = "subjectId", expression = "java(folder.getSubject() != null ? folder.getSubject().getId() : null)")
+    @Mapping(target = "semesterId", expression = "java(folder.getSubject() != null && folder.getSubject().getSemester() != null ? folder.getSubject().getSemester().getId() : null)")
     FolderResponse toResponse(Folder folder);
 
     @Mapping(target = "id", ignore = true)
