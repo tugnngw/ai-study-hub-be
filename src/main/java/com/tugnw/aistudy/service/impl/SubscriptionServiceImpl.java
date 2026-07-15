@@ -33,7 +33,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final PaymentPlanRepository paymentPlanRepository;
 
     private SubscriptionResponse mapToSubscriptionResponse(Subscription sub) {
-        long daysRemaining = ChronoUnit.DAYS.between(Instant.now(), sub.getEndDate());
+        long daysRemaining;
+        if (sub.getEndDate() == null) {
+            daysRemaining = -1;
+        } else {
+            daysRemaining = ChronoUnit.DAYS.between(Instant.now(), sub.getEndDate());
+        }
         return SubscriptionResponse.builder()
                 .id(sub.getId().toString())
                 .planId(sub.getPlan().getId())

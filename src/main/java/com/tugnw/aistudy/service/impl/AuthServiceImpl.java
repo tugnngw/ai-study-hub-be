@@ -6,13 +6,18 @@ import com.tugnw.aistudy.domain.dto.auth.LoginRequest;
 import com.tugnw.aistudy.domain.dto.auth.RefreshTokenRequest;
 import com.tugnw.aistudy.domain.dto.auth.RegisterRequest;
 import com.tugnw.aistudy.domain.entity.Account;
+import com.tugnw.aistudy.domain.entity.PaymentPlan;
+import com.tugnw.aistudy.domain.entity.Subscription;
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
 import com.tugnw.aistudy.domain.enums.ActivityType;
+import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.exception.InvalidTokenException;
 import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.repository.AccountRepository;
+import com.tugnw.aistudy.repository.PaymentPlanRepository;
+import com.tugnw.aistudy.repository.SubscriptionRepository;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.security.JwtTokenProvider;
 import com.tugnw.aistudy.service.ActivityLogService;
@@ -41,6 +46,8 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final AccountMapper accountMapper;
     private final ActivityLogService activityLogService;
+    private final PaymentPlanRepository paymentPlanRepository;
+    private final SubscriptionRepository subscriptionRepository;
 
     @Override
     public AuthResponse register(RegisterRequest request) {
@@ -59,7 +66,15 @@ public class AuthServiceImpl implements AuthService {
                 .lastLoginAt(Instant.now())
                 .build();
 
-        accountRepository.save(account);
+        account = accountRepository.save(account);
+
+        // Create FREE subscription for new user
+        try {
+            createFreeSubscription(account);
+            log.info("Created FREE subscription for new user: {}", account.getUsername());
+        } catch (Exception e) {
+            log.error("Failed to create FREE subscription for user {}: {}", account.getUsername(), e.getMessage());
+        }
 
         // Log activity for user registration
         activityLogService.logActivity(
@@ -207,5 +222,26 @@ public class AuthServiceImpl implements AuthService {
             return "NONE";
         }
         return token.substring(0, Math.min(12, token.length())) + "...";
+    }
+
+    private void createFreeSubscription(Account account) {
+        PaymentPlan freePlan = paymentPlanRepository.findByIsActiveTrue().stream()
+                .filter(plan -> "FREE".equalsIgnoreCase(plan.getName()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("FREE plan not found in database"));
+
+        Subscription subscription = Subscription.builder()
+                .accountId(account.getId())
+                .plan(freePlan)
+                .status(SubscriptionStatus.ACTIVE)
+                .startDate(Instant.now())
+                .endDate(null)
+                .pricePaid(0L)
+                .storageGbGranted(freePlan.getStorageGb() != null ? freePlan.getStorageGb() : 1.0)
+                .aiQuestionsGranted(freePlan.getAiQuestions() != null ? freePlan.getAiQuestions() : 5)
+                .autoRenew(false)
+                .build();
+
+        subscriptionRepository.save(subscription);
     }
 }

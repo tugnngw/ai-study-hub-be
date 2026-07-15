@@ -4,6 +4,7 @@ import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.Subscription;
 import com.tugnw.aistudy.repository.SubscriptionRepository;
+import com.tugnw.aistudy.repository.PaymentPlanRepository;
 import com.tugnw.aistudy.repository.FlashcardRepository;
 import com.tugnw.aistudy.repository.QuestionRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
@@ -28,6 +29,7 @@ public class QuotaService {
     private final QuizRepository quizRepository;
     private final DocumentRepository documentRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final PaymentPlanRepository paymentPlanRepository;
 
     /**
      * Check if user has quota for a specific feature
@@ -50,8 +52,16 @@ public class QuotaService {
         Optional<Subscription> activeSubscriptionOpt = subscriptionRepository.findFirstByAccountIdAndStatusOrderByEndDateDesc(accountId, SubscriptionStatus.ACTIVE);
         
         if (activeSubscriptionOpt.isEmpty()) {
-            log.warn("No active subscription found for account {}", accountId);
-            return false;
+            log.warn("No active subscription found for account {}, checking FREE plan fallback", accountId);
+            // Try to get FREE plan
+            List<PaymentPlan> freePlans = getFreePlanFromDatabase();
+            if (freePlans.isEmpty()) {
+                log.error("No FREE plan found in database");
+                return false;
+            }
+            
+            PaymentPlan freePlan = freePlans.get(0);
+            return checkQuotaForFreePlan(accountId, featureType, quantity, freePlan);
         }
 
         Subscription subscription = activeSubscriptionOpt.get();
@@ -62,7 +72,7 @@ public class QuotaService {
             return false;
         }
 
-        if (subscription.getEndDate().isBefore(Instant.now())) {
+        if (subscription.getEndDate() != null && subscription.getEndDate().isBefore(Instant.now())) {
             log.warn("Subscription {} has expired for account {}", subscription.getId(), accountId);
             return false;
         }
@@ -90,6 +100,38 @@ public class QuotaService {
         }
 
         return true;
+    }
+    
+    private boolean checkQuotaForFreePlan(UUID accountId, String featureType, int quantity, PaymentPlan freePlan) {
+        Integer limit = getPlanLimit(freePlan, featureType);
+        if (limit == null) {
+            log.warn("FREE plan does not have limit configured for feature {}", featureType);
+            return false;
+        }
+
+        if (limit == 0) {
+            log.info("Feature {} is disabled for FREE plan", featureType);
+            return false;
+        }
+
+        if (limit == -1) {
+            return true;
+        }
+
+        Integer currentUsage = getCurrentUsage(accountId, featureType);
+        if (currentUsage + quantity > limit) {
+            log.warn("FREE plan quota would be exceeded for feature {}: current={}, requested={}, limit={}", 
+                featureType, currentUsage, quantity, limit);
+            return false;
+        }
+
+        return true;
+    }
+    
+    private List<PaymentPlan> getFreePlanFromDatabase() {
+        return paymentPlanRepository.findByIsActiveTrue().stream()
+                .filter(plan -> "FREE".equalsIgnoreCase(plan.getName()))
+                .collect(java.util.stream.Collectors.toList());
     }
 
     private Integer getPlanLimit(PaymentPlan plan, String featureType) {
@@ -128,13 +170,30 @@ public class QuotaService {
         Optional<Subscription> activeSubscriptionOpt = subscriptionRepository.findFirstByAccountIdAndStatusOrderByEndDateDesc(accountId, SubscriptionStatus.ACTIVE);
         
         if (activeSubscriptionOpt.isEmpty()) {
-            return 0;
+            List<PaymentPlan> freePlans = getFreePlanFromDatabase();
+            if (freePlans.isEmpty()) {
+                log.error("No FREE plan found in database for quota check");
+                return 0;
+            }
+            
+            PaymentPlan freePlan = freePlans.get(0);
+            Integer limit = getPlanLimit(freePlan, featureType);
+            if (limit == null || limit == 0) {
+                return 0;
+            }
+            
+            if (limit == -1) {
+                return -1;
+            }
+            
+            Integer currentUsage = getCurrentUsage(accountId, featureType);
+            return Math.max(0, limit - currentUsage);
         }
 
         Subscription subscription = activeSubscriptionOpt.get();
         PaymentPlan plan = subscription.getPlan();
         
-        if (plan == null || subscription.getEndDate().isBefore(Instant.now())) {
+        if (plan == null || (subscription.getEndDate() != null && subscription.getEndDate().isBefore(Instant.now()))) {
             return 0;
         }
 
@@ -144,7 +203,7 @@ public class QuotaService {
         }
 
         if (limit == -1) {
-            return -1; // unlimited
+            return -1;
         }
 
         Integer currentUsage = getCurrentUsage(accountId, featureType);
@@ -158,7 +217,24 @@ public class QuotaService {
         Optional<Subscription> activeSubscriptionOpt = subscriptionRepository.findFirstByAccountIdAndStatusOrderByEndDateDesc(accountId, SubscriptionStatus.ACTIVE);
         
         if (activeSubscriptionOpt.isEmpty()) {
-            return QuotaDetails.noSubscription();
+            List<PaymentPlan> freePlans = getFreePlanFromDatabase();
+            if (freePlans.isEmpty()) {
+                return QuotaDetails.noSubscription();
+            }
+            
+            PaymentPlan freePlan = freePlans.get(0);
+            return QuotaDetails.builder()
+                    .planName("FREE")
+                    .storageGb(freePlan.getStorageGb())
+                    .aiQuestions(freePlan.getAiQuestions())
+                    .flashcardLimit(freePlan.getFlashcardLimit())
+                    .questionLimit(freePlan.getQuestionLimit())
+                    .summaryLimit(freePlan.getSummaryLimit())
+                    .flashcardRemaining(getRemainingQuota(accountId, "flashcard"))
+                    .questionRemaining(getRemainingQuota(accountId, "question"))
+                    .summaryRemaining(getRemainingQuota(accountId, "summary"))
+                    .subscriptionEndDate(null)
+                    .build();
         }
 
         Subscription subscription = activeSubscriptionOpt.get();
@@ -168,7 +244,7 @@ public class QuotaService {
             return QuotaDetails.noPlan();
         }
 
-        if (subscription.getEndDate().isBefore(Instant.now())) {
+        if (subscription.getEndDate() != null && subscription.getEndDate().isBefore(Instant.now())) {
             return QuotaDetails.expired();
         }
 
