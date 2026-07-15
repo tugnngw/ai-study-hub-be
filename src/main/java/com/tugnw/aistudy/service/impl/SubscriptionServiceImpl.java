@@ -52,6 +52,16 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Transactional
     public Subscription createSubscription(UUID accountId, PaymentPlan plan, PaymentTransaction tx) {
         Instant now = Instant.now();
+        
+        // Cancel all existing ACTIVE subscriptions before creating new one
+        List<Subscription> activeSubs = subscriptionRepository.findByAccountIdAndStatus(accountId, SubscriptionStatus.ACTIVE);
+        for (Subscription oldSub : activeSubs) {
+            oldSub.setStatus(SubscriptionStatus.UPGRADED);
+            oldSub.setCancelledAt(now);
+            subscriptionRepository.save(oldSub);
+            log.info("Cancelled old subscription {} when creating new subscription", oldSub.getId());
+        }
+        
         Instant endDate = now.plus(plan.getDurationDays(), ChronoUnit.DAYS);
 
         Subscription subscription = Subscription.builder()
@@ -61,7 +71,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .status(SubscriptionStatus.ACTIVE)
                 .startDate(now)
                 .endDate(endDate)
-                .pricePaid(plan.getPrice()) // Assuming price paid is plan price for new subscription
+                .pricePaid(plan.getPrice())
                 .storageGbGranted(plan.getStorageGb())
                 .aiQuestionsGranted(plan.getAiQuestions())
                 .build();
