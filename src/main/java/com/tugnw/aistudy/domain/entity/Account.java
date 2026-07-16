@@ -34,7 +34,7 @@ public class Account implements UserDetails {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 40)
+    @Column(unique = true, length = 40)
     private String email;
 
     @Column(name = "password_hash", nullable = false, length = 255)

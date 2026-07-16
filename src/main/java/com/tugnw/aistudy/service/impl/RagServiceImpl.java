@@ -2,12 +2,14 @@ package com.tugnw.aistudy.service.impl;
 
 import com.tugnw.aistudy.domain.dto.rag.RagChatRequest;
 import com.tugnw.aistudy.domain.dto.rag.RagChatResponse;
+import com.tugnw.aistudy.domain.entity.ChatMessage;
+import com.tugnw.aistudy.domain.entity.ChatSession;
 import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.domain.entity.DocumentChunk;
-import com.tugnw.aistudy.domain.entity.Folder;
+import com.tugnw.aistudy.repository.ChatMessageRepository;
+import com.tugnw.aistudy.repository.ChatSessionRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.DocumentChunkRepository;
-import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +37,6 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -44,7 +45,8 @@ public class RagServiceImpl implements RagService {
 
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository chunkRepository;
-    private final FolderRepository folderRepository;
+    private final ChatSessionRepository chatSessionRepository;
+    private final ChatMessageRepository chatMessageRepository;
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
     private final QuotaService quotaService;
@@ -240,27 +242,6 @@ public class RagServiceImpl implements RagService {
     private record ChunkData(int index, String content, String vectorString) {}
 
     @Override
-    public void processFolderPipeline(UUID folderId, UUID requesterId) throws Exception {
-        Folder folder = folderRepository.findByIdAndDeletedAtIsNull(folderId)
-                .orElseThrow(() -> new RuntimeException("Folder not found"));
-        if (!isAdmin() && !folder.getOwnerId().equals(requesterId)) {
-            throw new AccessDeniedException("You do not have permission to process this folder");
-        }
-
-        List<Document> documents = documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
-        log.info("[FOLDER-PIPELINE] Processing folder {} with {} document(s)", folderId, documents.size());
-
-        for (Document doc : documents) {
-            // Process all documents regardless of status (always regenerate)
-            try {
-                processAndSaveDocumentPipeline(doc.getId(), requesterId);
-            } catch (Exception e) {
-                log.error("[FOLDER-PIPELINE] Document {} thất bại: {}", doc.getId(), e.getMessage());
-            }
-        }
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public String getDocumentProcessingStatus(UUID documentId, UUID requesterId) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId).orElse(null);
@@ -357,20 +338,20 @@ public class RagServiceImpl implements RagService {
     // GIAI ĐOẠN 3: RETRIEVAL & GENERATION (CHAT)
     // ==========================================
     @Override
-    @Transactional(readOnly = true)
     public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) throws Exception {
-        log.info("[CHAT] Question: {}", truncate(chatRequest.getQuestion(), 80));
+        UUID docId = chatRequest.getDocumentId();
+        log.info("[CHAT] Document {}: {}", docId, truncate(chatRequest.getQuestion(), 80));
+
+        // Verify document ownership
+        Document document = documentRepository.findByIdAndDeletedAtIsNull(docId)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+            throw new AccessDeniedException("You do not have permission to access this document");
+        }
 
         // Check quota
         if (!quotaService.checkQuota(requesterId, "question")) {
             throw new RuntimeException("Bạn đã đạt giới hạn số lượng câu hỏi AI cho gói hiện tại.");
-        }
-
-        // Resolve which documents to search
-        List<UUID> searchDocIds = resolveSearchDocumentIds(chatRequest, requesterId);
-
-        if (searchDocIds.isEmpty()) {
-            throw new RuntimeException("Không tìm thấy tài liệu hợp lệ để tra cứu.");
         }
 
         // Embed question
@@ -378,64 +359,99 @@ public class RagServiceImpl implements RagService {
         if (queryVector.isEmpty()) {
             throw new RuntimeException("Không thể tạo vector cho câu hỏi.");
         }
-
         String queryVectorString = queryVector.toString().replace(" ", "");
 
-        // Vector search
-        List<DocumentChunk> relevantChunks;
-        if (searchDocIds.size() == 1) {
-            relevantChunks = chunkRepository.findTopChunksByDocumentAndVector(
-                    searchDocIds.get(0), queryVectorString);
-        } else {
-            relevantChunks = chunkRepository.findTopChunksByDocumentIdsAndVector(
-                    searchDocIds, queryVectorString);
+        // Vector search — only this document's chunks
+        List<DocumentChunk> relevantChunks = chunkRepository.findTopChunksByDocumentAndVector(
+                docId, queryVectorString);
+
+        if (relevantChunks.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy nội dung trong tài liệu. Vui lòng xử lý AI lại.");
         }
 
-        // Build context + referenced doc list
+        // Build context
         StringBuilder contextBuilder = new StringBuilder();
         Set<UUID> referencedDocIds = new HashSet<>();
-
         for (DocumentChunk chunk : relevantChunks) {
             contextBuilder.append("--- Tài liệu ID ").append(chunk.getDocumentId()).append(" ---\n");
             contextBuilder.append(chunk.getContent()).append("\n\n");
             referencedDocIds.add(chunk.getDocumentId());
         }
 
-        log.info("[CHAT] Tìm thấy {} chunk(s) từ {} tài liệu", relevantChunks.size(), referencedDocIds.size());
-
-        // Build prompt
-        String prompt = buildChatPrompt(contextBuilder.toString(), chatRequest.getQuestion());
+        log.info("[CHAT] Tìm thấy {} chunk(s)", relevantChunks.size());
 
         // Generate answer
+        String prompt = buildChatPrompt(contextBuilder.toString(), chatRequest.getQuestion());
         String aiAnswer = generateTextFromGemini(prompt);
-        return new RagChatResponse(aiAnswer, referencedDocIds);
+
+        // Save session + messages, title = first user message
+        UUID sessionId = saveChatHistory(chatRequest, requesterId, aiAnswer, referencedDocIds);
+
+        return RagChatResponse.builder()
+                .sessionId(sessionId)
+                .answer(aiAnswer)
+                .referencedDocumentIds(referencedDocIds)
+                .build();
     }
 
-    private List<UUID> resolveSearchDocumentIds(RagChatRequest req, UUID userId) {
-        List<UUID> ids = new ArrayList<>();
+    /** Save user question + AI answer. Create session if new. Title = first user message. */
+    private UUID saveChatHistory(RagChatRequest req, UUID accountId, String aiAnswer, Set<UUID> referencedDocs) {
+        return transactionTemplate.execute(status -> {
+            ChatSession session;
 
-        if (req.getDocumentIds() != null && !req.getDocumentIds().isEmpty()) {
-            for (UUID docId : req.getDocumentIds()) {
-                Document doc = documentRepository.findByIdAndDeletedAtIsNull(docId).orElse(null);
-                if (doc != null && (isAdmin() || doc.getOwnerId().equals(userId))) {
-                    ids.add(docId);
+            if (req.getSessionId() != null) {
+                session = chatSessionRepository.findById(req.getSessionId()).orElse(null);
+                if (session == null) {
+                    session = createSession(accountId, req.getDocumentId());
                 }
+            } else {
+                session = createSession(accountId, req.getDocumentId());
             }
-        } else if (req.getDocumentId() != null) {
-            Document doc = documentRepository.findByIdAndDeletedAtIsNull(req.getDocumentId()).orElse(null);
-            if (doc != null && (isAdmin() || doc.getOwnerId().equals(userId))) {
-                ids.add(req.getDocumentId());
-            }
-        } else if (req.getFolderId() != null) {
-            Folder folder = folderRepository.findByIdAndDeletedAtIsNull(req.getFolderId()).orElse(null);
-            if (folder == null || (!isAdmin() && !folder.getOwnerId().equals(userId))) {
-                throw new AccessDeniedException("No permission for this folder");
-            }
-            List<Document> docs = documentRepository.findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(req.getFolderId());
-            docs.forEach(d -> ids.add(d.getId()));
-        }
 
-        return ids;
+            UUID sessionId = session.getId();
+
+            // Title = first user message (like ChatGPT)
+            if (session.getTitle() == null && !req.getQuestion().isBlank()) {
+                String title = req.getQuestion().strip();
+                if (title.length() > 75) {
+                    int cut = title.lastIndexOf(' ', 75);
+                    title = (cut > 40 ? title.substring(0, cut) : title.substring(0, 75)) + "...";
+                }
+                session.setTitle(title);
+                chatSessionRepository.save(session);
+            }
+
+            // Save user message
+            chatMessageRepository.save(ChatMessage.builder()
+                    .sessionId(sessionId)
+                    .senderType("USER")
+                    .content(req.getQuestion())
+                    .build());
+
+            // Save AI message
+            chatMessageRepository.save(ChatMessage.builder()
+                    .sessionId(sessionId)
+                    .senderType("AI")
+                    .content(aiAnswer)
+                    .referencedChunks(referencedChunksToJson(referencedDocs))
+                    .build());
+
+            // Bump updatedAt so ordering reflects latest activity
+            chatSessionRepository.save(session);
+
+            return sessionId;
+        });
+    }
+
+    private ChatSession createSession(UUID accountId, UUID documentId) {
+        return chatSessionRepository.save(ChatSession.builder()
+                .accountId(accountId)
+                .documentId(documentId)
+                .build());
+    }
+
+    private String referencedChunksToJson(Set<UUID> docIds) {
+        return "[" + String.join(",", docIds.stream().map(id -> "\"" + id + "\"").toList()) + "]";
     }
 
     private String buildChatPrompt(String context, String question) {

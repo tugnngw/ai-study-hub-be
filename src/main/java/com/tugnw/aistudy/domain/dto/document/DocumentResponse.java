@@ -34,6 +34,9 @@ public class DocumentResponse {
     @Schema(description = "Document processing status", example = "COMPLETED")
     private String status;
 
+    @Schema(description = "AI processing status", example = "NOT_STARTED", allowableValues = {"NOT_STARTED", "PROCESSING", "COMPLETED", "FAILED"})
+    private String aiStatus;
+
     @Schema(description = "MIME type", example = "application/pdf")
     private String mimeType;
 

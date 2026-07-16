@@ -17,6 +17,7 @@ import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.QuizService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class QuizServiceImpl implements QuizService {
@@ -44,7 +46,7 @@ public class QuizServiceImpl implements QuizService {
     @Override
     @Transactional
     public QuizResponse generateQuiz(UUID documentId, UUID requesterId, GenerateQuizRequest request) throws Exception {
-        System.out.println("[LOG - QUIZ] Starting quiz generation for document: " + documentId);
+        log.info("[LOG - QUIZ] Starting quiz generation for document: " + documentId);
 
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
@@ -67,7 +69,7 @@ public class QuizServiceImpl implements QuizService {
         quizRepository.deleteAll(existing);
         quizRepository.flush();
         if (!existing.isEmpty()) {
-            System.out.println("[LOG - QUIZ] Deleted " + existing.size() + " existing quizzes.");
+            log.info("[LOG - QUIZ] Deleted " + existing.size() + " existing quizzes.");
         }
 
         String documentText = knowledgePreparationService.prepareKnowledge(List.of(document), false);
@@ -76,7 +78,7 @@ public class QuizServiceImpl implements QuizService {
             throw new RuntimeException("Unable to extract text from document.");
         }
 
-        System.out.println("[LOG - QUIZ] Extracted text length: " + documentText.length());
+        log.info("[LOG - QUIZ] Extracted text length: " + documentText.length());
 
         Quiz quiz = Quiz.builder()
                 .documentId(document.getId())
@@ -86,7 +88,7 @@ public class QuizServiceImpl implements QuizService {
                 .build();
 
         Quiz savedQuiz = quizRepository.save(quiz);
-        System.out.println("[LOG - QUIZ] Created quiz with ID: " + savedQuiz.getId());
+        log.info("[LOG - QUIZ] Created quiz with ID: " + savedQuiz.getId());
 
         List<Question> generatedQuestions = generateQuestionsFromText(
                 documentText,
@@ -95,7 +97,7 @@ public class QuizServiceImpl implements QuizService {
         );
         questionRepository.saveAll(generatedQuestions);
 
-        System.out.println("[LOG - QUIZ] Successfully generated and saved " + generatedQuestions.size() + " questions.");
+        log.info("[LOG - QUIZ] Successfully generated and saved " + generatedQuestions.size() + " questions.");
 
         List<QuestionResponse> questionResponses = quizMapper.toQuestionResponseList(generatedQuestions);
         return QuizResponse.builder()
@@ -109,7 +111,7 @@ public class QuizServiceImpl implements QuizService {
 
     @Override
     public List<QuizResponse> getQuizByDocument(UUID documentId, UUID requesterId) {
-        System.out.println("[LOG - QUIZ] Fetching quizzes for document: " + documentId);
+        log.info("[LOG - QUIZ] Fetching quizzes for document: " + documentId);
 
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
@@ -149,7 +151,7 @@ public class QuizServiceImpl implements QuizService {
         );
 
         String aiResponse = ragService.generateContent(prompt);
-        System.out.println("[LOG - QUIZ] Gemini response received, parsing questions...");
+        log.info("[LOG - QUIZ] Gemini response received, parsing questions...");
 
         return parseQuestionsFromResponse(aiResponse, quizId);
     }
@@ -184,7 +186,7 @@ public class QuizServiceImpl implements QuizService {
                 }
             }
         } catch (Exception e) {
-            System.err.println("[LOG - QUIZ ERROR] Failed to parse questions: " + e.getMessage());
+            log.error("[LOG - QUIZ ERROR] Failed to parse questions: " + e.getMessage());
             throw new RuntimeException("Failed to parse AI-generated questions.", e);
         }
         return questions;

@@ -1,12 +1,11 @@
 package com.tugnw.aistudy.domain.entity;
 
+import com.tugnw.aistudy.domain.enums.AiProcessingStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -62,6 +61,11 @@ public class Document {
 
     @Column(name = "total_pages")
     private Integer totalPages;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ai_status", length = 50, nullable = false)
+    @Builder.Default
+    private AiProcessingStatus aiStatus = AiProcessingStatus.NOT_STARTED;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

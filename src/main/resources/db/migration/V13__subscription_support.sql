@@ -1,9 +1,0 @@
--- V9: Add subscription support and extend payment_plan table
--- Part 1: Extend payment_plan table with new columns
-
--- Add new columns to payment_plan
-ALTER TABLE payment_plan ADD COLUMN IF NOT EXISTS duration_days INTEGER NOT NULL DEFAULT 30;
-ALTER TABLE payment_plan ADD COLUMN IF NOT EXISTS features JSONB;
-ALTER TABLE payment_plan ADD COLUMN IF NOT EXISTS is_popular BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE payment_plan ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE payment_plan ADD COLUMN IF NOT EXISTS tagline VARCHAR(500);

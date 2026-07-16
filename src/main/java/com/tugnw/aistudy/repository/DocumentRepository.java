@@ -1,8 +1,10 @@
 package com.tugnw.aistudy.repository;
 
 import com.tugnw.aistudy.domain.entity.Document;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -42,4 +44,8 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     
     @Query("SELECT d.id FROM Document d WHERE d.ownerId = :ownerId")
     List<UUID> findAllIdsByOwnerId(@Param("ownerId") UUID ownerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT d FROM Document d WHERE d.id = :id")
+    Optional<Document> findByIdForUpdate(@Param("id") UUID id);
 }

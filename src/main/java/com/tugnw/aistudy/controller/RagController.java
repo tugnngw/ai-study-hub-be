@@ -31,19 +31,6 @@ public class RagController {
         }
     }
 
-    @PostMapping("/process-folder/{folderId}")
-    public ResponseEntity<String> processFolderPipeline(
-            @PathVariable UUID folderId,
-            Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        try {
-            ragService.processFolderPipeline(folderId, ownerId);
-            return ResponseEntity.ok("Xử lý toàn bộ tài liệu trong thư mục thành công!");
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Pipeline folder thất bại: " + e.getMessage());
-        }
-    }
-
     @GetMapping("/status/{documentId}")
     public ResponseEntity<Map<String, String>> getDocumentStatus(
             @PathVariable UUID documentId,
@@ -63,7 +50,11 @@ public class RagController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(
-                    new com.tugnw.aistudy.domain.dto.rag.RagChatResponse("Lỗi hệ thống chat: " + e.getMessage(), java.util.Collections.emptySet())
+                    com.tugnw.aistudy.domain.dto.rag.RagChatResponse.builder()
+                            .sessionId(null)
+                            .answer("Lỗi hệ thống chat: " + e.getMessage())
+                            .referencedDocumentIds(java.util.Collections.emptySet())
+                            .build()
             );
         }
     }

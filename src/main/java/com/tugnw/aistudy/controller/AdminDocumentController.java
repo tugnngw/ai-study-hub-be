@@ -7,6 +7,7 @@ import com.tugnw.aistudy.service.AdminDocumentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/admin/documents")
 @PreAuthorize("hasRole('ADMIN')")
@@ -39,7 +41,9 @@ public class AdminDocumentController {
     @PatchMapping("/{id}/approve")
     @Operation(summary = "Approve document")
     public ResponseEntity<ApiResponse<Void>> approveDocument(@PathVariable String id) {
+        log.info("=== [APPROVE CONTROLLER] id={} ===", id);
         adminDocumentService.approveDocument(UUID.fromString(id));
+        log.info("=== [APPROVE CONTROLLER] success, returning 200 ===");
         return ResponseEntity.ok(ApiResponse.success("Document approved", null));
     }
 
@@ -71,6 +75,14 @@ public class AdminDocumentController {
     @GetMapping("/status/{status}")
     @Operation(summary = "Filter by status", description = "Get documents by approval status")
     public ResponseEntity<ApiResponse<List<DocumentResponse>>> getDocumentsByStatus(@PathVariable String status) {
-        return ResponseEntity.ok(ApiResponse.success("Documents by status retrieved", adminDocumentService.getDocumentsByStatus(status)));
+        List<DocumentResponse> docs = adminDocumentService.getDocumentsByStatus(status);
+        try {
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(ApiResponse.success("Documents by status retrieved", docs));
+            log.info("=== [CONTROLLER JSON RESPONSE] status={} jsonBody={}", status, json);
+        } catch (Exception e) {
+            log.error("JSON serialization failed", e);
+        }
+        return ResponseEntity.ok(ApiResponse.success("Documents by status retrieved", docs));
     }
 }

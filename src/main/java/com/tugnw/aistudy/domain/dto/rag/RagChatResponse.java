@@ -1,13 +1,14 @@
 package com.tugnw.aistudy.domain.dto.rag;
 
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import java.util.Set;
 import java.util.UUID;
 
 @Data
-@AllArgsConstructor
+@Builder
 public class RagChatResponse {
+    private UUID sessionId;
     private String answer;
-    private Set<UUID> referencedDocumentIds; // Danh sách ID tài liệu AI đã đọc để trả lời
+    private Set<UUID> referencedDocumentIds;
 }
