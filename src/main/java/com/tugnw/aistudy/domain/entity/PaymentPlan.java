@@ -66,4 +66,8 @@ public class PaymentPlan {
     @Column(name = "summary_limit")
     @Builder.Default
     private Integer summaryLimit = 0;
+
+    @Column(name = "chat_limit")
+    @Builder.Default
+    private Integer chatLimit = 0;
 }

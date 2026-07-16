@@ -6,6 +6,7 @@ import com.tugnw.aistudy.domain.entity.ChatMessage;
 import com.tugnw.aistudy.domain.entity.ChatSession;
 import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.domain.entity.DocumentChunk;
+import com.tugnw.aistudy.domain.enums.AiProcessingStatus;
 import com.tugnw.aistudy.repository.ChatMessageRepository;
 import com.tugnw.aistudy.repository.ChatSessionRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
@@ -125,53 +126,76 @@ public class RagServiceImpl implements RagService {
     // ==========================================
     @Override
     public void processAndSaveDocumentPipeline(UUID documentId, UUID requesterId) throws Exception {
-        log.info("=== BẮT ĐẦU PIPELINE RAG cho document {} ===", documentId);
+        log.info("[STEP0] ENTER pipeline documentId={} thread={}", documentId, Thread.currentThread().getName());
         Instant start = Instant.now();
 
         Document doc = documentRepository.findByIdAndDeletedAtIsNull(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
+        log.info("[STEP1] Document loaded documentId={} status={} aiStatus={} ownerId={} chunkCount={}",
+                documentId, doc.getStatus(), doc.getAiStatus(), doc.getOwnerId(),
+                chunkRepository.countByDocumentId(documentId));
+
         if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
             throw new AccessDeniedException("You do not have permission to process this document");
         }
 
-        // Skip if already processed (has chunks)
         long chunkCount = chunkRepository.countByDocumentId(documentId);
-        if (chunkCount > 0 && ("READY".equals(doc.getStatus()) || "COMPLETED".equals(doc.getStatus()))) {
-            log.info("[PIPELINE] Document {} already processed, skipping", documentId);
+        if (chunkCount > 0 && doc.getAiStatus() == AiProcessingStatus.COMPLETED) {
+            log.info("[STEP0] Skip guard — already processed documentId={}", documentId);
             return;
         }
 
-        // Non-transactional phase: external HTTP calls
         doc.setStatus("READY");
+        doc.setAiStatus(AiProcessingStatus.PROCESSING);
         documentRepository.save(doc);
+        log.info("[STEP2] READY/PROCESSING saved documentId={}", documentId);
 
         try {
-            // Phase 1: extract text (HTTP → Cloudinary + Tika)
             String rawText = extractTextFromDocument(documentId, requesterId);
+            log.info("[STEP3] extractTextFromDocument finished documentId={} length={}",
+                    documentId, rawText != null ? rawText.length() : 0);
             if (rawText == null || rawText.isBlank()) {
                 throw new RuntimeException("Không thể trích xuất nội dung từ tài liệu.");
             }
 
-            // Phase 2: chunking (pure Java)
             List<String> textChunks = recursiveChunking(rawText);
-            log.info("[PIPELINE] {} chunk(s) từ {} ký tự", textChunks.size(), rawText.length());
+            log.info("[STEP4] recursiveChunking finished documentId={} chunkCount={}", documentId, textChunks.size());
 
-            // Phase 3: embed all chunks (parallel HTTP calls)
+            log.info("[STEP5] embedAllChunks started documentId={}", documentId);
             List<ChunkData> chunkDataList = embedAllChunks(documentId, textChunks);
+            log.info("[STEP6] embedAllChunks finished documentId={} vectorCount={}", documentId, chunkDataList.size());
 
-            // Phase 4: batch save (transactional)
             saveChunksBatch(documentId, chunkDataList);
+            log.info("[STEP7] saveChunksBatch finished documentId={}", documentId);
 
             doc.setStatus("COMPLETED");
+            doc.setAiStatus(AiProcessingStatus.COMPLETED);
             documentRepository.save(doc);
+            log.info("[STEP8] COMPLETED saved documentId={} status={} aiStatus={}",
+                    documentId, doc.getStatus(), doc.getAiStatus());
 
             Duration elapsed = Duration.between(start, Instant.now());
-            log.info("=== PIPELINE HOÀN TẤT cho document {} ({}s) ===", documentId, elapsed.getSeconds());
+            log.info("[STEP8] Pipeline completed documentId={} elapsedMs={}", documentId, elapsed.toMillis());
         } catch (Exception e) {
-            log.error("[PIPELINE] Thất bại cho document {}: {}", documentId, e.getMessage());
+            log.error("[CATCH] ENTER documentId={} class={} message={}", documentId,
+                    e.getClass().getSimpleName(), e.getMessage(), e);
+            log.info("[CATCH] documentId={} BEFORE save — doc.status={} doc.aiStatus={}",
+                    documentId, doc.getStatus(), doc.getAiStatus());
             doc.setStatus("REJECT");
-            documentRepository.save(doc);
+            doc.setAiStatus(AiProcessingStatus.FAILED);
+            try {
+                documentRepository.save(doc);
+                log.info("[CATCH] AFTER save — committed documentId={}", documentId);
+            } catch (Exception saveEx) {
+                log.error("[CATCH] FAILED to save documentId={} error={}", documentId, saveEx.getMessage(), saveEx);
+            }
+            // Reload from DB to verify persistence
+            Document reloaded = documentRepository.findById(documentId).orElse(null);
+            if (reloaded != null) {
+                log.info("[CATCH] reloaded from DB documentId={} status={} aiStatus={}",
+                        documentId, reloaded.getStatus(), reloaded.getAiStatus());
+            }
             throw e;
         }
     }
@@ -249,8 +273,12 @@ public class RagServiceImpl implements RagService {
             if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
                 throw new RuntimeException("You do not have permission to view this document");
             }
-            return document.getStatus();
+            String aiStatus = document.getAiStatus() != null ? document.getAiStatus().name() : "NOT_STARTED";
+            log.info("[STATUS {}] returning aiStatus={} (document.status={})",
+                    documentId, aiStatus, document.getStatus());
+            return aiStatus;
         }
+        log.warn("[STATUS {}] Document not found", documentId);
         return "not_found";
     }
 
@@ -349,9 +377,9 @@ public class RagServiceImpl implements RagService {
             throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        // Check quota
-        if (!quotaService.checkQuota(requesterId, "question")) {
-            throw new RuntimeException("Bạn đã đạt giới hạn số lượng câu hỏi AI cho gói hiện tại.");
+        // Check chat quota
+        if (!quotaService.checkQuota(requesterId, "chat")) {
+            throw new RuntimeException("Bạn đã đạt giới hạn số lượng tin nhắn AI cho gói hiện tại.");
         }
 
         // Embed question

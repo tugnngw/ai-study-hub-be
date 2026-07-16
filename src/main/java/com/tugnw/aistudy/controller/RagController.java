@@ -4,6 +4,7 @@ import com.tugnw.aistudy.domain.dto.rag.RagChatResponse;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/rag")
 @RequiredArgsConstructor
@@ -23,10 +25,16 @@ public class RagController {
             @PathVariable UUID documentId,
             Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
+        log.info("[CTRL] POST /rag/process documentId={} ownerId={} thread={}",
+                documentId, ownerId, Thread.currentThread().getName());
+        log.info("[CTRL] Calling processAndSaveDocumentPipeline...");
         try {
             ragService.processAndSaveDocumentPipeline(documentId, ownerId);
+            log.info("[CTRL] processAndSaveDocumentPipeline returned normally documentId={}", documentId);
             return ResponseEntity.ok("Xử lý tài liệu và nạp cơ sở dữ liệu Vector RAG thành công!");
         } catch (Exception e) {
+            log.error("[CTRL] processAndSaveDocumentPipeline threw documentId={} class={} message={}",
+                    documentId, e.getClass().getSimpleName(), e.getMessage());
             return ResponseEntity.internalServerError().body("Pipeline thất bại: " + e.getMessage());
         }
     }
@@ -37,7 +45,9 @@ public class RagController {
             Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         String status = ragService.getDocumentProcessingStatus(documentId, ownerId);
-        return ResponseEntity.ok(Map.of("documentId", documentId.toString(), "status", status));
+        Map<String, String> response = Map.of("documentId", documentId.toString(), "status", status);
+        log.info("[STATUS] GET /rag/status documentId={} response={}", documentId, response);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/chat")

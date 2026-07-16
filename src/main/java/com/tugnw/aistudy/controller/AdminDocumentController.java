@@ -76,13 +76,6 @@ public class AdminDocumentController {
     @Operation(summary = "Filter by status", description = "Get documents by approval status")
     public ResponseEntity<ApiResponse<List<DocumentResponse>>> getDocumentsByStatus(@PathVariable String status) {
         List<DocumentResponse> docs = adminDocumentService.getDocumentsByStatus(status);
-        try {
-            String json = new com.fasterxml.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(ApiResponse.success("Documents by status retrieved", docs));
-            log.info("=== [CONTROLLER JSON RESPONSE] status={} jsonBody={}", status, json);
-        } catch (Exception e) {
-            log.error("JSON serialization failed", e);
-        }
         return ResponseEntity.ok(ApiResponse.success("Documents by status retrieved", docs));
     }
 }

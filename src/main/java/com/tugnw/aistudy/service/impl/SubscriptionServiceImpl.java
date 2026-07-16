@@ -67,7 +67,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             log.info("Cancelled old subscription {} when creating new subscription", oldSub.getId());
         }
         
-        Instant endDate = now.plus(plan.getDurationDays(), ChronoUnit.DAYS);
+        // durationDays = -1 means permanent (no expiration)
+        Integer days = plan.getDurationDays();
+        Instant endDate = (days != null && days >= 0) ? now.plus(days, ChronoUnit.DAYS) : null;
 
         Subscription subscription = Subscription.builder()
                 .accountId(accountId)
@@ -113,19 +115,25 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         long remainingDays = 0L;
         long remainingCredit = 0L;
-        Instant newEndDate = Instant.now().plus(newPlan.getDurationDays(), ChronoUnit.DAYS); // Default for new purchase
+        // durationDays = -1 means permanent (no expiration)
+        Integer newDays = newPlan.getDurationDays();
+        Instant newEndDate = (newDays != null && newDays >= 0) ? Instant.now().plus(newDays, ChronoUnit.DAYS) : null;
 
         if (currentSubscription != null) {
             // Proration logic
             Instant now = Instant.now();
-            if (currentSubscription.getEndDate().isAfter(now)) {
+            if (currentSubscription.getEndDate() != null && currentSubscription.getEndDate().isAfter(now)) {
                 remainingDays = ChronoUnit.DAYS.between(now, currentSubscription.getEndDate());
-                if (currentSubscription.getPlan().getDurationDays() > 0) {
+                if (currentSubscription.getPlan().getDurationDays() != null && currentSubscription.getPlan().getDurationDays() > 0) {
                     long dailyRate = currentSubscription.getPricePaid() / currentSubscription.getPlan().getDurationDays();
                     remainingCredit = dailyRate * remainingDays;
                 }
             }
-            newEndDate = now.plus(remainingDays, ChronoUnit.DAYS).plus(newPlan.getDurationDays(), ChronoUnit.DAYS);
+            if (newDays != null && newDays >= 0) {
+                newEndDate = newEndDate != null
+                    ? newEndDate.plus(remainingDays, ChronoUnit.DAYS)
+                    : Instant.now().plus(remainingDays + newDays, ChronoUnit.DAYS);
+            }
         }
 
         long amountToPay = Math.max(0, newPlan.getPrice() - remainingCredit);
@@ -152,10 +160,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         Instant now = Instant.now();
         long remainingDays = 0L;
-        if (currentSubscription != null && currentSubscription.getEndDate().isAfter(now)) {
+        if (currentSubscription != null && currentSubscription.getEndDate() != null && currentSubscription.getEndDate().isAfter(now)) {
             remainingDays = ChronoUnit.DAYS.between(now, currentSubscription.getEndDate());
         }
-        Instant newEndDate = now.plus(remainingDays, ChronoUnit.DAYS).plus(newPlan.getDurationDays(), ChronoUnit.DAYS);
+        Integer newDays = newPlan.getDurationDays();
+        Instant newEndDate = (newDays != null && newDays >= 0) ? now.plus(remainingDays + newDays, ChronoUnit.DAYS) : null;
 
         Subscription newSubscription = Subscription.builder()
                 .accountId(accountId)

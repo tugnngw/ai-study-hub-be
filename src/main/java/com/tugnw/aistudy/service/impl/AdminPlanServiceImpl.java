@@ -56,6 +56,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .flashcardLimit(plan.getFlashcardLimit())
                 .questionLimit(plan.getQuestionLimit())
                 .summaryLimit(plan.getSummaryLimit())
+                .chatLimit(plan.getChatLimit())
                 .build();
     }
 
@@ -96,6 +97,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .flashcardLimit(request.getFlashcardLimit() != null ? request.getFlashcardLimit() : 0)
                 .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : 0)
                 .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : 0)
+                .chatLimit(request.getChatLimit() != null ? request.getChatLimit() : 0)
                 .isActive(true)
                 .build();
         PaymentPlan saved = paymentPlanRepository.save(plan);
@@ -135,6 +137,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                     .flashcardLimit(request.getFlashcardLimit() != null ? request.getFlashcardLimit() : plan.getFlashcardLimit())
                     .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : plan.getQuestionLimit())
                     .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : plan.getSummaryLimit())
+                    .chatLimit(request.getChatLimit() != null ? request.getChatLimit() : plan.getChatLimit())
                     .isActive(true)
                     .build();
             
@@ -260,6 +263,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .flashcardLimit(plan.getFlashcardLimit())
                 .questionLimit(plan.getQuestionLimit())
                 .summaryLimit(plan.getSummaryLimit())
+                .chatLimit(plan.getChatLimit())
                 .build();
     }
 }

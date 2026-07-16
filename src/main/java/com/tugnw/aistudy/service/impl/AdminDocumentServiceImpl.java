@@ -7,18 +7,13 @@ import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.AdminDocumentService;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -30,16 +25,12 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     private final ActivityLogService activityLogService;
     private final ShareRepository shareRepository;
 
-    @PersistenceContext
-    private EntityManager entityManager;
-
     @Override
     @Transactional(readOnly = true)
     public List<DocumentResponse> getAllDocuments() {
-        return documentRepository.findAll().stream()
-                .filter(d -> d.getDeletedAt() == null)
+        return documentRepository.findAllByDeletedAtIsNull().stream()
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -51,37 +42,17 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
             case "REJECTED"  -> "REJECT";
             default          -> status.toUpperCase();
         };
-
-        log.info("=== [GET STATUS INSTRUMENTATION] ===");
-        log.info("Incoming status param: '{}'", status);
-        log.info("Mapped targetStatus: '{}'", targetStatus);
-
-        List<Document> docs = documentRepository.findByStatusAndDeletedAtIsNull(targetStatus);
-        log.info("Repository returned {} document(s)", docs.size());
-        for (Document d : docs) {
-            log.info("  Document id={} status='{}' title='{}'", d.getId(), d.getStatus(), d.getTitle());
-        }
-
-        List<DocumentResponse> responses = docs.stream()
+        return documentRepository.findByStatusAndDeletedAtIsNull(targetStatus).stream()
                 .map(this::toResponse)
                 .toList();
-
-        log.info("Returning {} DTO(s)", responses.size());
-        for (DocumentResponse r : responses) {
-            log.info("  DTO id={} status='{}'", r.getId(), r.getStatus());
-        }
-        log.info("=== [END GET STATUS INSTRUMENTATION] ===");
-
-        return responses;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DocumentResponse> getTrashDocuments() {
-        return documentRepository.findAll().stream()
-                .filter(document -> document.getDeletedAt() != null)
+        return documentRepository.findByDeletedAtIsNotNullOrderByCreatedAtDesc().stream()
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -111,34 +82,12 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     @Override
     @Transactional
     public void approveDocument(UUID id) {
-        log.info("=== [APPROVE INSTRUMENTATION START] id={} ===", id);
-        log.info("Transaction active: {}", TransactionSynchronizationManager.isActualTransactionActive());
-        log.info("Transaction name: {}", TransactionSynchronizationManager.getCurrentTransactionName());
-
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
-
-        log.info("Before setStatus: id={} status='{}'", document.getId(), document.getStatus());
-        log.info("EntityManager.contains: {}", entityManager.contains(document));
-
+        log.info("[ADMIN] Approving document: {} status: {}", id, document.getStatus());
         document.setStatus("READY");
-        log.info("After setStatus (before flush): status='{}'", document.getStatus());
-
-        entityManager.flush();
-        log.info("After entityManager.flush()");
-
-        log.info("Before refresh — calling entityManager.refresh()...");
-        entityManager.refresh(document);
-        log.info("After entityManager.refresh(): status='{}'", document.getStatus());
-
-        document.setStatus("READY");
-        Document saved = documentRepository.saveAndFlush(document);
-        log.info("After saveAndFlush: returned entity status='{}'", saved.getStatus());
-
-        entityManager.refresh(saved);
-        log.info("After second refresh: status='{}'", saved.getStatus());
-
-        log.info("=== [APPROVE INSTRUMENTATION END] ===");
+        documentRepository.saveAndFlush(document);
+        log.info("[ADMIN] Document {} approved, status: {}", id, document.getStatus());
     }
 
     @Override

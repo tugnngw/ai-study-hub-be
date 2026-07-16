@@ -42,9 +42,9 @@ INSERT INTO account (
 --    Premium:  paid monthly, unlimited features
 -- =========================================================
 INSERT INTO payment_plan (id, name, description, storage_gb, price, is_active, duration_days, is_popular, display_order, tagline, flashcard_limit, question_limit, summary_limit) VALUES
-    (gen_random_uuid(), 'Free',     'Basic plan',   1,      0,      true, -1,  false, 0, NULL,             10,  5,  3),
-    (gen_random_uuid(), 'Pro',      'Pro plan',     5,      99000,  true, 30, false, 0, NULL,             50,  20, 10),
-    (gen_random_uuid(), 'Premium',  'Premium plan', 10,     150000, true, 30, true,  0, 'Most popular',   -1, -1, -1)
+    (gen_random_uuid(), 'Free',     'Basic plan',   1,      0,      true, -1,  false, 0, NULL,             10,  5,  3,  20),
+    (gen_random_uuid(), 'Pro',      'Pro plan',     5,      99000,  true, 30, false, 0, NULL,             50,  20, 10, 100),
+    (gen_random_uuid(), 'Premium',  'Premium plan', 10,     150000, true, 30, true,  0, 'Most popular',   -1, -1, -1, -1)
 ON CONFLICT (name) DO NOTHING;
 
 -- =========================================================

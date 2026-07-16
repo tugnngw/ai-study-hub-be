@@ -1,6 +1,5 @@
 package com.tugnw.aistudy.service;
 
-import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.Subscription;
 import com.tugnw.aistudy.repository.SubscriptionRepository;
@@ -9,6 +8,8 @@ import com.tugnw.aistudy.repository.FlashcardRepository;
 import com.tugnw.aistudy.repository.QuestionRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.QuizRepository;
+import com.tugnw.aistudy.repository.ChatSessionRepository;
+import com.tugnw.aistudy.repository.ChatMessageRepository;
 import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -30,11 +31,13 @@ public class QuotaService {
     private final DocumentRepository documentRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final PaymentPlanRepository paymentPlanRepository;
+    private final ChatSessionRepository chatSessionRepository;
+    private final ChatMessageRepository chatMessageRepository;
 
     /**
      * Check if user has quota for a specific feature
      * @param accountId User account ID
-     * @param featureType Type of feature: "flashcard", "question", "summary"
+     * @param featureType Type of feature: "flashcard", "question", "summary", "chat"
      * @return true if allowed, false if exceeded quota
      */
     public boolean checkQuota(UUID accountId, String featureType) {
@@ -44,7 +47,7 @@ public class QuotaService {
     /**
      * Check if user has quota to generate a specific quantity
      * @param accountId User account ID
-     * @param featureType Type of feature: "flashcard", "question", "summary"
+     * @param featureType Type of feature: "flashcard", "question", "summary", "chat"
      * @param quantity Number of items to be generated
      * @return true if allowed, false if would exceed quota
      */
@@ -142,6 +145,8 @@ public class QuotaService {
                 return plan.getQuestionLimit();
             case "summary":
                 return plan.getSummaryLimit();
+            case "chat":
+                return plan.getChatLimit();
             default:
                 return null;
         }
@@ -157,8 +162,12 @@ public class QuotaService {
                 return quizIds.isEmpty() ? 0 : (int) questionRepository.countByQuizIdIn(quizIds);
             case "summary":
                 return (int) documentRepository.countByOwnerIdAndSummaryIsNotNull(accountId);
+            case "chat":
+                List<UUID> chatDocIds = documentRepository.findAllIdsByOwnerId(accountId);
+                List<UUID> sessionIds = chatSessionRepository.findSessionIdsByDocumentIds(chatDocIds);
+                return sessionIds.isEmpty() ? 0 : (int) chatMessageRepository.countUserMessagesBySessionIds(sessionIds);
             default:
-                return 0;
+                throw new IllegalArgumentException("Unknown feature type: " + featureType);
         }
     }
 
@@ -230,9 +239,11 @@ public class QuotaService {
                     .flashcardLimit(freePlan.getFlashcardLimit())
                     .questionLimit(freePlan.getQuestionLimit())
                     .summaryLimit(freePlan.getSummaryLimit())
+                    .chatLimit(freePlan.getChatLimit())
                     .flashcardRemaining(getRemainingQuota(accountId, "flashcard"))
                     .questionRemaining(getRemainingQuota(accountId, "question"))
                     .summaryRemaining(getRemainingQuota(accountId, "summary"))
+                    .chatRemaining(getRemainingQuota(accountId, "chat"))
                     .subscriptionEndDate(null)
                     .build();
         }
@@ -255,9 +266,11 @@ public class QuotaService {
                 .flashcardLimit(plan.getFlashcardLimit())
                 .questionLimit(plan.getQuestionLimit())
                 .summaryLimit(plan.getSummaryLimit())
+                .chatLimit(plan.getChatLimit())
                 .flashcardRemaining(getRemainingQuota(accountId, "flashcard"))
                 .questionRemaining(getRemainingQuota(accountId, "question"))
                 .summaryRemaining(getRemainingQuota(accountId, "summary"))
+                .chatRemaining(getRemainingQuota(accountId, "chat"))
                 .subscriptionEndDate(subscription.getEndDate())
                 .build();
     }
@@ -273,9 +286,11 @@ public class QuotaService {
         private Integer flashcardLimit;
         private Integer questionLimit;
         private Integer summaryLimit;
+        private Integer chatLimit;
         private Integer flashcardRemaining;
         private Integer questionRemaining;
         private Integer summaryRemaining;
+        private Integer chatRemaining;
         private Instant subscriptionEndDate;
         private String status;
 

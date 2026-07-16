@@ -9,6 +9,7 @@ import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.mapper.DocumentMapper;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
+import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
@@ -39,6 +40,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final CloudinaryService cloudinaryService;
     private final ActivityLogService activityLogService;
     private final AccountRepository accountRepository;
+    private final QuotaService quotaService;
 
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -69,12 +71,26 @@ public class DocumentServiceImpl implements DocumentService {
     public List<DocumentResponse> uploadDocuments(UUID ownerId, DocumentUploadRequest request) {
         List<DocumentResponse> responses = new ArrayList<>();
 
+        long MAX_FILE_SIZE = 50 * 1024 * 1024L; // 50MB
+        long totalIncoming = 0;
         for (MultipartFile file : request.getFiles()) {
-            // Validate file size (max 50MB)
-            long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+            totalIncoming += file.getSize();
             if (file.getSize() > MAX_FILE_SIZE) {
                 throw new RuntimeException("File size exceeds limit (50MB)");
             }
+        }
+
+        // Check storage quota
+        Account account = accountRepository.findById(ownerId).orElse(null);
+        if (account != null && account.getStorageGb() != null) {
+            long storageLimitBytes = (long) (account.getStorageGb() * 1024 * 1024 * 1024);
+            long usedBytes = documentRepository.sumFileSizeByOwnerId(ownerId);
+            if (usedBytes + totalIncoming > storageLimitBytes) {
+                throw new RuntimeException("Storage limit exceeded. Please upgrade your plan.");
+            }
+        }
+
+        for (MultipartFile file : request.getFiles()) {
 
             // Validate file type
             String contentType = file.getContentType();

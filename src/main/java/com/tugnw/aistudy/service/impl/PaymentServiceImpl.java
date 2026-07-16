@@ -127,83 +127,64 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("╔══════════════════════════════════════════════════════════════");
         log.info("║          WEBHOOK RECEIVED FROM PAYOS                         ║");
         log.info("╚══════════════════════════════════════════════════════════════");
-        log.info("📥 RAW PAYLOAD: {}", payload);
-        log.info("🔑 SIGNATURE: {}", signature);
         log.info("📅 TIMESTAMP: {}", java.time.Instant.now());
 
         try {
-            // Parse payload
+            // 1. CRYPTOGRAPHIC SIGNATURE VERIFICATION (before any business logic)
+            if (!payOSClient.verifySignature(payload, signature)) {
+                log.error("❌ WEBHOOK SIGNATURE VERIFICATION FAILED — rejecting");
+                throw new IllegalArgumentException("Invalid webhook signature");
+            }
+            log.info("✅ WEBHOOK SIGNATURE VERIFIED");
+
+            // 2. Parse payload
             JsonNode jsonNode = objectMapper.readTree(payload);
-            log.info("📋 PARSED JSON NODES:");
-            log.info("   - Root keys: {}", jsonNode.fieldNames().toString());
-            
             if (jsonNode == null || !jsonNode.has("data")) {
                 log.error("❌ INVALID WEBHOOK: no 'data' field in payload");
-                log.error("   Available keys: {}", jsonNode.fieldNames().toString());
                 throw new IllegalArgumentException("Invalid webhook data");
             }
 
             JsonNode dataNode = jsonNode.get("data");
-            log.info("📋 DATA NODE keys: {}", dataNode.fieldNames().toString());
-            
             Long orderCode = dataNode.has("orderCode") ? dataNode.get("orderCode").asLong() : null;
             String statusCode = dataNode.has("code") ? dataNode.get("code").asText() : null;
             String transactionId = dataNode.has("transactionId") ? dataNode.get("transactionId").asText() : null;
-            Long amount = dataNode.has("amount") ? dataNode.get("amount").asLong() : null;
+            Long webhookAmount = dataNode.has("amount") ? dataNode.get("amount").asLong() : null;
 
-            log.info("╔══════════════════════════════════════════════════════════════");
-            log.info("║              EXTRACTED DATA FROM WEBHOOK                     ║");
-            log.info("╠══════════════════════════════════════════════════════════════╣");
-            log.info("║ orderCode     : {}                                    ", orderCode);
-            log.info("║ statusCode    : {}                                    ", statusCode);
-            log.info("║ transactionId : {}                                    ", transactionId);
-            log.info("║ amount        : {} VND                                ", amount);
-            log.info("╚══════════════════════════════════════════════════════════════");
+            log.info("╠ orderCode={} statusCode={}", orderCode, statusCode);
 
             if (orderCode == null) {
                 log.error("Order code is null in webhook payload");
                 throw new IllegalArgumentException("Order code is required");
             }
 
-            // Find transaction - if not found, auto create for development
+            // 3. Find existing transaction — reject unknown order codes
             PaymentTransaction tx = txRepo.findByPayosOrderCode(orderCode)
-                    .orElseGet(() -> {
-                        log.warn("Transaction not found for orderCode: {}, creating new one for test", orderCode);
-
-                        Account account = accountRepo.findAll().stream().findFirst()
-                                .orElseThrow(() -> new RuntimeException("No account found in database"));
-
-                        PaymentPlan plan = planRepo.findAll().stream().findFirst()
-                                .orElseThrow(() -> new RuntimeException("No plan found in database"));
-
-                        PaymentTransaction newTx = PaymentTransaction.builder()
-                                .accountId(account.getId())
-                                .plan(plan)
-                                .payosOrderCode(orderCode)
-                                .amount(amount != null ? amount : plan.getPrice())
-                                .status(PaymentStatus.PENDING)
-                                .description("Auto created from webhook (orderCode: " + orderCode + ")")
-                                .build();
-
-                        PaymentTransaction saved = txRepo.save(newTx);
-                        log.info("✅ Auto created transaction with id: {}, orderCode: {}", saved.getId(), saved.getPayosOrderCode());
-                        return saved;
+                    .orElseThrow(() -> {
+                        log.error("❌ No transaction found for orderCode={} — rejecting", orderCode);
+                        return new IllegalArgumentException("Transaction not found: " + orderCode);
                     });
 
-            log.info("Found/Auto-created transaction: id={}, status={}, amount={}",
+            log.info("Found transaction: id={}, status={}, amount={}",
                     tx.getId(), tx.getStatus(), tx.getAmount());
 
-            // Idempotency
+            // 4. Cross-validate amount against stored transaction
+            if (webhookAmount != null && !webhookAmount.equals(tx.getAmount())) {
+                log.error("❌ Amount mismatch for orderCode={}: webhook says {}, stored transaction says {}",
+                        orderCode, webhookAmount, tx.getAmount());
+                throw new IllegalArgumentException("Amount mismatch in webhook");
+            }
+
+            // 5. Idempotency check — skip if already processed
             if (tx.getStatus() == PaymentStatus.PAID) {
                 log.warn("Transaction {} already paid, skipping", orderCode);
                 return;
             }
 
-            // Map status
+            // 6. Map status
             PaymentStatus newStatus = mapPayOSStatus(statusCode);
-            log.info("🔄 STATUS MAPPING: '{}' → '{}'", statusCode, newStatus);
+            log.info("Status mapping: '{}' → '{}'", statusCode, newStatus);
 
-            // Update transaction
+            // 6. Update transaction
             tx.setStatus(newStatus);
             if (transactionId != null) {
                 tx.setTransactionId(transactionId);
