@@ -68,26 +68,20 @@ public class QuotaService {
         }
 
         Subscription subscription = activeSubscriptionOpt.get();
-        PaymentPlan plan = subscription.getPlan();
-        
-        if (plan == null) {
-            log.error("Subscription {} has no associated plan", subscription.getId());
-            return false;
-        }
 
         if (subscription.getEndDate() != null && subscription.getEndDate().isBefore(Instant.now())) {
             log.warn("Subscription {} has expired for account {}", subscription.getId(), accountId);
             return false;
         }
 
-        Integer limit = getPlanLimit(plan, featureType);
+        Integer limit = getPlanLimitFromSubscription(subscription, featureType);
         if (limit == null) {
-            log.warn("Plan {} does not have limit configured for feature {}", plan.getId(), featureType);
+            log.warn("Subscription {} does not have limit for feature {}", subscription.getId(), featureType);
             return false;
         }
 
         if (limit == 0) {
-            log.info("Feature {} is disabled for plan {}", featureType, plan.getName());
+            log.info("Feature {} is disabled for subscription {}", featureType, subscription.getId());
             return false;
         }
 
@@ -135,6 +129,21 @@ public class QuotaService {
         return paymentPlanRepository.findByIsActiveTrue().stream()
                 .filter(plan -> "FREE".equalsIgnoreCase(plan.getName()))
                 .collect(java.util.stream.Collectors.toList());
+    }
+
+    private Integer getPlanLimitFromSubscription(Subscription subscription, String featureType) {
+        switch (featureType.toLowerCase()) {
+            case "flashcard":
+                return subscription.getFlashcardLimitGranted();
+            case "question":
+                return subscription.getQuestionLimitGranted();
+            case "summary":
+                return subscription.getSummaryLimitGranted();
+            case "chat":
+                return subscription.getChatLimitGranted();
+            default:
+                return null;
+        }
     }
 
     private Integer getPlanLimit(PaymentPlan plan, String featureType) {
@@ -198,13 +207,12 @@ public class QuotaService {
         }
 
         Subscription subscription = activeSubscriptionOpt.get();
-        PaymentPlan plan = subscription.getPlan();
-        
-        if (plan == null || (subscription.getEndDate() != null && subscription.getEndDate().isBefore(Instant.now()))) {
+
+        if (subscription.getEndDate() != null && subscription.getEndDate().isBefore(Instant.now())) {
             return 0;
         }
 
-        Integer limit = getPlanLimit(plan, featureType);
+        Integer limit = getPlanLimitFromSubscription(subscription, featureType);
         if (limit == null || limit == 0) {
             return 0;
         }
@@ -247,24 +255,19 @@ public class QuotaService {
         }
 
         Subscription subscription = activeSubscriptionOpt.get();
-        PaymentPlan plan = subscription.getPlan();
-        
-        if (plan == null) {
-            return QuotaDetails.noPlan();
-        }
 
         if (subscription.getEndDate() != null && subscription.getEndDate().isBefore(Instant.now())) {
             return QuotaDetails.expired();
         }
 
         return QuotaDetails.builder()
-                .planName(plan.getName())
+                .planName(subscription.getPlan() != null ? subscription.getPlan().getName() : "N/A")
                 .storageGb(subscription.getStorageGbGranted())
                 .aiQuestions(subscription.getAiQuestionsGranted())
-                .flashcardLimit(plan.getFlashcardLimit())
-                .questionLimit(plan.getQuestionLimit())
-                .summaryLimit(plan.getSummaryLimit())
-                .chatLimit(plan.getChatLimit())
+                .flashcardLimit(subscription.getFlashcardLimitGranted())
+                .questionLimit(subscription.getQuestionLimitGranted())
+                .summaryLimit(subscription.getSummaryLimitGranted())
+                .chatLimit(subscription.getChatLimitGranted())
                 .flashcardRemaining(getRemainingQuota(accountId, "flashcard"))
                 .questionRemaining(getRemainingQuota(accountId, "question"))
                 .summaryRemaining(getRemainingQuota(accountId, "summary"))

@@ -49,6 +49,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .pricePaid(sub.getPricePaid())
                 .storageGbGranted(sub.getStorageGbGranted())
                 .aiQuestionsGranted(sub.getAiQuestionsGranted())
+                .flashcardLimitGranted(sub.getFlashcardLimitGranted())
+                .questionLimitGranted(sub.getQuestionLimitGranted())
+                .summaryLimitGranted(sub.getSummaryLimitGranted())
+                .chatLimitGranted(sub.getChatLimitGranted())
+                .tierGranted(sub.getTierGranted())
                 .daysRemaining(Math.max(0, daysRemaining))
                 .build();
     }
@@ -81,6 +86,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .pricePaid(plan.getPrice())
                 .storageGbGranted(plan.getStorageGb())
                 .aiQuestionsGranted(plan.getAiQuestions())
+                .flashcardLimitGranted(plan.getFlashcardLimit() != null ? plan.getFlashcardLimit() : 0)
+                .questionLimitGranted(plan.getQuestionLimit() != null ? plan.getQuestionLimit() : 0)
+                .summaryLimitGranted(plan.getSummaryLimit() != null ? plan.getSummaryLimit() : 0)
+                .chatLimitGranted(plan.getChatLimit() != null ? plan.getChatLimit() : 0)
+                .tierGranted(plan.getTier() != null ? plan.getTier() : 0)
                 .build();
 
         log.info("Creating new subscription for account {} to plan {}. End date: {}", accountId, plan.getName(), endDate);
@@ -184,6 +194,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .pricePaid(tx.getAmount())
                 .storageGbGranted(newPlan.getStorageGb())
                 .aiQuestionsGranted(newPlan.getAiQuestions())
+                .flashcardLimitGranted(newPlan.getFlashcardLimit() != null ? newPlan.getFlashcardLimit() : 0)
+                .questionLimitGranted(newPlan.getQuestionLimit() != null ? newPlan.getQuestionLimit() : 0)
+                .summaryLimitGranted(newPlan.getSummaryLimit() != null ? newPlan.getSummaryLimit() : 0)
+                .chatLimitGranted(newPlan.getChatLimit() != null ? newPlan.getChatLimit() : 0)
+                .tierGranted(newPlan.getTier() != null ? newPlan.getTier() : 0)
                 .build();
 
         if (currentSubscription != null) {
