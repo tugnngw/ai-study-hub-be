@@ -2,6 +2,8 @@ package com.tugnw.aistudy.repository;
 
 import com.tugnw.aistudy.domain.entity.Flashcard;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -16,4 +18,7 @@ public interface FlashcardRepository extends JpaRepository<Flashcard, UUID> {
 
     void deleteByDocumentId(UUID documentId);
     long countByDocumentIdIn(List<UUID> documentIds);
+
+    @Query("SELECT COUNT(DISTINCT f.documentId) FROM Flashcard f WHERE f.documentId IN :documentIds")
+    long countDistinctDocumentIdByDocumentIdIn(@Param("documentIds") List<UUID> documentIds);
 }

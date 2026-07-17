@@ -55,11 +55,6 @@ public class QuizServiceImpl implements QuizService {
             throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        // Check quota before generating quiz with the number of questions to be generated
-        if (!quotaService.checkQuotaForGeneration(requesterId, "question", request.getNumberOfQuestions())) {
-            throw new RuntimeException("Bạn đã đạt giới hạn số lượng câu hỏi AI cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
-        }
-
         // Always regenerate — delete existing quizzes + questions, create fresh
         List<Quiz> existing = quizRepository.findByDocumentId(documentId);
         for (Quiz q : existing) {
@@ -72,7 +67,12 @@ public class QuizServiceImpl implements QuizService {
             log.info("[LOG - QUIZ] Deleted " + existing.size() + " existing quizzes.");
         }
 
-        String documentText = knowledgePreparationService.prepareKnowledge(List.of(document), false);
+        // Check quota — mỗi lần bấm gen chỉ tốn 1 lần, không phụ thuộc số lượng câu hỏi
+        if (!quotaService.checkQuota(requesterId, "question")) {
+            throw new RuntimeException("Bạn đã đạt giới hạn số lần tạo câu hỏi cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
+        }
+
+        String documentText = ragService.extractTextFromDocument(document.getId(), requesterId);
 
         if (documentText == null || documentText.isBlank()) {
             throw new RuntimeException("Unable to extract text from document.");
@@ -96,6 +96,10 @@ public class QuizServiceImpl implements QuizService {
                 request.getNumberOfQuestions()
         );
         questionRepository.saveAll(generatedQuestions);
+
+        // Increment generation counter
+        document.setQuizGenerations(document.getQuizGenerations() == null ? 1 : document.getQuizGenerations() + 1);
+        documentRepository.save(document);
 
         log.info("[LOG - QUIZ] Successfully generated and saved " + generatedQuestions.size() + " questions.");
 
