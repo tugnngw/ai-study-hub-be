@@ -51,11 +51,6 @@ public class FlashcardServiceImpl implements FlashcardService {
             throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        // Check quota before generating flashcards with the number of cards to be generated
-        if (!quotaService.checkQuotaForGeneration(requesterId, "flashcard", request.getNumberOfCards())) {
-            throw new RuntimeException("Bạn đã đạt giới hạn số lượng flashcard cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
-        }
-
         // Always regenerate — delete existing, create fresh
         List<Flashcard> existing = flashcardRepository.findByDocumentId(documentId);
         if (!existing.isEmpty()) {
@@ -64,7 +59,12 @@ public class FlashcardServiceImpl implements FlashcardService {
             log.info("[LOG - FLASHCARD] Deleted " + existing.size() + " existing flashcards.");
         }
 
-        String documentText = knowledgePreparationService.prepareKnowledge(List.of(document), false);
+        // Check quota — mỗi lần bấm gen chỉ tốn 1 lần, không phụ thuộc số lượng card
+        if (!quotaService.checkQuota(requesterId, "flashcard")) {
+            throw new RuntimeException("Bạn đã đạt giới hạn số lần tạo flashcard cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
+        }
+
+        String documentText = ragService.extractTextFromDocument(document.getId(), requesterId);
 
         if (documentText == null || documentText.isBlank()) {
             throw new RuntimeException("Unable to extract text from document.");
@@ -74,6 +74,10 @@ public class FlashcardServiceImpl implements FlashcardService {
 
         List<Flashcard> generatedFlashcards = generateFlashcardsFromText(documentText, document.getId(), request.getNumberOfCards());
         flashcardRepository.saveAll(generatedFlashcards);
+
+        // Increment generation counter
+        document.setFlashcardGenerations(document.getFlashcardGenerations() == null ? 1 : document.getFlashcardGenerations() + 1);
+        documentRepository.save(document);
 
         log.info("[LOG - FLASHCARD] Successfully generated and saved " + generatedFlashcards.size() + " flashcards.");
 

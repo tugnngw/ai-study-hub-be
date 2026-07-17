@@ -155,13 +155,11 @@ public class QuotaService {
     private Integer getCurrentUsage(UUID accountId, String featureType) {
         switch (featureType.toLowerCase()) {
             case "flashcard":
-                return (int) flashcardRepository.countByDocumentIdIn(documentRepository.findAllIdsByOwnerId(accountId));
-            case "question":
-                List<UUID> docIds = documentRepository.findAllIdsByOwnerId(accountId);
-                List<UUID> quizIds = quizRepository.findAllIdsByDocumentIds(docIds);
-                return quizIds.isEmpty() ? 0 : (int) questionRepository.countByQuizIdIn(quizIds);
+                return (int) documentRepository.sumFlashcardGenerationsByOwnerId(accountId);
             case "summary":
                 return (int) documentRepository.countByOwnerIdAndSummaryIsNotNull(accountId);
+            case "question":
+                return (int) documentRepository.sumQuizGenerationsByOwnerId(accountId);
             case "chat":
                 List<UUID> chatDocIds = documentRepository.findAllIdsByOwnerId(accountId);
                 List<UUID> sessionIds = chatSessionRepository.findSessionIdsByDocumentIds(chatDocIds);

@@ -52,4 +52,10 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT d FROM Document d WHERE d.id = :id")
     Optional<Document> findByIdForUpdate(@Param("id") UUID id);
+
+    @Query("SELECT COALESCE(SUM(d.flashcardGenerations), 0) FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
+    long sumFlashcardGenerationsByOwnerId(@Param("ownerId") UUID ownerId);
+
+    @Query("SELECT COALESCE(SUM(d.quizGenerations), 0) FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
+    long sumQuizGenerationsByOwnerId(@Param("ownerId") UUID ownerId);
 }
