@@ -48,4 +48,7 @@ public class UpdatePlanRequest {
 
     @Min(value = -1, message = "Chat limit must be >= -1")
     private Integer chatLimit;
+
+    @Min(value = 0, message = "Tier must be >= 0")
+    private Integer tier;
 }

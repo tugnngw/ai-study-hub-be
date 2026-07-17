@@ -70,4 +70,8 @@ public class PaymentPlan {
     @Column(name = "chat_limit")
     @Builder.Default
     private Integer chatLimit = 0;
+
+    @Column(name = "tier", nullable = false)
+    @Builder.Default
+    private Integer tier = 0;
 }

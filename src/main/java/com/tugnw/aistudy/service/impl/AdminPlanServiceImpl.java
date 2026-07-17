@@ -57,6 +57,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .questionLimit(plan.getQuestionLimit())
                 .summaryLimit(plan.getSummaryLimit())
                 .chatLimit(plan.getChatLimit())
+                .tier(plan.getTier())
                 .build();
     }
 
@@ -98,6 +99,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : 0)
                 .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : 0)
                 .chatLimit(request.getChatLimit() != null ? request.getChatLimit() : 0)
+                .tier(request.getTier() != null ? request.getTier() : 0)
                 .isActive(true)
                 .build();
         PaymentPlan saved = paymentPlanRepository.save(plan);
@@ -138,6 +140,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                     .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : plan.getQuestionLimit())
                     .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : plan.getSummaryLimit())
                     .chatLimit(request.getChatLimit() != null ? request.getChatLimit() : plan.getChatLimit())
+                    .tier(request.getTier() != null ? request.getTier() : plan.getTier())
                     .isActive(true)
                     .build();
             
@@ -165,6 +168,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (request.getQuestionLimit() != null) plan.setQuestionLimit(request.getQuestionLimit());
         if (request.getSummaryLimit() != null) plan.setSummaryLimit(request.getSummaryLimit());
         if (request.getChatLimit() != null) plan.setChatLimit(request.getChatLimit());
+        if (request.getTier() != null) plan.setTier(request.getTier());
         if (request.getIsActive() != null) plan.setIsActive(request.getIsActive());
 
         PaymentPlan saved = paymentPlanRepository.save(plan);
@@ -265,6 +269,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .questionLimit(plan.getQuestionLimit())
                 .summaryLimit(plan.getSummaryLimit())
                 .chatLimit(plan.getChatLimit())
+                .tier(plan.getTier())
                 .build();
     }
 }

@@ -70,6 +70,13 @@ public class PaymentServiceImpl implements PaymentService {
                 
         if (!activeSubs.isEmpty()) {
             com.tugnw.aistudy.domain.entity.Subscription activeSub = activeSubs.get(0);
+            PaymentPlan currentPlan = activeSub.getPlan();
+            
+            // Chỉ cho phép nâng cấp (tier mới >= tier cũ), không cho hạ gói
+            if (plan.getTier() < currentPlan.getTier()) {
+                throw new IllegalArgumentException("Không thể hạ gói khi đang còn hạn sử dụng.");
+            }
+            
             java.time.Instant now = java.time.Instant.now();
             
             // Nếu gói đang dùng chưa hết hạn
@@ -79,7 +86,6 @@ public class PaymentServiceImpl implements PaymentService {
                 int remainingDays = (int) Math.ceil((double) remainingMillis / 86_400_000);
                 
                 if (remainingDays > 0) {
-                    PaymentPlan currentPlan = activeSub.getPlan();
                     int currentDuration = currentPlan.getDurationDays() != null && currentPlan.getDurationDays() > 0 
                             ? currentPlan.getDurationDays() : 30;
                             

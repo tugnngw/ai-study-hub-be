@@ -113,6 +113,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             throw new IllegalArgumentException("Cannot upgrade to the same plan");
         }
 
+        if (currentSubscription != null && newPlan.getTier() < currentSubscription.getPlan().getTier()) {
+            throw new IllegalArgumentException("Cannot downgrade to a lower-tier plan while an active subscription exists.");
+        }
+
         long remainingDays = 0L;
         long remainingCredit = 0L;
         // durationDays = -1 means permanent (no expiration)
@@ -157,6 +161,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         PaymentPlan newPlan = paymentPlanRepository.findById(newPlanId)
                 .orElseThrow(() -> new IllegalArgumentException("New plan not found"));
+
+        if (currentSubscription != null && newPlan.getTier() < currentSubscription.getPlan().getTier()) {
+            throw new IllegalArgumentException("Cannot downgrade to a lower-tier plan while an active subscription exists.");
+        }
 
         Instant now = Instant.now();
         long remainingDays = 0L;

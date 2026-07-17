@@ -30,4 +30,5 @@ public class PlanResponse {
     private Integer chatLimit;
     private Boolean isActive;
     private Long activeSubscriptionCount;
+    private Integer tier;
 }
