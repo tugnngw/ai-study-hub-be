@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -83,6 +84,9 @@ public class AdminPlanServiceImpl implements AdminPlanService {
     public PlanResponse createPlan(CreatePlanRequest request) {
         if (paymentPlanRepository.existsByName(request.getName())) {
             throw new IllegalArgumentException("Plan name already exists: " + request.getName());
+        }
+        if (request.getTier() != null && paymentPlanRepository.existsByTier(request.getTier())) {
+            throw new IllegalArgumentException("Tier already in use by another plan: " + request.getTier());
         }
         PaymentPlan plan = PaymentPlan.builder()
                 .name(request.getName())
@@ -168,7 +172,13 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (request.getQuestionLimit() != null) plan.setQuestionLimit(request.getQuestionLimit());
         if (request.getSummaryLimit() != null) plan.setSummaryLimit(request.getSummaryLimit());
         if (request.getChatLimit() != null) plan.setChatLimit(request.getChatLimit());
-        if (request.getTier() != null) plan.setTier(request.getTier());
+        if (request.getTier() != null) {
+            Optional<PaymentPlan> existingTier = paymentPlanRepository.findByTier(request.getTier());
+            if (existingTier.isPresent() && !existingTier.get().getId().equals(plan.getId())) {
+                throw new IllegalArgumentException("Tier already in use by plan: " + existingTier.get().getName());
+            }
+            plan.setTier(request.getTier());
+        }
         if (request.getIsActive() != null) plan.setIsActive(request.getIsActive());
 
         PaymentPlan saved = paymentPlanRepository.save(plan);

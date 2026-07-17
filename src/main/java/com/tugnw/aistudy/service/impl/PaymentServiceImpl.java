@@ -72,8 +72,8 @@ public class PaymentServiceImpl implements PaymentService {
             com.tugnw.aistudy.domain.entity.Subscription activeSub = activeSubs.get(0);
             PaymentPlan currentPlan = activeSub.getPlan();
             
-            // Chỉ cho phép nâng cấp (tier mới >= tier cũ), không cho hạ gói
-            if (plan.getTier() < currentPlan.getTier()) {
+            // Chỉ cho phép nâng cấp, không cho hạ gói
+            if (plan.isDowngradeFrom(currentPlan)) {
                 throw new IllegalArgumentException("Không thể hạ gói khi đang còn hạn sử dụng.");
             }
             
