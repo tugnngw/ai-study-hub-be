@@ -240,6 +240,11 @@ public class AuthServiceImpl implements AuthService {
                 .pricePaid(0L)
                 .storageGbGranted(freePlan.getStorageGb() != null ? freePlan.getStorageGb() : 1.0)
                 .aiQuestionsGranted(freePlan.getAiQuestions() != null ? freePlan.getAiQuestions() : 5)
+                .flashcardLimitGranted(freePlan.getFlashcardLimit() != null ? freePlan.getFlashcardLimit() : 0)
+                .questionLimitGranted(freePlan.getQuestionLimit() != null ? freePlan.getQuestionLimit() : 0)
+                .summaryLimitGranted(freePlan.getSummaryLimit() != null ? freePlan.getSummaryLimit() : 0)
+                .chatLimitGranted(freePlan.getChatLimit() != null ? freePlan.getChatLimit() : 0)
+                .tierGranted(freePlan.getTier() != null ? freePlan.getTier() : 0)
                 .autoRenew(false)
                 .build();
 

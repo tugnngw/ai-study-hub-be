@@ -7,6 +7,7 @@ import com.tugnw.aistudy.domain.dto.plan.CreatePlanRequest;
 import com.tugnw.aistudy.domain.dto.plan.PlanResponse;
 import com.tugnw.aistudy.domain.dto.plan.UpdatePlanRequest;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
+import com.tugnw.aistudy.domain.entity.Subscription;
 import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
 import com.tugnw.aistudy.repository.PaymentPlanRepository;
 import com.tugnw.aistudy.repository.SubscriptionRepository;
@@ -183,6 +184,22 @@ public class AdminPlanServiceImpl implements AdminPlanService {
 
         PaymentPlan saved = paymentPlanRepository.save(plan);
         log.info("Updated plan: {}", saved.getName());
+
+        if (isFree) {
+            List<Subscription> freeSubs = subscriptionRepository.findAllByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
+            for (Subscription sub : freeSubs) {
+                sub.setStorageGbGranted(saved.getStorageGb());
+                sub.setAiQuestionsGranted(saved.getAiQuestions());
+                sub.setFlashcardLimitGranted(saved.getFlashcardLimit());
+                sub.setQuestionLimitGranted(saved.getQuestionLimit());
+                sub.setSummaryLimitGranted(saved.getSummaryLimit());
+                sub.setChatLimitGranted(saved.getChatLimit());
+                sub.setTierGranted(saved.getTier());
+            }
+            subscriptionRepository.saveAll(freeSubs);
+            log.info("Synced {} active free subscriptions with updated plan values", freeSubs.size());
+        }
+
         return mapToPlanResponse(saved);
     }
 

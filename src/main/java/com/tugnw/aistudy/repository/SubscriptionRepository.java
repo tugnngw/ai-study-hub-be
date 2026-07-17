@@ -22,5 +22,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
 
     long countByPlan_IdAndStatus(UUID planId, SubscriptionStatus status);
 
+    List<Subscription> findAllByPlan_IdAndStatus(UUID planId, SubscriptionStatus status);
+
     Optional<Subscription> findFirstByAccountIdAndStatusOrderByEndDateDesc(UUID accountId, SubscriptionStatus status);
 }
