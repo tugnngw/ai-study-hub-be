@@ -12,6 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -23,6 +24,9 @@ public class ShareController {
     @PostMapping
     public ResponseEntity<ShareResponse> createShare(@RequestBody ShareRequest request, Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
+        if (request.getDocumentId() != null) {
+            return ResponseEntity.ok(shareService.shareDocument(request, ownerId));
+        }
         return ResponseEntity.ok(shareService.shareFolder(request, ownerId));
     }
 
@@ -60,6 +64,18 @@ public class ShareController {
         UUID requesterId = getCurrentUserId(authentication);
         SaveToFolderResponse response = shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(), request.getDescription(), requesterId);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{shareToken}/link")
+    public ResponseEntity<Map<String, String>> getShareLink(@PathVariable String shareToken) {
+        String link = shareService.getShareLinkByToken(shareToken);
+        return ResponseEntity.ok(Map.of("url", link));
+    }
+
+    @GetMapping("/{shareToken}/download")
+    public ResponseEntity<Map<String, String>> getDownloadUrl(@PathVariable String shareToken) {
+        String url = shareService.getDownloadUrlByToken(shareToken);
+        return ResponseEntity.ok(Map.of("url", url));
     }
 
     private UUID getCurrentUserId(Authentication authentication) {

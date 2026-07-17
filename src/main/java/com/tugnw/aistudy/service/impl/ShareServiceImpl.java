@@ -20,6 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -384,6 +385,42 @@ public class ShareServiceImpl implements ShareService {
                 cloudinaryUrl,
                 null
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ShareResponse getShareByToken(String shareToken) {
+        Share share = shareRepository.findByShareToken(shareToken)
+                .orElseThrow(() -> new IllegalArgumentException("Share not found"));
+        if (share.getRevoked()) {
+            throw new IllegalArgumentException("This share has been revoked");
+        }
+        if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(Instant.now())) {
+            throw new IllegalArgumentException("This share has expired");
+        }
+        return mapToResponse(share);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getShareLinkByToken(String shareToken) {
+        Share share = shareRepository.findByShareToken(shareToken)
+                .orElseThrow(() -> new IllegalArgumentException("Share not found"));
+        return frontendUrl + "/shared/" + share.getShareToken();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getDownloadUrlByToken(String shareToken) {
+        Share share = shareRepository.findByShareToken(shareToken)
+                .orElseThrow(() -> new IllegalArgumentException("Share not found"));
+        if (share.getRevoked()) {
+            throw new IllegalArgumentException("This share has been revoked");
+        }
+        if (share.getDocument() != null) {
+            return share.getDocument().getCloudinaryUrl();
+        }
+        throw new IllegalArgumentException("No downloadable file for this share");
     }
 
     private ShareResponse mapToResponse(Share share) {
