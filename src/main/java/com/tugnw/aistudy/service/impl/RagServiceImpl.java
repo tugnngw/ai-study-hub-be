@@ -146,10 +146,9 @@ public class RagServiceImpl implements RagService {
             return;
         }
 
-        doc.setStatus("READY");
         doc.setAiStatus(AiProcessingStatus.PROCESSING);
         documentRepository.save(doc);
-        log.info("[STEP2] READY/PROCESSING saved documentId={}", documentId);
+        log.info("[STEP2] PROCESSING saved documentId={} (status={})", documentId, doc.getStatus());
 
         try {
             String rawText = extractTextFromDocument(documentId, requesterId);
@@ -169,7 +168,6 @@ public class RagServiceImpl implements RagService {
             saveChunksBatch(documentId, chunkDataList);
             log.info("[STEP7] saveChunksBatch finished documentId={}", documentId);
 
-            doc.setStatus("COMPLETED");
             doc.setAiStatus(AiProcessingStatus.COMPLETED);
             documentRepository.save(doc);
             log.info("[STEP8] COMPLETED saved documentId={} status={} aiStatus={}",
@@ -182,7 +180,6 @@ public class RagServiceImpl implements RagService {
                     e.getClass().getSimpleName(), e.getMessage(), e);
             log.info("[CATCH] documentId={} BEFORE save — doc.status={} doc.aiStatus={}",
                     documentId, doc.getStatus(), doc.getAiStatus());
-            doc.setStatus("REJECT");
             doc.setAiStatus(AiProcessingStatus.FAILED);
             try {
                 documentRepository.save(doc);
@@ -366,7 +363,7 @@ public class RagServiceImpl implements RagService {
     // GIAI ĐOẠN 3: RETRIEVAL & GENERATION (CHAT)
     // ==========================================
     @Override
-    public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) throws Exception {
+    public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) {
         UUID docId = chatRequest.getDocumentId();
         log.info("[CHAT] Document {}: {}", docId, truncate(chatRequest.getQuestion(), 80));
 
@@ -375,11 +372,6 @@ public class RagServiceImpl implements RagService {
                 .orElseThrow(() -> new RuntimeException("Document not found"));
         if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
             throw new AccessDeniedException("You do not have permission to access this document");
-        }
-
-        // Check chat quota
-        if (!quotaService.checkQuota(requesterId, "chat")) {
-            throw new RuntimeException("Bạn đã đạt giới hạn số lượng tin nhắn AI cho gói hiện tại.");
         }
 
         // Embed question
@@ -408,11 +400,11 @@ public class RagServiceImpl implements RagService {
 
         log.info("[CHAT] Tìm thấy {} chunk(s)", relevantChunks.size());
 
-        // Generate answer
+        // Generate answer (expensive AI call — done before quota check to avoid wasted quota)
         String prompt = buildChatPrompt(contextBuilder.toString(), chatRequest.getQuestion());
         String aiAnswer = generateTextFromGemini(prompt);
 
-        // Save session + messages, title = first user message
+        // Save session + messages (quota check inside same transaction — atomic)
         UUID sessionId = saveChatHistory(chatRequest, requesterId, aiAnswer, referencedDocIds);
 
         return RagChatResponse.builder()
@@ -425,6 +417,11 @@ public class RagServiceImpl implements RagService {
     /** Save user question + AI answer. Create session if new. Title = first user message. */
     private UUID saveChatHistory(RagChatRequest req, UUID accountId, String aiAnswer, Set<UUID> referencedDocs) {
         return transactionTemplate.execute(status -> {
+            // Check quota inside transaction — rollback on failure prevents counting
+            if (!quotaService.checkQuota(accountId, "chat")) {
+                throw new RuntimeException("Bạn đã đạt giới hạn số lượng tin nhắn AI cho gói hiện tại.");
+            }
+
             ChatSession session;
 
             if (req.getSessionId() != null) {

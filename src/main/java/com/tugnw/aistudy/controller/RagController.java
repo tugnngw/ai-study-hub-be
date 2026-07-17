@@ -55,18 +55,8 @@ public class RagController {
             @RequestBody com.tugnw.aistudy.domain.dto.rag.RagChatRequest request,
             Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
-        try {
-            RagChatResponse response = ragService.chatWithFolderContext(request, ownerId);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(
-                    com.tugnw.aistudy.domain.dto.rag.RagChatResponse.builder()
-                            .sessionId(null)
-                            .answer("Lỗi hệ thống chat: " + e.getMessage())
-                            .referencedDocumentIds(java.util.Collections.emptySet())
-                            .build()
-            );
-        }
+        RagChatResponse response = ragService.chatWithFolderContext(request, ownerId);
+        return ResponseEntity.ok(response);
     }
 
     private UUID getCurrentUserId(Authentication authentication) {

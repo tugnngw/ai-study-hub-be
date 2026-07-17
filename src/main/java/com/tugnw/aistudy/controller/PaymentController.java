@@ -1,5 +1,7 @@
 package com.tugnw.aistudy.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tugnw.aistudy.domain.dto.payment.CreatePaymentRequest;
 import com.tugnw.aistudy.domain.dto.payment.PaymentResponse;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
@@ -25,6 +27,7 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final SubscriptionService subscriptionService;
+    private final ObjectMapper objectMapper;
 
     @GetMapping("/plans")
     public ResponseEntity<List<PaymentPlan>> getActivePlans() {
@@ -62,9 +65,11 @@ public class PaymentController {
 
     //  Webhook endpoint (Priority 1)
     @PostMapping("/webhook")
-    public ResponseEntity<?> handleWebhook(@RequestBody String payload,
-                                           @RequestHeader(value = "x-payos-signature", required = false) String signature) {
+    public ResponseEntity<?> handleWebhook(@RequestBody String payload) {
         try {
+            // Extract signature from JSON body (PayOS sends it inside the payload, not as header)
+            JsonNode root = objectMapper.readTree(payload);
+            String signature = root.has("signature") ? root.get("signature").asText() : null;
             paymentService.handleWebhook(payload, signature);
             return ResponseEntity.ok().build();
         } catch (Exception e) {

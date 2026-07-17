@@ -69,12 +69,8 @@ public class AuthServiceImpl implements AuthService {
         account = accountRepository.save(account);
 
         // Create FREE subscription for new user
-        try {
-            createFreeSubscription(account);
-            log.info("Created FREE subscription for new user: {}", account.getUsername());
-        } catch (Exception e) {
-            log.error("Failed to create FREE subscription for user {}: {}", account.getUsername(), e.getMessage());
-        }
+        createFreeSubscription(account);
+        log.info("Created FREE subscription for new user: {}", account.getUsername());
 
         // Log activity for user registration
         activityLogService.logActivity(
@@ -228,7 +224,12 @@ public class AuthServiceImpl implements AuthService {
         PaymentPlan freePlan = paymentPlanRepository.findByIsActiveTrue().stream()
                 .filter(plan -> "FREE".equalsIgnoreCase(plan.getName()))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("FREE plan not found in database"));
+                .orElse(null);
+
+        if (freePlan == null) {
+            log.warn("FREE plan not found in database — no subscription created for user: {}", account.getUsername());
+            return;
+        }
 
         Subscription subscription = Subscription.builder()
                 .accountId(account.getId())

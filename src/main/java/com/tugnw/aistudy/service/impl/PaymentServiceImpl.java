@@ -29,6 +29,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,6 +45,10 @@ public class PaymentServiceImpl implements PaymentService {
     private final ActivityLogService activityLogService;
     private final com.tugnw.aistudy.repository.SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
+
+    private static final AtomicLong orderCodeSeq = new AtomicLong(
+        (System.currentTimeMillis() / 1000) % 1_000_000_000L + 100_000L
+    );
 
     @Override
     public List<PaymentPlan> listActivePlans() {
@@ -92,12 +97,12 @@ public class PaymentServiceImpl implements PaymentService {
         // ===== KẾT THÚC: TÍNH TOÁN BÙ TRỪ =====
 
         // ⚠️ orderCode MUST be <= 2,147,483,647 (PayOS requirement)
-        // Use nanoTime to ensure unique, then mod with 2B to keep within limit
-        int safeOrderCode = (int) (System.nanoTime() % 2_000_000_000L);
-        if (safeOrderCode < 100000) {
-            safeOrderCode += 100000;
+        // Use AtomicLong to ensure unique, monotonically increasing order codes
+        long orderCode = orderCodeSeq.incrementAndGet();
+        if (orderCode > 2_000_000_000L) {
+            orderCodeSeq.set(100_000L);
+            orderCode = orderCodeSeq.incrementAndGet();
         }
-        Long orderCode = (long) safeOrderCode;
 
         log.info("Generated orderCode: {}", orderCode);
 
@@ -112,7 +117,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .amount(finalAmount) // Lưu đúng số tiền thực tế user phải trả
                 .status(PaymentStatus.PENDING)
                 .description("Buy plan " + plan.getName() + (finalAmount < plan.getPrice() ? " (Upgraded)" : ""))
-                .expiredAt(java.time.Instant.now().plus(1, ChronoUnit.MINUTES))
+                .expiredAt(java.time.Instant.now().plus(3, ChronoUnit.MINUTES))
                 .build();
 
         txRepo.save(tx);

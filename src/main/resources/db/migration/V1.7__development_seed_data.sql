@@ -28,23 +28,40 @@ INSERT INTO account (
     id, username, email, password_hash, role, status
 ) VALUES (
     '11111111-1111-1111-1111-111111111111',
-    'tugn',
+    'test',
     'tugn@gmail.com',
-    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+    '$2a$12$gyZzhJpg8n6Anji7GwRQvejbR1gnBBHNzEyblu7tZ18eBJi13R00S',
     'USER',
     'ACTIVE'
 );
-
+INSERT INTO account (
+    username,
+    email,
+    password_hash,
+    full_name,
+    role,
+    status,
+    auth_provider
+)
+VALUES (
+           'admin',
+           'admin@example.com',
+           '$2a$12$gyZzhJpg8n6Anji7GwRQvejbR1gnBBHNzEyblu7tZ18eBJi13R00S',
+           'Administrator',
+           'ADMIN',
+           'ACTIVE',
+           'LOCAL'
+       );
 -- =========================================================
 -- 2. Payment Plans
 --    Free:     default tier, permanent, feature-limited
 --    Pro:      paid monthly, standard limits
 --    Premium:  paid monthly, unlimited features
 -- =========================================================
-INSERT INTO payment_plan (id, name, description, storage_gb, price, is_active, duration_days, is_popular, display_order, tagline, flashcard_limit, question_limit, summary_limit) VALUES
-    (gen_random_uuid(), 'Free',     'Basic plan',   1,      0,      true, -1,  false, 0, NULL,             10,  5,  3,  20),
-    (gen_random_uuid(), 'Pro',      'Pro plan',     5,      99000,  true, 30, false, 0, NULL,             50,  20, 10, 100),
-    (gen_random_uuid(), 'Premium',  'Premium plan', 10,     150000, true, 30, true,  0, 'Most popular',   -1, -1, -1, -1)
+INSERT INTO payment_plan (id, name, description, storage_gb, price, is_active, duration_days, is_popular, display_order, tagline, ai_questions, flashcard_limit, chat_limit, question_limit, summary_limit) VALUES
+    (gen_random_uuid(), 'Free',     'Basic plan',   1,      0,      true, -1,  false, 0, NULL,             20,  10,  5,  5,   3),
+    (gen_random_uuid(), 'Pro',      'Pro plan',     5,      99000,  true, 30, false, 0, NULL,             100, 50,  20, 20,  100),
+    (gen_random_uuid(), 'Premium',  'Premium plan', 10,     150000, true, 30, true,  0, 'Most popular',   -1, -1,  -1, -1,  -1)
 ON CONFLICT (name) DO NOTHING;
 
 -- =========================================================

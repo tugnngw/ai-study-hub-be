@@ -164,6 +164,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (request.getFlashcardLimit() != null) plan.setFlashcardLimit(request.getFlashcardLimit());
         if (request.getQuestionLimit() != null) plan.setQuestionLimit(request.getQuestionLimit());
         if (request.getSummaryLimit() != null) plan.setSummaryLimit(request.getSummaryLimit());
+        if (request.getChatLimit() != null) plan.setChatLimit(request.getChatLimit());
         if (request.getIsActive() != null) plan.setIsActive(request.getIsActive());
 
         PaymentPlan saved = paymentPlanRepository.save(plan);
