@@ -15,6 +15,9 @@ import com.tugnw.aistudy.repository.QuestionRepository;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.QuizService;
+import com.tugnw.aistudy.domain.entity.Subscription;
+import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
+import com.tugnw.aistudy.repository.SubscriptionRepository;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +44,7 @@ public class QuizServiceImpl implements QuizService {
     private final QuizMapper quizMapper;
     private final KnowledgePreparationService knowledgePreparationService;
     private final QuotaService quotaService;
+    private final SubscriptionRepository subscriptionRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -70,6 +74,12 @@ public class QuizServiceImpl implements QuizService {
         // Check quota — mỗi lần bấm gen chỉ tốn 1 lần, không phụ thuộc số lượng câu hỏi
         if (!quotaService.checkQuota(requesterId, "question")) {
             throw new RuntimeException("Bạn đã đạt giới hạn số lần tạo câu hỏi cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
+        }
+
+        // Validate numberOfQuestions against plan's aiQuestions limit
+        int maxQuestions = getMaxQuestionsPerGeneration(requesterId);
+        if (request.getNumberOfQuestions() > maxQuestions) {
+            throw new RuntimeException("Số câu hỏi không được vượt quá " + maxQuestions + ". Vui lòng giảm số lượng.");
         }
 
         String documentText = ragService.extractTextFromDocument(document.getId(), requesterId);
@@ -194,6 +204,19 @@ public class QuizServiceImpl implements QuizService {
             throw new RuntimeException("Failed to parse AI-generated questions.", e);
         }
         return questions;
+    }
+
+    private int getMaxQuestionsPerGeneration(UUID accountId) {
+        java.util.Optional<Subscription> activeSub = subscriptionRepository
+                .findFirstByAccountIdAndStatusOrderByEndDateDesc(accountId, SubscriptionStatus.ACTIVE);
+        int planLimit = 10;
+        if (activeSub.isPresent()) {
+            Integer limit = activeSub.get().getAiQuestionsGranted();
+            if (limit != null && limit > 0) {
+                planLimit = limit;
+            }
+        }
+        return Math.min(planLimit, 10);
     }
 
     private boolean isAdmin() {

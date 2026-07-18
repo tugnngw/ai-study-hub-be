@@ -12,6 +12,9 @@ import com.tugnw.aistudy.repository.FlashcardRepository;
 import com.tugnw.aistudy.service.FlashcardService;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.QuotaService;
+import com.tugnw.aistudy.domain.entity.Subscription;
+import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
+import com.tugnw.aistudy.repository.SubscriptionRepository;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +40,7 @@ public class FlashcardServiceImpl implements FlashcardService {
     private final FlashcardMapper flashcardMapper;
     private final KnowledgePreparationService knowledgePreparationService;
     private final QuotaService quotaService;
+    private final SubscriptionRepository subscriptionRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -62,6 +66,12 @@ public class FlashcardServiceImpl implements FlashcardService {
         // Check quota — mỗi lần bấm gen chỉ tốn 1 lần, không phụ thuộc số lượng card
         if (!quotaService.checkQuota(requesterId, "flashcard")) {
             throw new RuntimeException("Bạn đã đạt giới hạn số lần tạo flashcard cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
+        }
+
+        // Validate numberOfCards against plan's flashcardCards limit
+        int maxCards = getMaxCardsPerGeneration(requesterId);
+        if (request.getNumberOfCards() > maxCards) {
+            throw new RuntimeException("Số flashcard không được vượt quá " + maxCards + ". Vui lòng giảm số lượng.");
         }
 
         String documentText = ragService.extractTextFromDocument(document.getId(), requesterId);
@@ -142,6 +152,19 @@ public class FlashcardServiceImpl implements FlashcardService {
             throw new RuntimeException("Failed to parse AI-generated flashcards.", e);
         }
         return flashcards;
+    }
+
+    private int getMaxCardsPerGeneration(UUID accountId) {
+        java.util.Optional<Subscription> activeSub = subscriptionRepository
+                .findFirstByAccountIdAndStatusOrderByEndDateDesc(accountId, SubscriptionStatus.ACTIVE);
+        int planLimit = 10;
+        if (activeSub.isPresent()) {
+            Integer limit = activeSub.get().getFlashcardCardsGranted();
+            if (limit != null && limit > 0) {
+                planLimit = limit;
+            }
+        }
+        return Math.min(planLimit, 10);
     }
 
     private boolean isAdmin() {

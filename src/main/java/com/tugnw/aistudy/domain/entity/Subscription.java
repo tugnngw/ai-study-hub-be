@@ -70,6 +70,10 @@ public class Subscription {
     @Builder.Default
     private Integer chatLimitGranted = 0;
 
+    @Column(name = "flashcard_cards_granted", nullable = false)
+    @Builder.Default
+    private Integer flashcardCardsGranted = 10;
+
     @Column(name = "tier_granted", nullable = false)
     @Builder.Default
     private Integer tierGranted = 0;

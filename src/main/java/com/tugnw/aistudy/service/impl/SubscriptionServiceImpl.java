@@ -49,6 +49,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .pricePaid(sub.getPricePaid())
                 .storageGbGranted(sub.getStorageGbGranted())
                 .aiQuestionsGranted(sub.getAiQuestionsGranted())
+                .flashcardCardsGranted(sub.getFlashcardCardsGranted())
                 .flashcardLimitGranted(sub.getFlashcardLimitGranted())
                 .questionLimitGranted(sub.getQuestionLimitGranted())
                 .summaryLimitGranted(sub.getSummaryLimitGranted())
@@ -90,6 +91,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .questionLimitGranted(plan.getQuestionLimit() != null ? plan.getQuestionLimit() : 0)
                 .summaryLimitGranted(plan.getSummaryLimit() != null ? plan.getSummaryLimit() : 0)
                 .chatLimitGranted(plan.getChatLimit() != null ? plan.getChatLimit() : 0)
+                .flashcardCardsGranted(plan.getFlashcardCards() != null ? plan.getFlashcardCards() : 10)
                 .tierGranted(plan.getTier() != null ? plan.getTier() : 0)
                 .build();
 
@@ -198,6 +200,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .questionLimitGranted(newPlan.getQuestionLimit() != null ? newPlan.getQuestionLimit() : 0)
                 .summaryLimitGranted(newPlan.getSummaryLimit() != null ? newPlan.getSummaryLimit() : 0)
                 .chatLimitGranted(newPlan.getChatLimit() != null ? newPlan.getChatLimit() : 0)
+                .flashcardCardsGranted(newPlan.getFlashcardCards() != null ? newPlan.getFlashcardCards() : 10)
                 .tierGranted(newPlan.getTier() != null ? newPlan.getTier() : 0)
                 .build();
 

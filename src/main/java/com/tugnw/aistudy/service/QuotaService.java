@@ -242,6 +242,7 @@ public class QuotaService {
                     .planName("FREE")
                     .storageGb(freePlan.getStorageGb())
                     .aiQuestions(freePlan.getAiQuestions())
+                    .flashcardCards(freePlan.getFlashcardCards())
                     .flashcardLimit(freePlan.getFlashcardLimit())
                     .questionLimit(freePlan.getQuestionLimit())
                     .summaryLimit(freePlan.getSummaryLimit())
@@ -264,6 +265,7 @@ public class QuotaService {
                 .planName(subscription.getPlan() != null ? subscription.getPlan().getName() : "N/A")
                 .storageGb(subscription.getStorageGbGranted())
                 .aiQuestions(subscription.getAiQuestionsGranted())
+                .flashcardCards(subscription.getFlashcardCardsGranted())
                 .flashcardLimit(subscription.getFlashcardLimitGranted())
                 .questionLimit(subscription.getQuestionLimitGranted())
                 .summaryLimit(subscription.getSummaryLimitGranted())
@@ -284,6 +286,7 @@ public class QuotaService {
         private String planName;
         private Double storageGb;
         private Integer aiQuestions;
+        private Integer flashcardCards;
         private Integer flashcardLimit;
         private Integer questionLimit;
         private Integer summaryLimit;

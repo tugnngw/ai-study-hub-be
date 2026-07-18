@@ -59,6 +59,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .questionLimit(plan.getQuestionLimit())
                 .summaryLimit(plan.getSummaryLimit())
                 .chatLimit(plan.getChatLimit())
+                .flashcardCards(plan.getFlashcardCards())
                 .tier(plan.getTier())
                 .build();
     }
@@ -104,6 +105,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : 0)
                 .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : 0)
                 .chatLimit(request.getChatLimit() != null ? request.getChatLimit() : 0)
+                .flashcardCards(request.getFlashcardCards() != null ? request.getFlashcardCards() : 10)
                 .tier(request.getTier() != null ? request.getTier() : 0)
                 .isActive(true)
                 .build();
@@ -145,6 +147,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                     .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : plan.getQuestionLimit())
                     .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : plan.getSummaryLimit())
                     .chatLimit(request.getChatLimit() != null ? request.getChatLimit() : plan.getChatLimit())
+                    .flashcardCards(request.getFlashcardCards() != null ? request.getFlashcardCards() : plan.getFlashcardCards())
                     .tier(request.getTier() != null ? request.getTier() : plan.getTier())
                     .isActive(true)
                     .build();
@@ -173,6 +176,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (request.getQuestionLimit() != null) plan.setQuestionLimit(request.getQuestionLimit());
         if (request.getSummaryLimit() != null) plan.setSummaryLimit(request.getSummaryLimit());
         if (request.getChatLimit() != null) plan.setChatLimit(request.getChatLimit());
+        if (request.getFlashcardCards() != null) plan.setFlashcardCards(request.getFlashcardCards());
         if (request.getTier() != null) {
             Optional<PaymentPlan> existingTier = paymentPlanRepository.findByTier(request.getTier());
             if (existingTier.isPresent() && !existingTier.get().getId().equals(plan.getId())) {
@@ -190,6 +194,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
             for (Subscription sub : freeSubs) {
                 sub.setStorageGbGranted(saved.getStorageGb());
                 sub.setAiQuestionsGranted(saved.getAiQuestions());
+                sub.setFlashcardCardsGranted(saved.getFlashcardCards());
                 sub.setFlashcardLimitGranted(saved.getFlashcardLimit());
                 sub.setQuestionLimitGranted(saved.getQuestionLimit());
                 sub.setSummaryLimitGranted(saved.getSummaryLimit());
@@ -296,6 +301,7 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .questionLimit(plan.getQuestionLimit())
                 .summaryLimit(plan.getSummaryLimit())
                 .chatLimit(plan.getChatLimit())
+                .flashcardCards(plan.getFlashcardCards())
                 .tier(plan.getTier())
                 .build();
     }

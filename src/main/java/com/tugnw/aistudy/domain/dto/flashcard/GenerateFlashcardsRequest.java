@@ -1,6 +1,7 @@
 package com.tugnw.aistudy.domain.dto.flashcard;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
 import lombok.Data;
@@ -15,6 +16,7 @@ public class GenerateFlashcardsRequest {
     private UUID documentId;
 
     @Min(value = 1, message = "Number of cards must be at least 1")
-    @Schema(description = "Number of flashcards to generate", example = "10", minimum = "1")
+    @Max(value = 10, message = "Number of cards must not exceed 10")
+    @Schema(description = "Number of flashcards to generate", example = "10", minimum = "1", maximum = "10")
     private Integer numberOfCards;
 }

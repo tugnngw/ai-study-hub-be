@@ -71,6 +71,10 @@ public class PaymentPlan {
     @Builder.Default
     private Integer chatLimit = 0;
 
+    @Column(name = "flashcard_cards")
+    @Builder.Default
+    private Integer flashcardCards = 10;
+
     @Column(name = "tier", nullable = false)
     @Builder.Default
     private Integer tier = 0;

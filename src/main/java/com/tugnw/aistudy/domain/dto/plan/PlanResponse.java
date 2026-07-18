@@ -28,6 +28,7 @@ public class PlanResponse {
     private Integer questionLimit;
     private Integer summaryLimit;
     private Integer chatLimit;
+    private Integer flashcardCards;
     private Boolean isActive;
     private Long activeSubscriptionCount;
     private Integer tier;

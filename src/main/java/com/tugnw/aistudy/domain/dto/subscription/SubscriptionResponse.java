@@ -26,6 +26,7 @@ public class SubscriptionResponse {
     private Integer questionLimitGranted;
     private Integer summaryLimitGranted;
     private Integer chatLimitGranted;
+    private Integer flashcardCardsGranted;
     private Integer tierGranted;
     private Long daysRemaining;
 }
