@@ -42,15 +42,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final FolderRepository folderRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
-    private final ActivityLogService activityLogService;
-    private final AccountRepository accountRepository;
-    private final QuotaService quotaService;
-
-    private boolean isAdmin() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null && auth.getAuthorities().stream()
-            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    }
+    private final RagService ragService; // Đã thêm RagService
 
     @Override
     @Transactional(readOnly = true)
@@ -58,30 +50,18 @@ public class DocumentServiceImpl implements DocumentService {
         return shareRepository.existsByDocumentIdAndSharedAccountIdAndRevokedFalse(documentId, userId);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public DocumentResponse getSharedDocumentById(UUID id, UUID requesterId) {
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
-
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId) && !hasShareAccess(id, requesterId)) {
-            throw new AccessDeniedException("You do not have permission to access this document");
+        // Validate file size (max 50MB)
+        long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new RuntimeException("Kích thước file vượt quá giới hạn 50MB");
         }
 
-        return documentMapper.toResponse(document);
-    }
-
-    @Override
-    public List<DocumentResponse> uploadDocuments(UUID ownerId, DocumentUploadRequest request) {
-        List<DocumentResponse> responses = new ArrayList<>();
-
-        long MAX_FILE_SIZE = 50 * 1024 * 1024L; // 50MB
-        long totalIncoming = 0;
-        for (MultipartFile file : request.getFiles()) {
-            totalIncoming += file.getSize();
-            if (file.getSize() > MAX_FILE_SIZE) {
-                throw new RuntimeException("File size exceeds limit (50MB)");
-            }
+        // ĐÃ FIX: Khóa chặt định dạng chỉ cho phép PDF để tránh Crash hệ thống AI
+        String contentType = file.getContentType();
+        boolean allowedType = contentType != null && contentType.equals("application/pdf");
+        
+        if (!allowedType) {
+            throw new RuntimeException("Định dạng không hợp lệ. Hệ thống AI hiện tại chỉ hỗ trợ file PDF.");
         }
 
         // Check storage quota from active subscription or free plan
@@ -148,15 +128,26 @@ public class DocumentServiceImpl implements DocumentService {
                 );
             }
 
-            // Add to responses
-            responses.add(documentMapper.toResponse(savedDocument));
-            
+        Document document = documentMapper.toEntity(request);
+        document.setOwnerId(ownerId);
+        document.setCloudinaryUrl((String) uploadResult.get("url"));
+        document.setPublicId((String) uploadResult.get("public_id"));
+        document.setMimeType(contentType);
+        document.setFileSize(file.getSize());
+        document.setStatus("processing"); // Trạng thái chờ AI xử lý
 
         }
 
-        // Return all responses
-        return responses;
-    }
+        // KÍCH HOẠT AI RAG
+        try {
+            ragService.processAndSaveDocument(file, savedDocument.getId());
+            // Cập nhật thành active nếu AI đọc và băm nhỏ thành công
+            savedDocument.setStatus("active");
+            documentRepository.save(savedDocument);
+        } catch (Exception e) {
+            // Bắt lỗi nếu file PDF bị hỏng hoặc lỗi gọi Gemini API
+            throw new RuntimeException("Lỗi trong quá trình AI xử lý tài liệu: " + e.getMessage());
+        }
 
     private String formatBytes(long bytes) {
         if (bytes < 1024) return bytes + " B";
