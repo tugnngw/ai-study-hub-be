@@ -34,7 +34,7 @@ public class Account implements UserDetails {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 40)
+    @Column(unique = true, length = 40)
     private String email;
 
     @Column(name = "password_hash", nullable = false, length = 255)
@@ -78,9 +78,19 @@ public class Account implements UserDetails {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
-    @Version  // ← THÊM DÒNG NÀY để fix lỗi StaleObjectStateException
+    @Version
+    @Builder.Default
     @Column(name = "version", nullable = false)
     private Long version = 0L;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan", nullable = false)
+    private com.tugnw.aistudy.domain.enums.Plan plan = com.tugnw.aistudy.domain.enums.Plan.FREE;
+
+    @Builder.Default
+    @Column(name = "storage_gb", nullable = false)
+    private Double storageGb = 1.0D;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

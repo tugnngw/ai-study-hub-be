@@ -9,12 +9,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface FlashcardProgressRepository extends JpaRepository<FlashcardProgress, Long> {
+public interface FlashcardProgressRepository extends JpaRepository<FlashcardProgress, UUID> {
 
     List<FlashcardProgress> findByAccountId(UUID accountId);
 
-    List<FlashcardProgress> findByFlashcardId(Long flashcardId);
+    List<FlashcardProgress> findByFlashcardId(UUID flashcardId);
 
-    Optional<FlashcardProgress> findByFlashcardIdAndAccountId(Long flashcardId, UUID accountId);
+    Optional<FlashcardProgress> findByFlashcardIdAndAccountId(UUID flashcardId, UUID accountId);
 }
-

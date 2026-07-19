@@ -40,6 +40,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 System.out.println("DEBUG: Username extracted: " + username);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
+                if (!userDetails.isEnabled() || !userDetails.isAccountNonLocked()) {
+                    System.out.println("DEBUG: Account is locked or disabled for user: " + username);
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"ACCOUNT_LOCKED\",\"message\":\"Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.\"}");
+                    return;
+                }
+
                 // Add debug logging
                 System.out.println("User Authorities: " + userDetails.getAuthorities());
                 System.out.println("DEBUG: User exists and loaded");

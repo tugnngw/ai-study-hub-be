@@ -10,34 +10,40 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "study_report")
+@Table(name = "chat_session")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class StudyReport {
+public class ChatSession {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(name = "document_id", nullable = false)
-    private UUID documentId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "account_id", nullable = false)
     private UUID accountId;
 
-    @Column(nullable = false, length = 255)
-    private String title;
+    @Column(name = "document_id", nullable = false)
+    private UUID documentId;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String content;
+    @Column(length = 255)
+    private String title;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }

@@ -2,6 +2,7 @@ package com.tugnw.aistudy.config;
 
 import com.tugnw.aistudy.security.JwtAuthenticationFilter;
 import com.tugnw.aistudy.security.OAuth2LoginSuccessHandler;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -54,14 +55,18 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
                         .requestMatchers(
-                                 "/api/auth/register",
+                                "/api/payment/webhook",
+                                "/api/auth/register",
                                  "/api/auth/login",
+                                 "/api/auth/refresh",
+                                 "/api/public/**",
                                  "/oauth2/**",
                                 "/login/oauth2/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2

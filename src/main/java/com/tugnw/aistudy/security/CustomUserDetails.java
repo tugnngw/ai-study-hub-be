@@ -2,6 +2,7 @@ package com.tugnw.aistudy.security;
 
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.enums.AccountRole;
+import com.tugnw.aistudy.domain.enums.AccountStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -45,7 +46,7 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return UserDetails.super.isAccountNonLocked();
+        return account.getStatus() == AccountStatus.ACTIVE;
     }
 
     @Override
@@ -55,6 +56,6 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return UserDetails.super.isEnabled();
+        return account.getStatus() == AccountStatus.ACTIVE;
     }
 }
