@@ -1,8 +1,10 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.share.SaveToFolderRequest;
 import com.tugnw.aistudy.domain.dto.share.SaveToFolderResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareRequest;
+import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.ShareService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -53,7 +55,7 @@ public class ShareController {
     @PostMapping("/{shareId}/save")
     public ResponseEntity<SaveToFolderResponse> saveToMyFolder(
             @PathVariable UUID shareId,
-            @RequestBody com.tugnw.aistudy.domain.dto.share.SaveToFolderRequest request,
+            @RequestBody SaveToFolderRequest request,
             Authentication authentication) {
         UUID requesterId = getCurrentUserId(authentication);
         SaveToFolderResponse response = shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(), request.getDescription(), requesterId);
@@ -62,7 +64,7 @@ public class ShareController {
 
     private UUID getCurrentUserId(Authentication authentication) {
         Object principal = authentication.getPrincipal();
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
+        if (principal instanceof CustomUserDetails userDetails) {
             return userDetails.getAccount().getId();
         }
         throw new RuntimeException("Unauthorized");

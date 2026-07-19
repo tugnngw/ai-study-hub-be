@@ -9,6 +9,7 @@ import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.mapper.DocumentMapper;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
+import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.CloudinaryService;
@@ -35,6 +36,7 @@ public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
     private final ShareRepository shareRepository;
+    private final FolderRepository folderRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
     private final ActivityLogService activityLogService;
@@ -93,6 +95,16 @@ public class DocumentServiceImpl implements DocumentService {
 
             Document document = documentMapper.toEntity(request);
             document.setOwnerId(ownerId);
+            
+            // Populate subjectId from folder
+            if (request.getFolderId() != null) {
+                var folder = folderRepository.findById(request.getFolderId())
+                    .orElseThrow(() -> new RuntimeException("Folder not found"));
+                if (folder.getSubject() != null) {
+                    document.setSubjectId(folder.getSubject().getId());
+                }
+            }
+
             document.setCloudinaryUrl((String) uploadResult.get("secure_url"));
             document.setPublicId((String) uploadResult.get("public_id"));
             document.setMimeType(contentType);

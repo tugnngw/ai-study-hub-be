@@ -11,8 +11,10 @@ import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.FlashcardRepository;
 import com.tugnw.aistudy.service.FlashcardService;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
+import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -24,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FlashcardServiceImpl implements FlashcardService {
@@ -33,12 +36,13 @@ public class FlashcardServiceImpl implements FlashcardService {
     private final FlashcardRepository flashcardRepository;
     private final FlashcardMapper flashcardMapper;
     private final KnowledgePreparationService knowledgePreparationService;
+    private final QuotaService quotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional
     public List<FlashcardResponse> generateFlashcards(UUID documentId, UUID requesterId, GenerateFlashcardsRequest request) throws Exception {
-        System.out.println("[LOG - FLASHCARD] Starting flashcard generation for document: " + documentId);
+        log.info("[LOG - FLASHCARD] Starting flashcard generation for document: " + documentId);
 
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
@@ -47,16 +51,17 @@ public class FlashcardServiceImpl implements FlashcardService {
             throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        if (!request.isForce()) {
-            List<Flashcard> existing = flashcardRepository.findByDocumentId(documentId);
-            if (!existing.isEmpty()) {
-                System.out.println("[LOG - FLASHCARD] Returning " + existing.size() + " existing flashcards.");
-                return flashcardMapper.toResponseList(existing);
-            }
-        } else {
+        // Check quota before generating flashcards with the number of cards to be generated
+        if (!quotaService.checkQuotaForGeneration(requesterId, "flashcard", request.getNumberOfCards())) {
+            throw new RuntimeException("Bạn đã đạt giới hạn số lượng flashcard cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
+        }
+
+        // Always regenerate — delete existing, create fresh
+        List<Flashcard> existing = flashcardRepository.findByDocumentId(documentId);
+        if (!existing.isEmpty()) {
             flashcardRepository.deleteByDocumentId(documentId);
             flashcardRepository.flush();
-            System.out.println("[LOG - FLASHCARD] Deleted existing flashcards for regenerate.");
+            log.info("[LOG - FLASHCARD] Deleted " + existing.size() + " existing flashcards.");
         }
 
         String documentText = knowledgePreparationService.prepareKnowledge(List.of(document), false);
@@ -65,19 +70,19 @@ public class FlashcardServiceImpl implements FlashcardService {
             throw new RuntimeException("Unable to extract text from document.");
         }
 
-        System.out.println("[LOG - FLASHCARD] Extracted text length: " + documentText.length());
+        log.info("[LOG - FLASHCARD] Extracted text length: " + documentText.length());
 
         List<Flashcard> generatedFlashcards = generateFlashcardsFromText(documentText, document.getId(), request.getNumberOfCards());
         flashcardRepository.saveAll(generatedFlashcards);
 
-        System.out.println("[LOG - FLASHCARD] Successfully generated and saved " + generatedFlashcards.size() + " flashcards.");
+        log.info("[LOG - FLASHCARD] Successfully generated and saved " + generatedFlashcards.size() + " flashcards.");
 
         return flashcardMapper.toResponseList(generatedFlashcards);
     }
 
     @Override
     public List<FlashcardResponse> getFlashcardsByDocument(UUID documentId, UUID requesterId) {
-        System.out.println("[LOG - FLASHCARD] Fetching flashcards for document: " + documentId);
+        log.info("[LOG - FLASHCARD] Fetching flashcards for document: " + documentId);
 
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
@@ -102,7 +107,7 @@ public class FlashcardServiceImpl implements FlashcardService {
         );
 
         String aiResponse = ragService.generateContent(prompt);
-        System.out.println("[LOG - FLASHCARD] Gemini response received, parsing flashcards...");
+        log.info("[LOG - FLASHCARD] Gemini response received, parsing flashcards...");
 
         return parseFlashcardsFromResponse(aiResponse, documentId);
     }
@@ -129,7 +134,7 @@ public class FlashcardServiceImpl implements FlashcardService {
                 }
             }
         } catch (Exception e) {
-            System.err.println("[LOG - FLASHCARD ERROR] Failed to parse flashcards: " + e.getMessage());
+            log.error("[LOG - FLASHCARD ERROR] Failed to parse flashcards: " + e.getMessage());
             throw new RuntimeException("Failed to parse AI-generated flashcards.", e);
         }
         return flashcards;

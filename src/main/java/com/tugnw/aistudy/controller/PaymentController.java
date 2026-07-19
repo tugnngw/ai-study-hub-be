@@ -5,6 +5,7 @@ import com.tugnw.aistudy.domain.dto.payment.PaymentResponse;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.PaymentService;
+import com.tugnw.aistudy.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final SubscriptionService subscriptionService;
 
     @GetMapping("/plans")
     public ResponseEntity<List<PaymentPlan>> getActivePlans() {
@@ -81,5 +83,19 @@ public class PaymentController {
             userId = UUID.fromString(principal.toString());
         }
         return ResponseEntity.ok(paymentService.getUserTransactions(userId));
+    }
+
+    @GetMapping("/my-subscription")
+    public ResponseEntity<?> getMySubscription(Authentication authentication) {
+        Object principal = authentication.getPrincipal();
+        UUID userId;
+        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails) {
+            userId = ((com.tugnw.aistudy.security.CustomUserDetails) principal).getAccount().getId();
+        } else {
+            userId = UUID.fromString(principal.toString());
+        }
+        return subscriptionService.getActiveSubscription(userId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
     }
 }

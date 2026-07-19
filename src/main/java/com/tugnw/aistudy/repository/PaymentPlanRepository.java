@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface PaymentPlanRepository extends JpaRepository<PaymentPlan, UUID> {
     List<PaymentPlan> findByIsActiveTrue();
+    boolean existsByName(String name);
 }

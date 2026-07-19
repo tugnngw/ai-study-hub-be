@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
+
 import java.util.UUID;
 
 @Entity
@@ -24,9 +24,4 @@ public class Semester {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(name = "start_date")
-    private LocalDate startDate;
-
-    @Column(name = "end_date")
-    private LocalDate endDate;
 }

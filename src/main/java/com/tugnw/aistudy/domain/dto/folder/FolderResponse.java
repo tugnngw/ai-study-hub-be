@@ -16,11 +16,17 @@ public class FolderResponse {
     @Schema(description = "Folder name", example = "Chapter 1: Introduction")
     private String name;
 
+    @Schema(description = "Folder description")
+    private String description;
+
     @Schema(description = "AI-generated summary of folder contents")
     private String aiSummary;
 
     @Schema(description = "Subject this folder belongs to", example = "b2c3d4e5-...")
     private UUID subjectId;
+
+    @Schema(description = "Semester of this folder (via subject)", example = "a1b2c3d4-...")
+    private UUID semesterId;
 
     @Schema(description = "Creation timestamp")
     private LocalDateTime createdAt;

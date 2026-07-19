@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -39,11 +39,9 @@ public class SemesterServiceImpl implements SemesterService {
 
     @Override
     @Transactional
-    public SemesterResponse createSemester(String name, LocalDate startDate, LocalDate endDate) {
+    public SemesterResponse createSemester(String name) {
         Semester semester = Semester.builder()
                 .name(name)
-                .startDate(startDate)
-                .endDate(endDate)
                 .build();
         Semester saved = semesterRepository.save(semester);
 
@@ -71,8 +69,6 @@ public class SemesterServiceImpl implements SemesterService {
         return SemesterResponse.builder()
                 .id(semester.getId())
                 .name(semester.getName())
-                .startDate(semester.getStartDate())
-                .endDate(semester.getEndDate())
                 .build();
     }
 }

@@ -17,6 +17,10 @@ public class FolderCreateRequest {
     @Schema(description = "Folder name", example = "Chapter 1: Introduction", requiredMode = Schema.RequiredMode.REQUIRED)
     private String name;
 
+    @Schema(description = "Optional folder description")
+    @Size(max = 500, message = "Description must be at most 500 characters")
+    private String description;
+
     @NotNull(message = "Subject ID must not be null")
     @Schema(description = "Subject this folder belongs to", example = "b2c3d4e5-...", requiredMode = Schema.RequiredMode.REQUIRED)
     private UUID subjectId;

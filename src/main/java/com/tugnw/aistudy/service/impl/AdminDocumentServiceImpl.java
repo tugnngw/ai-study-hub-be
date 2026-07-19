@@ -7,10 +7,13 @@ import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.AdminDocumentService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +30,9 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     private final ActivityLogService activityLogService;
     private final ShareRepository shareRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @Override
     @Transactional(readOnly = true)
     public List<DocumentResponse> getAllDocuments() {
@@ -40,15 +46,33 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     @Transactional(readOnly = true)
     public List<DocumentResponse> getDocumentsByStatus(String status) {
         String targetStatus = switch (status.toUpperCase()) {
-            case "PENDING" -> "COMPLETED";
-            case "APPROVED" -> "READY";
-            case "REJECTED" -> "REJECT";
-            default -> status.toUpperCase();
+            case "PENDING"   -> "COMPLETED";
+            case "APPROVED"  -> "READY";
+            case "REJECTED"  -> "REJECT";
+            default          -> status.toUpperCase();
         };
-        return documentRepository.findAll().stream()
-                .filter(d -> d.getDeletedAt() == null && d.getStatus() != null && d.getStatus().equalsIgnoreCase(targetStatus))
+
+        log.info("=== [GET STATUS INSTRUMENTATION] ===");
+        log.info("Incoming status param: '{}'", status);
+        log.info("Mapped targetStatus: '{}'", targetStatus);
+
+        List<Document> docs = documentRepository.findByStatusAndDeletedAtIsNull(targetStatus);
+        log.info("Repository returned {} document(s)", docs.size());
+        for (Document d : docs) {
+            log.info("  Document id={} status='{}' title='{}'", d.getId(), d.getStatus(), d.getTitle());
+        }
+
+        List<DocumentResponse> responses = docs.stream()
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
+
+        log.info("Returning {} DTO(s)", responses.size());
+        for (DocumentResponse r : responses) {
+            log.info("  DTO id={} status='{}'", r.getId(), r.getStatus());
+        }
+        log.info("=== [END GET STATUS INSTRUMENTATION] ===");
+
+        return responses;
     }
 
     @Override
@@ -69,44 +93,69 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     public void restoreDocument(UUID id, UUID adminId, String adminName) {
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
-        
+
         if (document.getDeletedAt() == null) {
             throw new RuntimeException("Document is not in trash");
         }
-        
+
         document.setDeletedAt(null);
         documentRepository.save(document);
-        
-        String description = String.format("Admin '%s' restored document '%s' (ID: %s) for user %s", 
+
+        String description = String.format("Admin '%s' restored document '%s' (ID: %s) for user %s",
                 adminName, document.getTitle(), id, document.getOwnerId());
         activityLogService.logActivity(adminId, adminName, ActivityType.DOCUMENT_RESTORE, description);
-        
+
         log.info("[ADMIN RESTORE] Admin {} restored document {} for user {}", adminId, id, document.getOwnerId());
     }
 
     @Override
+    @Transactional
     public void approveDocument(UUID id) {
+        log.info("=== [APPROVE INSTRUMENTATION START] id={} ===", id);
+        log.info("Transaction active: {}", TransactionSynchronizationManager.isActualTransactionActive());
+        log.info("Transaction name: {}", TransactionSynchronizationManager.getCurrentTransactionName());
+
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
-        System.out.println("[ADMIN] Approving document: " + id + " current status: " + document.getStatus());
+
+        log.info("Before setStatus: id={} status='{}'", document.getId(), document.getStatus());
+        log.info("EntityManager.contains: {}", entityManager.contains(document));
+
         document.setStatus("READY");
-        documentRepository.save(document);
-        System.out.println("[ADMIN] Document " + id + " approved, new status: " + document.getStatus());
+        log.info("After setStatus (before flush): status='{}'", document.getStatus());
+
+        entityManager.flush();
+        log.info("After entityManager.flush()");
+
+        log.info("Before refresh — calling entityManager.refresh()...");
+        entityManager.refresh(document);
+        log.info("After entityManager.refresh(): status='{}'", document.getStatus());
+
+        document.setStatus("READY");
+        Document saved = documentRepository.saveAndFlush(document);
+        log.info("After saveAndFlush: returned entity status='{}'", saved.getStatus());
+
+        entityManager.refresh(saved);
+        log.info("After second refresh: status='{}'", saved.getStatus());
+
+        log.info("=== [APPROVE INSTRUMENTATION END] ===");
     }
 
     @Override
-    public void rejectDocument(UUID id) {
+    @Transactional
+    public void rejectDocument(UUID id, String reason) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
         document.setStatus("REJECT");
+        document.setRejectReason(reason);
         documentRepository.save(document);
-        
+
         shareRepository.findByDocumentId(id).forEach(share -> {
             log.info("[ADMIN REJECT] Revoking share {} for rejected document {}", share.getId(), id);
             shareRepository.delete(share);
         });
-        
-        log.info("[ADMIN REJECT] Document {} rejected and all shares revoked", id);
+
+        log.info("[ADMIN REJECT] Document {} rejected with reason: {} - all shares revoked", id, reason);
     }
 
     private DocumentResponse toResponse(Document document) {
@@ -124,6 +173,8 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
         response.setCloudinaryUrl(document.getCloudinaryUrl());
         response.setCreatedAt(document.getCreatedAt());
         response.setDeletedAt(document.getDeletedAt());
+        response.setRejectReason(document.getRejectReason());
+        response.setAiStatus(document.getAiStatus() != null ? document.getAiStatus().name() : null);
         return response;
     }
 }

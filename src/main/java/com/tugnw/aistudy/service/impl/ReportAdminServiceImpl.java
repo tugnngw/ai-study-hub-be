@@ -22,23 +22,24 @@ import java.util.UUID;
 public class ReportAdminServiceImpl implements ReportAdminService {
     private final JdbcTemplate jdbcTemplate;
 
-    private final RowMapper<ReportResponse> rowMapper = (rs, rowNum) -> new ReportResponse(
-        UUID.fromString(rs.getString("id")),
-        UUID.fromString(rs.getString("document_id")),
-        rs.getString("document_title"),
-        rs.getString("reporter_id") != null ? UUID.fromString(rs.getString("reporter_id")) : null,
-        rs.getString("reporter_username"),
-        rs.getString("reason"),
-        rs.getString("status"),
-        rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null
-    );
+    private final RowMapper<ReportResponse> rowMapper = (rs, rowNum) -> ReportResponse.builder()
+        .id(UUID.fromString(rs.getString("id")))
+        .documentId(UUID.fromString(rs.getString("document_id")))
+        .documentTitle(rs.getString("document_title"))
+        .reporterId(rs.getString("reporter_id") != null ? UUID.fromString(rs.getString("reporter_id")) : null)
+        .reporterUsername(rs.getString("reporter_username"))
+        .reason(rs.getString("reason"))
+        .status(rs.getString("status"))
+        .adminComment(rs.getString("admin_comment"))
+        .createdAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null)
+        .build();
 
     @Override
     public Page<ReportResponse> getReports(Pageable pageable) {
         String countSql = "SELECT COUNT(*) FROM report";
         Integer total = jdbcTemplate.queryForObject(countSql, Integer.class);
         
-        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.created_at " +
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, r.created_at " +
                 "FROM report r " +
                 "LEFT JOIN account a ON r.reporter_id = a.id " +
                 "LEFT JOIN document d ON r.document_id = d.id " +
@@ -51,9 +52,6 @@ public class ReportAdminServiceImpl implements ReportAdminService {
             rowMapper
         );
         
-        // Debug status
-        reports.forEach(r -> System.out.println("DEBUG: Report status = " + r.getStatus() + " (id=" + r.getId() + ")"));
-        
         return new PageImpl<>(reports, pageable, total != null ? total : 0);
     }
 
@@ -62,7 +60,7 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         String countSql = "SELECT COUNT(*) FROM report WHERE reporter_id = ?";
         Integer total = jdbcTemplate.queryForObject(countSql, Integer.class, reporterId);
         
-        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.created_at " +
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, r.created_at " +
                 "FROM report r " +
                 "LEFT JOIN account a ON r.reporter_id = a.id " +
                 "LEFT JOIN document d ON r.document_id = d.id " +
@@ -84,7 +82,7 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         String countSql = "SELECT COUNT(*) FROM report";
         Integer total = jdbcTemplate.queryForObject(countSql, Integer.class);
         
-        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.created_at " +
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, r.created_at " +
                 "FROM report r " +
                 "LEFT JOIN account a ON r.reporter_id = a.id " +
                 "LEFT JOIN document d ON r.document_id = d.id " +

@@ -1,5 +1,7 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.rag.RagChatResponse;
+import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -29,19 +31,6 @@ public class RagController {
         }
     }
 
-    @PostMapping("/process-folder/{folderId}")
-    public ResponseEntity<String> processFolderPipeline(
-            @PathVariable UUID folderId,
-            Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        try {
-            ragService.processFolderPipeline(folderId, ownerId);
-            return ResponseEntity.ok("Xử lý toàn bộ tài liệu trong thư mục thành công!");
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Pipeline folder thất bại: " + e.getMessage());
-        }
-    }
-
     @GetMapping("/status/{documentId}")
     public ResponseEntity<Map<String, String>> getDocumentStatus(
             @PathVariable UUID documentId,
@@ -52,16 +41,20 @@ public class RagController {
     }
 
     @PostMapping("/chat")
-    public ResponseEntity<com.tugnw.aistudy.domain.dto.rag.RagChatResponse> chatWithFolder(
+    public ResponseEntity<RagChatResponse> chatWithFolder(
             @RequestBody com.tugnw.aistudy.domain.dto.rag.RagChatRequest request,
             Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         try {
-            com.tugnw.aistudy.domain.dto.rag.RagChatResponse response = ragService.chatWithFolderContext(request, ownerId);
+            RagChatResponse response = ragService.chatWithFolderContext(request, ownerId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(
-                    new com.tugnw.aistudy.domain.dto.rag.RagChatResponse("Lỗi hệ thống chat: " + e.getMessage(), java.util.Collections.emptySet())
+                    com.tugnw.aistudy.domain.dto.rag.RagChatResponse.builder()
+                            .sessionId(null)
+                            .answer("Lỗi hệ thống chat: " + e.getMessage())
+                            .referencedDocumentIds(java.util.Collections.emptySet())
+                            .build()
             );
         }
     }
@@ -72,7 +65,7 @@ public class RagController {
         }
 
         Object principal = authentication.getPrincipal();
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
+        if (principal instanceof CustomUserDetails userDetails) {
             return userDetails.getAccount().getId();
         }
 

@@ -105,7 +105,10 @@ public class PayOSClient {
 
             log.info("Cleaned description: {}", description);
 
-            // Generate signature
+            // Set expiration time: 1 minute from now
+            long expiredAtTimestamp = System.currentTimeMillis() / 1000 + 60;
+
+            // Generate signature (WITHOUT expiredAt - not supported in signature by PayOS)
             String signatureData = "amount=" + amount 
                     + "&cancelUrl=" + cancelUrl 
                     + "&description=" + description 
@@ -120,6 +123,7 @@ public class PayOSClient {
             requestBody.put("description", description);
             requestBody.put("returnUrl", returnUrl);
             requestBody.put("cancelUrl", cancelUrl);
+            requestBody.put("expiredAt", expiredAtTimestamp); // Thêm expiredAt vào body (không có trong signature)
             requestBody.put("signature", signature);
             
             // items must be an array, not a single object

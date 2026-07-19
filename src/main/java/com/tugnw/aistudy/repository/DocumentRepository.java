@@ -1,8 +1,13 @@
 package com.tugnw.aistudy.repository;
 
 import com.tugnw.aistudy.domain.entity.Document;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +24,8 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     List<Document> findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(UUID folderId, String status);
 
+    long countByFolderIdAndDeletedAtIsNull(UUID folderId);
+
     Long countByOwnerIdAndDeletedAtIsNull(UUID ownerId);
 
     // Kiểm tra storage usage
@@ -33,4 +40,12 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     List<Document> findAllByDeletedAtIsNull();
 
     List<Document> findAllBy();
+    long countByOwnerIdAndSummaryIsNotNull(UUID ownerId);
+    
+    @Query("SELECT d.id FROM Document d WHERE d.ownerId = :ownerId")
+    List<UUID> findAllIdsByOwnerId(@Param("ownerId") UUID ownerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT d FROM Document d WHERE d.id = :id")
+    Optional<Document> findByIdForUpdate(@Param("id") UUID id);
 }

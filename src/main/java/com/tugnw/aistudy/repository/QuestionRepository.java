@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface QuestionRepository extends JpaRepository<Question, UUID> {
 
     List<Question> findByQuizIdOrderByCreatedAtAsc(UUID quizId);
+    long countByQuizIdIn(List<UUID> quizIds);
 }

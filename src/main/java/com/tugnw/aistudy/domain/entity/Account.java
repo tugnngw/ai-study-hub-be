@@ -34,7 +34,7 @@ public class Account implements UserDetails {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 40)
+    @Column(unique = true, length = 40)
     private String email;
 
     @Column(name = "password_hash", nullable = false, length = 255)
@@ -79,6 +79,7 @@ public class Account implements UserDetails {
     private Instant deletedAt;
 
     @Version
+    @Builder.Default
     @Column(name = "version", nullable = false)
     private Long version = 0L;
 
@@ -89,7 +90,7 @@ public class Account implements UserDetails {
 
     @Builder.Default
     @Column(name = "storage_gb", nullable = false)
-    private Integer storageGb = 1;
+    private Double storageGb = 1.0D;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

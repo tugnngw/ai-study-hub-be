@@ -14,6 +14,10 @@ public class FolderUpdateRequest {
     @Schema(description = "Folder name", example = "Chapter 1: Updated")
     private String name;
 
+    @Size(max = 500, message = "Description must be at most 500 characters")
+    @Schema(description = "Folder description")
+    private String description;
+
     @Schema(description = "Subject ID to reassign", example = "b2c3d4e5-...")
     private UUID subjectId;
 }

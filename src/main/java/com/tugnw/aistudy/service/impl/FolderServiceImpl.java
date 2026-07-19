@@ -6,6 +6,7 @@ import com.tugnw.aistudy.domain.dto.folder.FolderUpdateRequest;
 import com.tugnw.aistudy.domain.entity.Folder;
 import com.tugnw.aistudy.domain.entity.Subject;
 import com.tugnw.aistudy.domain.mapper.FolderMapper;
+import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.repository.SubjectRepository;
 import com.tugnw.aistudy.service.FolderService;
@@ -28,6 +29,7 @@ public class FolderServiceImpl implements FolderService {
     private final FolderRepository folderRepository;
     private final FolderMapper folderMapper;
     private final SubjectRepository subjectRepository;
+    private final DocumentRepository documentRepository;
 
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -50,7 +52,9 @@ public class FolderServiceImpl implements FolderService {
         folder.setSubject(subject);
 
         Folder savedFolder = folderRepository.save(folder);
-        return folderMapper.toResponse(savedFolder);
+        FolderResponse resp = folderMapper.toResponse(savedFolder);
+        resp.setDocumentCount(0);
+        return resp;
     }
 
     @Override
@@ -59,7 +63,12 @@ public class FolderServiceImpl implements FolderService {
         List<Folder> folders = folderRepository.findByOwnerIdAndDeletedAtIsNullOrderByCreatedAtDesc(ownerId);
 
         return folders.stream()
-                .map(folderMapper::toResponse)
+                .map(folder -> {
+                    FolderResponse resp = folderMapper.toResponse(folder);
+                    long documentCount = documentRepository.countByFolderIdAndDeletedAtIsNull(folder.getId());
+                    resp.setDocumentCount((int) documentCount);
+                    return resp;
+                })
                 .toList();
     }
 
@@ -73,7 +82,10 @@ public class FolderServiceImpl implements FolderService {
             throw new AccessDeniedException("You do not have permission to access this folder");
         }
 
-        return folderMapper.toResponse(folder);
+        FolderResponse resp = folderMapper.toResponse(folder);
+        long documentCount = documentRepository.countByFolderIdAndDeletedAtIsNull(folder.getId());
+        resp.setDocumentCount((int) documentCount);
+        return resp;
     }
 
     @Override
@@ -95,6 +107,10 @@ public class FolderServiceImpl implements FolderService {
             folder.setName(request.getName());
         }
 
+        if (request.getDescription() != null) {
+            folder.setDescription(request.getDescription());
+        }
+
         if (request.getSubjectId() != null) {
             Subject subject = subjectRepository.findById(request.getSubjectId())
                     .orElseThrow(() -> new RuntimeException("Subject not found"));
@@ -102,7 +118,10 @@ public class FolderServiceImpl implements FolderService {
         }
 
         Folder updatedFolder = folderRepository.save(folder);
-        return folderMapper.toResponse(updatedFolder);
+        FolderResponse resp = folderMapper.toResponse(updatedFolder);
+        long documentCount = documentRepository.countByFolderIdAndDeletedAtIsNull(updatedFolder.getId());
+        resp.setDocumentCount((int) documentCount);
+        return resp;
     }
 
     @Override
