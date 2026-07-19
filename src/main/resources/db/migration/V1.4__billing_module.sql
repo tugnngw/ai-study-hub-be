@@ -32,6 +32,7 @@ CREATE TABLE payment_plan (
     tagline           VARCHAR(500),
     ai_questions      INTEGER,
     flashcard_limit   INTEGER NOT NULL DEFAULT 0,
+    chat_limit        INTEGER NOT NULL DEFAULT 0,
     question_limit    INTEGER NOT NULL DEFAULT 0,
     summary_limit     INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT uk_plan_name UNIQUE (name)

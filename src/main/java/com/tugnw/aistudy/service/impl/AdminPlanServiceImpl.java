@@ -7,6 +7,7 @@ import com.tugnw.aistudy.domain.dto.plan.CreatePlanRequest;
 import com.tugnw.aistudy.domain.dto.plan.PlanResponse;
 import com.tugnw.aistudy.domain.dto.plan.UpdatePlanRequest;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
+import com.tugnw.aistudy.domain.entity.Subscription;
 import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
 import com.tugnw.aistudy.repository.PaymentPlanRepository;
 import com.tugnw.aistudy.repository.SubscriptionRepository;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -56,6 +58,8 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .flashcardLimit(plan.getFlashcardLimit())
                 .questionLimit(plan.getQuestionLimit())
                 .summaryLimit(plan.getSummaryLimit())
+                .chatLimit(plan.getChatLimit())
+                .tier(plan.getTier())
                 .build();
     }
 
@@ -82,6 +86,9 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (paymentPlanRepository.existsByName(request.getName())) {
             throw new IllegalArgumentException("Plan name already exists: " + request.getName());
         }
+        if (request.getTier() != null && paymentPlanRepository.existsByTier(request.getTier())) {
+            throw new IllegalArgumentException("Tier already in use by another plan: " + request.getTier());
+        }
         PaymentPlan plan = PaymentPlan.builder()
                 .name(request.getName())
                 .tagline(request.getTagline())
@@ -96,6 +103,8 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .flashcardLimit(request.getFlashcardLimit() != null ? request.getFlashcardLimit() : 0)
                 .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : 0)
                 .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : 0)
+                .chatLimit(request.getChatLimit() != null ? request.getChatLimit() : 0)
+                .tier(request.getTier() != null ? request.getTier() : 0)
                 .isActive(true)
                 .build();
         PaymentPlan saved = paymentPlanRepository.save(plan);
@@ -135,6 +144,8 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                     .flashcardLimit(request.getFlashcardLimit() != null ? request.getFlashcardLimit() : plan.getFlashcardLimit())
                     .questionLimit(request.getQuestionLimit() != null ? request.getQuestionLimit() : plan.getQuestionLimit())
                     .summaryLimit(request.getSummaryLimit() != null ? request.getSummaryLimit() : plan.getSummaryLimit())
+                    .chatLimit(request.getChatLimit() != null ? request.getChatLimit() : plan.getChatLimit())
+                    .tier(request.getTier() != null ? request.getTier() : plan.getTier())
                     .isActive(true)
                     .build();
             
@@ -161,10 +172,34 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (request.getFlashcardLimit() != null) plan.setFlashcardLimit(request.getFlashcardLimit());
         if (request.getQuestionLimit() != null) plan.setQuestionLimit(request.getQuestionLimit());
         if (request.getSummaryLimit() != null) plan.setSummaryLimit(request.getSummaryLimit());
+        if (request.getChatLimit() != null) plan.setChatLimit(request.getChatLimit());
+        if (request.getTier() != null) {
+            Optional<PaymentPlan> existingTier = paymentPlanRepository.findByTier(request.getTier());
+            if (existingTier.isPresent() && !existingTier.get().getId().equals(plan.getId())) {
+                throw new IllegalArgumentException("Tier already in use by plan: " + existingTier.get().getName());
+            }
+            plan.setTier(request.getTier());
+        }
         if (request.getIsActive() != null) plan.setIsActive(request.getIsActive());
 
         PaymentPlan saved = paymentPlanRepository.save(plan);
         log.info("Updated plan: {}", saved.getName());
+
+        if (isFree) {
+            List<Subscription> freeSubs = subscriptionRepository.findAllByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
+            for (Subscription sub : freeSubs) {
+                sub.setStorageGbGranted(saved.getStorageGb());
+                sub.setAiQuestionsGranted(saved.getAiQuestions());
+                sub.setFlashcardLimitGranted(saved.getFlashcardLimit());
+                sub.setQuestionLimitGranted(saved.getQuestionLimit());
+                sub.setSummaryLimitGranted(saved.getSummaryLimit());
+                sub.setChatLimitGranted(saved.getChatLimit());
+                sub.setTierGranted(saved.getTier());
+            }
+            subscriptionRepository.saveAll(freeSubs);
+            log.info("Synced {} active free subscriptions with updated plan values", freeSubs.size());
+        }
+
         return mapToPlanResponse(saved);
     }
 
@@ -260,6 +295,8 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .flashcardLimit(plan.getFlashcardLimit())
                 .questionLimit(plan.getQuestionLimit())
                 .summaryLimit(plan.getSummaryLimit())
+                .chatLimit(plan.getChatLimit())
+                .tier(plan.getTier())
                 .build();
     }
 }

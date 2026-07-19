@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.type.SqlTypes;
+import org.hibernate.annotations.JdbcTypeCode;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -31,6 +33,7 @@ public class ChatMessage {
     private String content;
 
     @Column(name = "referenced_chunks", columnDefinition = "JSONB")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String referencedChunks;
 
     @Column(name = "tokens_used")

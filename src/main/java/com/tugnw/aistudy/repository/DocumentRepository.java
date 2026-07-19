@@ -40,12 +40,22 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     List<Document> findAllByDeletedAtIsNull();
 
     List<Document> findAllBy();
-    long countByOwnerIdAndSummaryIsNotNull(UUID ownerId);
-    
-    @Query("SELECT d.id FROM Document d WHERE d.ownerId = :ownerId")
+    @Query("SELECT COUNT(d) FROM Document d WHERE d.ownerId = :ownerId AND d.summary IS NOT NULL AND d.deletedAt IS NULL")
+    long countByOwnerIdAndSummaryIsNotNull(@Param("ownerId") UUID ownerId);
+
+    @Query("SELECT d.id FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
     List<UUID> findAllIdsByOwnerId(@Param("ownerId") UUID ownerId);
+
+    @Query("SELECT COALESCE(SUM(d.fileSize), 0) FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
+    long sumFileSizeByOwnerId(@Param("ownerId") UUID ownerId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT d FROM Document d WHERE d.id = :id")
     Optional<Document> findByIdForUpdate(@Param("id") UUID id);
+
+    @Query("SELECT COALESCE(SUM(d.flashcardGenerations), 0) FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
+    long sumFlashcardGenerationsByOwnerId(@Param("ownerId") UUID ownerId);
+
+    @Query("SELECT COALESCE(SUM(d.quizGenerations), 0) FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
+    long sumQuizGenerationsByOwnerId(@Param("ownerId") UUID ownerId);
 }

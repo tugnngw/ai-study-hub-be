@@ -7,7 +7,7 @@ import java.util.UUID;
 public interface RagService {
     String extractTextFromDocument(UUID documentId, UUID requesterId) throws Exception;
     void processAndSaveDocumentPipeline(UUID documentId, UUID requesterId) throws Exception;
-    RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) throws Exception;
+    RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId);
     String getDocumentProcessingStatus(UUID documentId, UUID requesterId);
     String generateContent(String prompt);
 }

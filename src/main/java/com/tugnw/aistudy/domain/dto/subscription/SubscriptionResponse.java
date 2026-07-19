@@ -22,5 +22,10 @@ public class SubscriptionResponse {
     private Long pricePaid;
     private Double storageGbGranted;
     private Integer aiQuestionsGranted;
+    private Integer flashcardLimitGranted;
+    private Integer questionLimitGranted;
+    private Integer summaryLimitGranted;
+    private Integer chatLimitGranted;
+    private Integer tierGranted;
     private Long daysRemaining;
 }

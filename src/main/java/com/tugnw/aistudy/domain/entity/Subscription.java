@@ -54,6 +54,26 @@ public class Subscription {
     @Column(name = "ai_questions_granted", nullable = false)
     private Integer aiQuestionsGranted;
 
+    @Column(name = "flashcard_limit_granted", nullable = false)
+    @Builder.Default
+    private Integer flashcardLimitGranted = 0;
+
+    @Column(name = "question_limit_granted", nullable = false)
+    @Builder.Default
+    private Integer questionLimitGranted = 0;
+
+    @Column(name = "summary_limit_granted", nullable = false)
+    @Builder.Default
+    private Integer summaryLimitGranted = 0;
+
+    @Column(name = "chat_limit_granted", nullable = false)
+    @Builder.Default
+    private Integer chatLimitGranted = 0;
+
+    @Column(name = "tier_granted", nullable = false)
+    @Builder.Default
+    private Integer tierGranted = 0;
+
     @Column(name = "auto_renew")
     @Builder.Default
     private Boolean autoRenew = false;

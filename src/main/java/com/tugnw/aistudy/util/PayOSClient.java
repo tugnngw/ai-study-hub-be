@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tugnw.aistudy.domain.dto.payment.WebhookPayload;
@@ -13,6 +14,8 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,8 +108,8 @@ public class PayOSClient {
 
             log.info("Cleaned description: {}", description);
 
-            // Set expiration time: 1 minute from now
-            long expiredAtTimestamp = System.currentTimeMillis() / 1000 + 60;
+            // Set expiration time: 3 minutes from now
+            long expiredAtTimestamp = System.currentTimeMillis() / 1000 + 180;
 
             // Generate signature (WITHOUT expiredAt - not supported in signature by PayOS)
             String signatureData = "amount=" + amount 
@@ -206,8 +209,30 @@ public class PayOSClient {
                 return false;
             }
 
-            String cleanPayload = removeSignatureField(payload);
-            String calculated = hmacSha256Hex(cleanPayload, checksumKey);
+            // PayOS signs the JSON string of the "data" field with sorted keys
+            var root = objectMapper.readTree(payload);
+            JsonNode dataNode = root.get("data");
+            if (dataNode == null) {
+                log.error("No 'data' field in webhook payload");
+                return false;
+            }
+
+            // Sort keys alphabetically and convert to query-string format
+            StringBuilder sb = new StringBuilder();
+            java.util.List<String> fieldNames = new java.util.ArrayList<>();
+            dataNode.fieldNames().forEachRemaining(fieldNames::add);
+            java.util.Collections.sort(fieldNames);
+            for (int i = 0; i < fieldNames.size(); i++) {
+                String key = fieldNames.get(i);
+                JsonNode value = dataNode.get(key);
+                if (i > 0) sb.append("&");
+                String val = value.isNull() ? "" : value.asText();
+                sb.append(key).append("=").append(val);
+            }
+            String signData = sb.toString();
+
+            log.info("Sign data: {}", signData);
+            String calculated = hmacSha256Hex(signData, checksumKey);
             log.info("Calculated signature: {}", calculated);
             log.info("Received signature: {}", signature);
 

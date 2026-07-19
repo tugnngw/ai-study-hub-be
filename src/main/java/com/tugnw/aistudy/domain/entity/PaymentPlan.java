@@ -66,4 +66,27 @@ public class PaymentPlan {
     @Column(name = "summary_limit")
     @Builder.Default
     private Integer summaryLimit = 0;
+
+    @Column(name = "chat_limit")
+    @Builder.Default
+    private Integer chatLimit = 0;
+
+    @Column(name = "tier", nullable = false)
+    @Builder.Default
+    private Integer tier = 0;
+
+    /** Returns true if this plan is a higher tier than {@code other}. */
+    public boolean isUpgradeFrom(PaymentPlan other) {
+        return this.tier > other.tier;
+    }
+
+    /** Returns true if this plan is a lower tier than {@code other}. */
+    public boolean isDowngradeFrom(PaymentPlan other) {
+        return this.tier < other.tier;
+    }
+
+    /** Returns true if this plan is the same tier as {@code other}. */
+    public boolean isSameTierAs(PaymentPlan other) {
+        return this.tier.equals(other.tier);
+    }
 }

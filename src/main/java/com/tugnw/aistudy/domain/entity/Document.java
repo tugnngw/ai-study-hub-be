@@ -76,6 +76,14 @@ public class Document {
     @Column(name = "reject_reason", columnDefinition = "TEXT")
     private String rejectReason;
 
+    @Column(name = "flashcard_generations")
+    @Builder.Default
+    private Integer flashcardGenerations = 0;
+
+    @Column(name = "quiz_generations")
+    @Builder.Default
+    private Integer quizGenerations = 0;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

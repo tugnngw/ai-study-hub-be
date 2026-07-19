@@ -49,6 +49,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .pricePaid(sub.getPricePaid())
                 .storageGbGranted(sub.getStorageGbGranted())
                 .aiQuestionsGranted(sub.getAiQuestionsGranted())
+                .flashcardLimitGranted(sub.getFlashcardLimitGranted())
+                .questionLimitGranted(sub.getQuestionLimitGranted())
+                .summaryLimitGranted(sub.getSummaryLimitGranted())
+                .chatLimitGranted(sub.getChatLimitGranted())
+                .tierGranted(sub.getTierGranted())
                 .daysRemaining(Math.max(0, daysRemaining))
                 .build();
     }
@@ -67,7 +72,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             log.info("Cancelled old subscription {} when creating new subscription", oldSub.getId());
         }
         
-        Instant endDate = now.plus(plan.getDurationDays(), ChronoUnit.DAYS);
+        // durationDays = -1 means permanent (no expiration)
+        Integer days = plan.getDurationDays();
+        Instant endDate = (days != null && days >= 0) ? now.plus(days, ChronoUnit.DAYS) : null;
 
         Subscription subscription = Subscription.builder()
                 .accountId(accountId)
@@ -79,6 +86,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .pricePaid(plan.getPrice())
                 .storageGbGranted(plan.getStorageGb())
                 .aiQuestionsGranted(plan.getAiQuestions())
+                .flashcardLimitGranted(plan.getFlashcardLimit() != null ? plan.getFlashcardLimit() : 0)
+                .questionLimitGranted(plan.getQuestionLimit() != null ? plan.getQuestionLimit() : 0)
+                .summaryLimitGranted(plan.getSummaryLimit() != null ? plan.getSummaryLimit() : 0)
+                .chatLimitGranted(plan.getChatLimit() != null ? plan.getChatLimit() : 0)
+                .tierGranted(plan.getTier() != null ? plan.getTier() : 0)
                 .build();
 
         log.info("Creating new subscription for account {} to plan {}. End date: {}", accountId, plan.getName(), endDate);
@@ -111,21 +123,31 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             throw new IllegalArgumentException("Cannot upgrade to the same plan");
         }
 
+        if (currentSubscription != null && newPlan.isDowngradeFrom(currentSubscription.getPlan())) {
+            throw new IllegalArgumentException("Cannot downgrade to a lower-tier plan while an active subscription exists.");
+        }
+
         long remainingDays = 0L;
         long remainingCredit = 0L;
-        Instant newEndDate = Instant.now().plus(newPlan.getDurationDays(), ChronoUnit.DAYS); // Default for new purchase
+        // durationDays = -1 means permanent (no expiration)
+        Integer newDays = newPlan.getDurationDays();
+        Instant newEndDate = (newDays != null && newDays >= 0) ? Instant.now().plus(newDays, ChronoUnit.DAYS) : null;
 
         if (currentSubscription != null) {
             // Proration logic
             Instant now = Instant.now();
-            if (currentSubscription.getEndDate().isAfter(now)) {
+            if (currentSubscription.getEndDate() != null && currentSubscription.getEndDate().isAfter(now)) {
                 remainingDays = ChronoUnit.DAYS.between(now, currentSubscription.getEndDate());
-                if (currentSubscription.getPlan().getDurationDays() > 0) {
+                if (currentSubscription.getPlan().getDurationDays() != null && currentSubscription.getPlan().getDurationDays() > 0) {
                     long dailyRate = currentSubscription.getPricePaid() / currentSubscription.getPlan().getDurationDays();
                     remainingCredit = dailyRate * remainingDays;
                 }
             }
-            newEndDate = now.plus(remainingDays, ChronoUnit.DAYS).plus(newPlan.getDurationDays(), ChronoUnit.DAYS);
+            if (newDays != null && newDays >= 0) {
+                newEndDate = newEndDate != null
+                    ? newEndDate.plus(remainingDays, ChronoUnit.DAYS)
+                    : Instant.now().plus(remainingDays + newDays, ChronoUnit.DAYS);
+            }
         }
 
         long amountToPay = Math.max(0, newPlan.getPrice() - remainingCredit);
@@ -150,12 +172,17 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         PaymentPlan newPlan = paymentPlanRepository.findById(newPlanId)
                 .orElseThrow(() -> new IllegalArgumentException("New plan not found"));
 
+        if (currentSubscription != null && newPlan.isDowngradeFrom(currentSubscription.getPlan())) {
+            throw new IllegalArgumentException("Cannot downgrade to a lower-tier plan while an active subscription exists.");
+        }
+
         Instant now = Instant.now();
         long remainingDays = 0L;
-        if (currentSubscription != null && currentSubscription.getEndDate().isAfter(now)) {
+        if (currentSubscription != null && currentSubscription.getEndDate() != null && currentSubscription.getEndDate().isAfter(now)) {
             remainingDays = ChronoUnit.DAYS.between(now, currentSubscription.getEndDate());
         }
-        Instant newEndDate = now.plus(remainingDays, ChronoUnit.DAYS).plus(newPlan.getDurationDays(), ChronoUnit.DAYS);
+        Integer newDays = newPlan.getDurationDays();
+        Instant newEndDate = (newDays != null && newDays >= 0) ? now.plus(remainingDays + newDays, ChronoUnit.DAYS) : null;
 
         Subscription newSubscription = Subscription.builder()
                 .accountId(accountId)
@@ -167,6 +194,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .pricePaid(tx.getAmount())
                 .storageGbGranted(newPlan.getStorageGb())
                 .aiQuestionsGranted(newPlan.getAiQuestions())
+                .flashcardLimitGranted(newPlan.getFlashcardLimit() != null ? newPlan.getFlashcardLimit() : 0)
+                .questionLimitGranted(newPlan.getQuestionLimit() != null ? newPlan.getQuestionLimit() : 0)
+                .summaryLimitGranted(newPlan.getSummaryLimit() != null ? newPlan.getSummaryLimit() : 0)
+                .chatLimitGranted(newPlan.getChatLimit() != null ? newPlan.getChatLimit() : 0)
+                .tierGranted(newPlan.getTier() != null ? newPlan.getTier() : 0)
                 .build();
 
         if (currentSubscription != null) {

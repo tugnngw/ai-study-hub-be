@@ -18,4 +18,7 @@ public interface ShareService {
     String getShareLink(UUID folderId);
     Share getShareEntity(UUID shareId);
     ShareResponse getShareInfo(UUID id, String type, UUID ownerId);
+    ShareResponse getShareByToken(String shareToken);
+    String getShareLinkByToken(String shareToken);
+    String getDownloadUrlByToken(String shareToken);
 }
