@@ -2,6 +2,7 @@ package com.tugnw.aistudy.config;
 
 import com.tugnw.aistudy.security.JwtAuthenticationFilter;
 import com.tugnw.aistudy.security.OAuth2LoginSuccessHandler;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

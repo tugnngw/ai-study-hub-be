@@ -8,6 +8,8 @@ import com.tugnw.aistudy.domain.mapper.DocumentMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
+import com.tugnw.aistudy.service.RagService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
