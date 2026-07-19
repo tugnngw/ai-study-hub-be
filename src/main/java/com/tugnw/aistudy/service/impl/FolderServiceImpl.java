@@ -8,6 +8,8 @@ import com.tugnw.aistudy.domain.mapper.FolderMapper;
 import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.service.FolderService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,12 @@ public class FolderServiceImpl implements FolderService {
 
     private final FolderRepository folderRepository;
     private final FolderMapper folderMapper;
+
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
 
 
     //Create a new folder
@@ -60,7 +68,7 @@ public class FolderServiceImpl implements FolderService {
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
 
         // Check ownership
-        if (!folder.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
             throw new RuntimeException("You do not have permission to access this folder");
         }
 
@@ -75,7 +83,7 @@ public class FolderServiceImpl implements FolderService {
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
 
         // Check ownership
-        if (!folder.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
             throw new RuntimeException("You do not have permission to update this folder");
         }
 
@@ -100,7 +108,7 @@ public class FolderServiceImpl implements FolderService {
         Folder folder = folderRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
 
-        if (!folder.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
             throw new RuntimeException("You do not have permission to delete this folder");
         }
 

@@ -1,10 +1,13 @@
 package com.tugnw.aistudy.controller;
 
-import com.tugnw.aistudy.domain.dto.rag.RagProcessRequest;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/rag")
@@ -13,24 +16,66 @@ public class RagController {
 
     private final RagService ragService;
 
-    @PostMapping("/process")
-    public ResponseEntity<String> processDocumentPipeline(@RequestBody RagProcessRequest request) {
+    @PostMapping("/process/{documentId}")
+    public ResponseEntity<String> processDocumentPipeline(
+            @PathVariable UUID documentId,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
         try {
-            // Chạy toàn bộ luồng: Tải -> Trích xuất -> Chunking -> Embedding -> Lưu DB Vector
-            ragService.processAndSaveDocumentPipeline(request.getDocumentId());
+            ragService.processAndSaveDocumentPipeline(documentId, ownerId);
             return ResponseEntity.ok("Xử lý tài liệu và nạp cơ sở dữ liệu Vector RAG thành công!");
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Pipeline thất bại: " + e.getMessage());
         }
     }
 
-    @PostMapping("/chat")
-    public ResponseEntity<com.tugnw.aistudy.domain.dto.rag.RagChatResponse> chatWithFolder(@RequestBody com.tugnw.aistudy.domain.dto.rag.RagChatRequest request) {
+    @PostMapping("/process-folder/{folderId}")
+    public ResponseEntity<String> processFolderPipeline(
+            @PathVariable UUID folderId,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
         try {
-            com.tugnw.aistudy.domain.dto.rag.RagChatResponse response = ragService.chatWithFolderContext(request);
+            ragService.processFolderPipeline(folderId, ownerId);
+            return ResponseEntity.ok("Xử lý toàn bộ tài liệu trong thư mục thành công!");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Pipeline folder thất bại: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/status/{documentId}")
+    public ResponseEntity<Map<String, String>> getDocumentStatus(
+            @PathVariable UUID documentId,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        String status = ragService.getDocumentProcessingStatus(documentId, ownerId);
+        return ResponseEntity.ok(Map.of("documentId", documentId.toString(), "status", status));
+    }
+
+    @PostMapping("/chat")
+    public ResponseEntity<com.tugnw.aistudy.domain.dto.rag.RagChatResponse> chatWithFolder(
+            @RequestBody com.tugnw.aistudy.domain.dto.rag.RagChatRequest request,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        try {
+            com.tugnw.aistudy.domain.dto.rag.RagChatResponse response = ragService.chatWithFolderContext(request, ownerId);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(new com.tugnw.aistudy.domain.dto.rag.RagChatResponse("Lỗi hệ thống chat: " + e.getMessage(), java.util.Collections.emptySet()));
+            return ResponseEntity.internalServerError().body(
+                    new com.tugnw.aistudy.domain.dto.rag.RagChatResponse("Lỗi hệ thống chat: " + e.getMessage(), java.util.Collections.emptySet())
+            );
         }
+    }
+
+    private UUID getCurrentUserId(Authentication authentication) {
+        if (authentication == null || authentication.getPrincipal() == null) {
+            throw new RuntimeException("User chưa đăng nhập");
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
+            return userDetails.getAccount().getId();
+        }
+
+        throw new RuntimeException("Không thể xác định user");
     }
 }

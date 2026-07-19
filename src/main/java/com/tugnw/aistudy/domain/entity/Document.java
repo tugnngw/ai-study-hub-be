@@ -20,8 +20,8 @@ import java.util.UUID;
 public class Document {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue
+    private UUID id;
 
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
@@ -42,7 +42,8 @@ public class Document {
     private String summary;
 
     @Column(length = 50)
-    private String status = "processing";
+    @Builder.Default
+    private String status = "COMPLETED";
 
     @Column(name = "cloudinary_url", length = 500)
     private String cloudinaryUrl;

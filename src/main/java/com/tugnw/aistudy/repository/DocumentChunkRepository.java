@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Long> {
@@ -17,7 +18,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
     @Query(value = "INSERT INTO document_chunk (document_id, chunk_index, content, embedding_vector) " +
                    "VALUES (:documentId, :chunkIndex, :content, CAST(:embedding AS vector))", 
            nativeQuery = true)
-    void saveChunkWithVector(@Param("documentId") Long documentId,
+    void saveChunkWithVector(@Param("documentId") UUID documentId,
                              @Param("chunkIndex") Integer chunkIndex,
                              @Param("content") String content,
                              @Param("embedding") String embeddingArrayString);
@@ -29,5 +30,13 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
                    "LIMIT 5", 
            nativeQuery = true)
     List<DocumentChunk> findTopChunksByFolderAndVector(@Param("folderId") java.util.UUID folderId, 
-                                                       @Param("queryEmbedding") String queryEmbeddingString);                        
+                                                       @Param("queryEmbedding") String queryEmbeddingString);
+
+    @Query(value = "SELECT dc.* FROM document_chunk dc " +
+                   "WHERE dc.document_id = :documentId " +
+                   "ORDER BY dc.embedding_vector <=> CAST(:queryEmbedding AS vector) " +
+                   "LIMIT 5", 
+           nativeQuery = true)
+    List<DocumentChunk> findTopChunksByDocumentAndVector(@Param("documentId") java.util.UUID documentId, 
+                                                         @Param("queryEmbedding") String queryEmbeddingString);                        
 }

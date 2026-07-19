@@ -20,6 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpMethod;
 import java.util.List;
@@ -54,13 +55,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
                         .requestMatchers(
-                                "/api/auth/**",
-                                "/oauth2/**",
+                                 "/api/auth/register",
+                                 "/api/auth/login",
+                                 "/api/auth/refresh", 
+                                 "/oauth2/**",
                                 "/login/oauth2/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
@@ -69,12 +73,11 @@ public class SecurityConfig {
 
         http.addFilterBefore(jwtAuthenticationFilter,
                 UsernamePasswordAuthenticationFilter.class);
-        // Khi JWT không hợp lệ → trả 401 (unauthenticated) thay vì 403
         http.exceptionHandling(ex -> ex
-               .authenticationEntryPoint((req, res, authEx) -> {
-               res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-               res.getWriter().write("{\"error\":\"Unauthenticated\"}");
-               })
+                .authenticationEntryPoint((req, res, authEx) -> {
+                    res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    res.getWriter().write("{\"error\":\"Unauthenticated\"}");
+                })
         );
 
         return http.build();

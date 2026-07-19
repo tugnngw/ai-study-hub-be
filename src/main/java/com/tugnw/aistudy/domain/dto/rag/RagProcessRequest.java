@@ -12,5 +12,5 @@ public class RagProcessRequest {
      * sau đó mới lấy cái ID đó truyền vào đây để bắt đầu luồng trích xuất AI.
      */
     @NotNull(message = "Document ID không được để trống")
-    private Long documentId;
+    private String documentId;
 }

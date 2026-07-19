@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.UUID;
 
+
+@Transactional
+@Slf4j
 @Component
 @RequiredArgsConstructor
 @Transactional
@@ -51,7 +54,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 new CustomUserDetails(account).getAuthorities()
         );
         String accessToken = jwtTokenProvider.generateToken(auth);
-        // Create a new refresh token after each successful login/OAuth
+
         String refreshToken = jwtTokenProvider.generateRefreshToken(auth);
 
         // Log token generation for OAuth
@@ -64,11 +67,10 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 refreshToken == null ? 0 : refreshToken.length(),
                 "oauth-success with tokens");
 
-        // Redirect to frontend with JWT token and refresh token
+        // Redirect to frontend with JWT token
         String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl)
                 .path("/oauth-success")
                 .queryParam("access_token", accessToken)
-                // Add refresh token to the redirect URL
                 .queryParam("refresh_token", refreshToken)
                 .queryParam("user_id", account.getId())
                 .build()
@@ -113,6 +115,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                         .avatarUrl(avatarUrl)
                         .authProvider(AuthProvider.GOOGLE)
                         .providerId(providerId)
+                        .passwordHash(UUID.randomUUID().toString())
                         .passwordHash(UUID.randomUUID().toString()) // Password hash is not necessary for OAuth accounts
                         // Set default role and status if creating a new user
                         .role(com.tugnw.aistudy.domain.enums.AccountRole.USER) // Assuming default role is USER

@@ -15,13 +15,21 @@ public interface DocumentService {
 
     List<DocumentResponse> getDocumentsByFolder(UUID ownerId, UUID folderId);
 
-    DocumentResponse getDocumentById(Long id, UUID ownerId);
+    DocumentResponse getDocumentById(UUID id, UUID ownerId);
 
-    DocumentResponse updateDocument(Long id, UUID ownerId, DocumentUpdateRequest request);
+    DocumentResponse updateDocument(UUID id, UUID ownerId, DocumentUpdateRequest request);
 
-    void deleteDocument(Long id, UUID ownerId);
+    void deleteDocument(UUID id, UUID ownerId);
 
-    String getDocumentDownloadUrl(Long id, UUID ownerId);
+    List<DocumentResponse> getTrashDocuments(UUID requesterId);
 
-    String generateShareableLink(Long id, UUID ownerId);
+    void restoreDocument(UUID id, UUID requesterId);
+
+    String getDocumentDownloadUrl(UUID id, UUID ownerId);
+
+    String generateShareableLink(UUID id, UUID ownerId);
+
+    List<DocumentResponse> getDocumentsBySharedFolder(UUID shareToken, UUID requesterId);
+
+    String getDocumentSummary(UUID id, UUID requesterId);
 }

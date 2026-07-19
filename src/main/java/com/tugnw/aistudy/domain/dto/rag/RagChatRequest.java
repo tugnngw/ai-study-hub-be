@@ -8,8 +8,8 @@ import java.util.UUID;
 @Data
 public class RagChatRequest {
 
-    @NotNull(message = "Folder ID không được để trống")
     private UUID folderId;
+    private UUID documentId;
 
     @NotBlank(message = "Câu hỏi không được để trống")
     private String question;

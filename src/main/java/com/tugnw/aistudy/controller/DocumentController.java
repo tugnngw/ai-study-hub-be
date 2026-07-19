@@ -3,7 +3,11 @@ package com.tugnw.aistudy.controller;
 import com.tugnw.aistudy.domain.dto.document.DocumentResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentUploadRequest;
 import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
+import com.tugnw.aistudy.domain.dto.share.ShareResponse;
+import com.tugnw.aistudy.domain.dto.share.ShareRequest;
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.service.DocumentService;
+import com.tugnw.aistudy.service.ShareService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,43 +15,29 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/documents")   // Giống test case Folder, dễ test
-@RequiredArgsConstructor
+@RequestMapping("/api/documents")
 @Validated
 @CrossOrigin(origins = "*", allowedHeaders = "*", exposedHeaders = "Authorization")
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final ShareService shareService;
 
-    /**
-     * Upload new document
-     */
+    public DocumentController(DocumentService documentService, ShareService shareService) {
+        this.documentService = documentService;
+        this.shareService = shareService;
+    }
+
     @PostMapping(consumes = {"multipart/form-data"})
-    @io.swagger.v3.oas.annotations.Operation(
-            summary = "Upload one or more documents",
-            description = "Upload document files with metadata. Supported file types: PDF, DOCX, TXT, PPTX. Max size: 50MB each. You can select multiple files at once."
-    )
     public ResponseEntity<List<DocumentResponse>> uploadDocument(
-            @Parameter(description = "Files to upload (multiple files allowed)", required = true, 
-                      content = @Content(mediaType = "multipart/form-data", 
-                      array = @ArraySchema(schema = @Schema(type = "string", format = "binary"))))
             @RequestParam("files") List<MultipartFile> files,
-            @Parameter(description = "Title for all files")
             @RequestParam(value = "title", required = false) String title,
-            @Parameter(description = "Description")
             @RequestParam(value = "description", required = false) String description,
-            @Parameter(description = "Folder ID")
             @RequestParam(value = "folderId", required = false) UUID folderId,
-            @Parameter(description = "Subject ID")
             @RequestParam(value = "subjectId", required = false) Long subjectId,
             Authentication authentication) {
 
@@ -63,35 +53,59 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
-    /**
-     * Get all documents of current user
-     */
     @GetMapping
     public ResponseEntity<List<DocumentResponse>> getDocuments(Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
-        List<DocumentResponse> responses = documentService.getDocumentsByOwner(ownerId);
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(documentService.getDocumentsByOwner(ownerId));
     }
 
-    /**
-     * Get documents by folder
-     */
     @GetMapping("/folder/{folderId}")
     public ResponseEntity<List<DocumentResponse>> getDocumentsByFolder(
-            @PathVariable UUID folderId,
+            @PathVariable String folderId,
             Authentication authentication) {
 
-        UUID ownerId = getCurrentUserId(authentication);
-        List<DocumentResponse> responses = documentService.getDocumentsByFolder(ownerId, folderId);
-        return ResponseEntity.ok(responses);
+        // Check if folderId starts with "shared-"
+        if (folderId.startsWith("shared-")) {
+            String shareToken = folderId.substring(7); // Remove "shared-" prefix
+            // Validate shareToken as UUID
+            try {
+                UUID uuidShareToken = UUID.fromString(shareToken);
+                UUID requesterId = getCurrentUserId(authentication);
+                List<DocumentResponse> responses = documentService.getDocumentsBySharedFolder(uuidShareToken, requesterId);
+                return ResponseEntity.ok(responses);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid share token format");
+            }
+        } else {
+            UUID uuidFolderId = UUID.fromString(folderId);
+            UUID ownerId = getCurrentUserId(authentication);
+            List<DocumentResponse> responses = documentService.getDocumentsByFolder(ownerId, uuidFolderId);
+            return ResponseEntity.ok(responses);
+        }
     }
 
-    /**
-     * Get document detail by ID
-     */
+    @GetMapping("/shared")
+    public ResponseEntity<List<DocumentResponse>> getSharedDocuments(Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        return ResponseEntity.ok(List.of()); // TODO: Implement share logic
+    }
+
+    @GetMapping("/trash")
+    public ResponseEntity<List<DocumentResponse>> getTrashDocuments(Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        return ResponseEntity.ok(documentService.getTrashDocuments(ownerId));
+    }
+
+    @PostMapping("/{id}/restore")
+    public ResponseEntity<Void> restoreDocument(@PathVariable UUID id, Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        documentService.restoreDocument(id, ownerId);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<DocumentResponse> getDocumentById(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             Authentication authentication) {
 
         UUID ownerId = getCurrentUserId(authentication);
@@ -99,12 +113,9 @@ public class DocumentController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Update document metadata / move folder
-     */
     @PutMapping("/{id}")
     public ResponseEntity<DocumentResponse> updateDocument(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @RequestBody DocumentUpdateRequest request,
             Authentication authentication) {
 
@@ -113,30 +124,45 @@ public class DocumentController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Delete document (soft delete)
-     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDocument(
-            @PathVariable Long id,
-            Authentication authentication) {
-
+    public ResponseEntity<Void> deleteDocument(@PathVariable UUID id, Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         documentService.deleteDocument(id, ownerId);
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Get download URL
-     */
     @GetMapping("/{id}/download")
     public ResponseEntity<String> getDownloadUrl(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             Authentication authentication) {
 
         UUID ownerId = getCurrentUserId(authentication);
-        String url = documentService.getDocumentDownloadUrl(id, ownerId);
-        return ResponseEntity.ok(url);
+        return ResponseEntity.ok(documentService.getDocumentDownloadUrl(id, ownerId));
+    }
+
+    @PostMapping("/{id}/share")
+    public ResponseEntity<ShareResponse> shareDocument(
+            @PathVariable UUID id,
+            @RequestBody ShareRequest request,
+            Authentication authentication) {
+        throw new IllegalArgumentException("Chỉ cho phép share folder, không được share document");
+    }
+
+    @GetMapping("/{id}/share-info")
+    public ResponseEntity<ShareResponse> getDocumentShareInfo(
+            @PathVariable UUID id,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        return ResponseEntity.ok(shareService.getShareInfo(id, "document", ownerId));
+    }
+
+    @GetMapping("/{id}/summary")
+    public ResponseEntity<ApiResponse<String>> getDocumentSummary(
+            @PathVariable UUID id,
+            Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        String markdown = documentService.getDocumentSummary(id, ownerId);
+        return ResponseEntity.ok(ApiResponse.success("Summary retrieved successfully", markdown));
     }
 
     private UUID getCurrentUserId(Authentication authentication) {
@@ -146,7 +172,7 @@ public class DocumentController {
 
         Object principal = authentication.getPrincipal();
         if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
-            return userDetails.getAccount().getId();   // Giả sử bạn đã có getId()
+            return userDetails.getAccount().getId();
         }
 
         throw new RuntimeException("Không thể xác định user");

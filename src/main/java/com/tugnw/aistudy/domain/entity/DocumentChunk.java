@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.UUID;
 
 @Entity
 @Table(name = "document_chunk")
@@ -19,7 +20,7 @@ public class DocumentChunk {
     private Long id;
 
     @Column(name = "document_id", nullable = false)
-    private Long documentId;
+    private UUID documentId;
 
     @Column(name = "chunk_index", nullable = false)
     private Integer chunkIndex;
