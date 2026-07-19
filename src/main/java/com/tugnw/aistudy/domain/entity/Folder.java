@@ -23,11 +23,18 @@ public class Folder {
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
 
-    @Column(name = "name", nullable = false, length = 30)
+    @Column(nullable = false, length = 30)
     private String name;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
 
     @Column(name = "ai_summary")
     private String aiSummary;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subject_id")
+    private Subject subject;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
