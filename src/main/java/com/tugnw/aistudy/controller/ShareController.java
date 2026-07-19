@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.share.SaveToFolderResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareRequest;
 import com.tugnw.aistudy.service.ShareService;
@@ -8,9 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -44,26 +43,20 @@ public class ShareController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/token/{shareToken}")
+    public ResponseEntity<Void> deleteShareByToken(@PathVariable String shareToken, Authentication authentication) {
+        UUID ownerId = getCurrentUserId(authentication);
+        shareService.removeShareByToken(shareToken, ownerId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{shareId}/save")
-    public ResponseEntity<ShareResponse> saveToMyFolder(
+    public ResponseEntity<SaveToFolderResponse> saveToMyFolder(
             @PathVariable UUID shareId,
             @RequestBody com.tugnw.aistudy.domain.dto.share.SaveToFolderRequest request,
             Authentication authentication) {
-        ShareResponse response = shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(), request.getDescription());
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/{shareToken}/link")
-    public ResponseEntity<Map<String, String>> getShareLink(@PathVariable String shareToken) {
-        Map<String, String> response = new HashMap<>();
-        response.put("url", shareService.getShareLink(shareToken));
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/{shareToken}/download")
-    public ResponseEntity<Map<String, String>> getDownloadUrl(@PathVariable String shareToken) {
-        Map<String, String> response = new HashMap<>();
-        response.put("url", shareService.getDownloadUrl(shareToken));
+        UUID requesterId = getCurrentUserId(authentication);
+        SaveToFolderResponse response = shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(), request.getDescription(), requesterId);
         return ResponseEntity.ok(response);
     }
 

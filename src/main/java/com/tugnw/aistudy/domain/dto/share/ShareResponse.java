@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record ShareResponse(
-        Long id,
+        UUID id,
         UUID folderId,
         UUID documentId,
         UUID ownerId,
@@ -21,7 +21,8 @@ public record ShareResponse(
         List<ShareRecipient> recipients,
         String documentTitle,
         String folderName,
-        Integer fileCount
+        String cloudinaryUrl,
+        String documentStatus
 ) {
     public record ShareRecipient(
             UUID accountId,

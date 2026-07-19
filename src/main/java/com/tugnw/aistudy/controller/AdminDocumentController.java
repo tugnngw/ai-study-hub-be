@@ -2,12 +2,14 @@ package com.tugnw.aistudy.controller;
 
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentResponse;
+import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.AdminDocumentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,6 +30,12 @@ public class AdminDocumentController {
         return ResponseEntity.ok(ApiResponse.success("Documents retrieved", adminDocumentService.getAllDocuments()));
     }
 
+    @GetMapping("/trash")
+    @Operation(summary = "Get trash documents", description = "Get list of soft-deleted documents")
+    public ResponseEntity<ApiResponse<List<DocumentResponse>>> getTrashDocuments() {
+        return ResponseEntity.ok(ApiResponse.success("Trash documents retrieved", adminDocumentService.getTrashDocuments()));
+    }
+
     @PatchMapping("/{id}/approve")
     @Operation(summary = "Approve document")
     public ResponseEntity<ApiResponse<Void>> approveDocument(@PathVariable String id) {
@@ -43,17 +51,20 @@ public class AdminDocumentController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete document")
+    @Operation(summary = "Delete document - DISABLED", description = "Admin cannot delete user documents")
     public ResponseEntity<ApiResponse<Void>> deleteDocument(@PathVariable String id) {
         adminDocumentService.deleteDocument(UUID.fromString(id));
         return ResponseEntity.ok(ApiResponse.success("Document deleted", null));
     }
 
     @PostMapping("/{id}/restore")
-    @Operation(summary = "Restore document")
-    public ResponseEntity<ApiResponse<Void>> restoreDocument(@PathVariable String id) {
-        adminDocumentService.restoreDocument(UUID.fromString(id));
-        return ResponseEntity.ok(ApiResponse.success("Document restored", null));
+    @Operation(summary = "Restore document from trash")
+    public ResponseEntity<ApiResponse<Void>> restoreDocument(@PathVariable String id, Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        UUID adminId = userDetails.getAccount().getId();
+        String adminName = userDetails.getAccount().getFullName();
+        adminDocumentService.restoreDocument(UUID.fromString(id), adminId, adminName);
+        return ResponseEntity.ok(ApiResponse.success("Document restored successfully", null));
     }
 
     @GetMapping("/status/{status}")

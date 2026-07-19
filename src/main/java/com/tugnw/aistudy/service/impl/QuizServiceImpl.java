@@ -10,14 +10,13 @@ import com.tugnw.aistudy.domain.entity.Quiz;
 import com.tugnw.aistudy.domain.entity.Question;
 import com.tugnw.aistudy.domain.mapper.QuizMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
-import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.repository.QuizRepository;
 import com.tugnw.aistudy.repository.QuestionRepository;
-import com.tugnw.aistudy.service.DocumentSourceResolver;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.QuizService;
 import com.tugnw.aistudy.service.RagService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -37,37 +36,60 @@ public class QuizServiceImpl implements QuizService {
     private final QuizRepository quizRepository;
     private final QuestionRepository questionRepository;
     private final QuizMapper quizMapper;
-    private final DocumentSourceResolver documentSourceResolver;
     private final KnowledgePreparationService knowledgePreparationService;
-    private final FolderRepository folderRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional
-    public QuizResponse generateQuiz(UUID requesterId, GenerateQuizRequest request) throws Exception {
-        System.out.println("[LOG - QUIZ] Starting quiz generation");
+    public QuizResponse generateQuiz(UUID documentId, UUID requesterId, GenerateQuizRequest request) throws Exception {
+        System.out.println("[LOG - QUIZ] Starting quiz generation for document: " + documentId);
 
-        // Validate request
-        validateRequest(request);
+        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
+                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
 
-        // Resolve source documents
-        List<Document> sourceDocuments = resolveSourceDocuments(requesterId, request);
-
-        if (sourceDocuments.isEmpty()) {
-            throw new RuntimeException("No accessible documents found for generation");
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+            throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        System.out.println("[LOG - QUIZ] Resolved " + sourceDocuments.size() + " documents");
+        if (!request.isForce()) {
+            List<Quiz> existing = quizRepository.findByDocumentId(documentId);
+            if (!existing.isEmpty()) {
+                System.out.println("[LOG - QUIZ] Returning " + existing.size() + " existing quizzes.");
+                List<QuizResponse> responses = new ArrayList<>();
+                for (Quiz q : existing) {
+                    List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(q.getId());
+                    responses.add(QuizResponse.builder()
+                            .id(q.getId())
+                            .title(q.getTitle())
+                            .generatedByAi(q.getGeneratedByAi())
+                            .createdAt(q.getCreatedAt())
+                            .questions(quizMapper.toQuestionResponseList(questions))
+                            .build());
+                }
+                return responses.get(0);
+            }
+        } else {
+            List<Quiz> existing = quizRepository.findByDocumentId(documentId);
+            for (Quiz q : existing) {
+                List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(q.getId());
+                questionRepository.deleteAll(questions);
+            }
+            quizRepository.deleteAll(existing);
+            quizRepository.flush();
+            System.out.println("[LOG - QUIZ] Deleted existing quizzes for regenerate.");
+        }
 
-        // Prepare knowledge using summary-based pipeline
-        String mergedContent = knowledgePreparationService.prepareKnowledge(sourceDocuments, false);
+        String documentText = knowledgePreparationService.prepareKnowledge(List.of(document), false);
 
-        System.out.println("[LOG - QUIZ] Knowledge prepared: " + mergedContent.length() + " chars");
+        if (documentText == null || documentText.isBlank()) {
+            throw new RuntimeException("Unable to extract text from document.");
+        }
 
-        // Create quiz from merged content
+        System.out.println("[LOG - QUIZ] Extracted text length: " + documentText.length());
+
         Quiz quiz = Quiz.builder()
-                .documentId(sourceDocuments.get(0).getId())
-                .title("AI-Generated Quiz from " + sourceDocuments.get(0).getTitle())
+                .documentId(document.getId())
+                .title("AI-Generated Quiz")
                 .generatedByAi(true)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -75,15 +97,14 @@ public class QuizServiceImpl implements QuizService {
         Quiz savedQuiz = quizRepository.save(quiz);
         System.out.println("[LOG - QUIZ] Created quiz with ID: " + savedQuiz.getId());
 
-        // Generate questions from merged content
         List<Question> generatedQuestions = generateQuestionsFromText(
-                mergedContent,
+                documentText,
                 savedQuiz.getId(),
                 request.getNumberOfQuestions()
         );
         questionRepository.saveAll(generatedQuestions);
 
-        System.out.println("[LOG - QUIZ] Successfully generated and saved " + generatedQuestions.size() + " questions");
+        System.out.println("[LOG - QUIZ] Successfully generated and saved " + generatedQuestions.size() + " questions.");
 
         List<QuestionResponse> questionResponses = quizMapper.toQuestionResponseList(generatedQuestions);
         return QuizResponse.builder()
@@ -100,10 +121,10 @@ public class QuizServiceImpl implements QuizService {
         System.out.println("[LOG - QUIZ] Fetching quizzes for document: " + documentId);
 
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted"));
+                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
 
         if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new RuntimeException("You do not have permission to access quizzes for this document");
+            throw new AccessDeniedException("You do not have permission to access quizzes for this document.");
         }
 
         List<Quiz> quizzes = quizRepository.findByDocumentIdOrderByCreatedAtDesc(documentId);
@@ -124,65 +145,7 @@ public class QuizServiceImpl implements QuizService {
         return responses;
     }
 
-    private void validateRequest(GenerateQuizRequest request) {
-        boolean hasDocIds = request.getDocumentIds() != null && !request.getDocumentIds().isEmpty();
-        boolean hasOldDocId = request.getDocumentId() != null;
-        boolean hasFolderId = request.getFolderId() != null;
-
-        // Must have at least one source
-        if (!hasDocIds && !hasOldDocId && !hasFolderId) {
-            throw new RuntimeException("Must specify documentId, documentIds, or folderId");
-        }
-
-        // Cannot mix folder with document IDs
-        if (hasFolderId && (hasDocIds || hasOldDocId)) {
-            throw new RuntimeException("Cannot specify both folder and document IDs");
-        }
-
-        // If folder, includeAllDocuments must be true
-        if (hasFolderId && !request.isIncludeAllDocuments()) {
-            throw new RuntimeException("If folderId is specified, includeAllDocuments must be true");
-        }
-    }
-
-    private List<Document> resolveSourceDocuments(UUID requesterId, GenerateQuizRequest request) {
-        List<Document> documents = new ArrayList<>();
-
-        // Priority: documentIds (new) > documentId (old) > folderId
-        if (request.getDocumentIds() != null && !request.getDocumentIds().isEmpty()) {
-            documents = documentSourceResolver.resolveByDocumentIds(request.getDocumentIds());
-        } else if (request.getDocumentId() != null) {
-            documents = documentSourceResolver.resolveByDocumentIds(List.of(request.getDocumentId()));
-        } else if (request.getFolderId() != null) {
-            documents = documentSourceResolver.resolveByFolderId(request.getFolderId());
-        }
-
-        // Authorize all resolved documents
-        authorizeDocuments(documents, requesterId, request.getFolderId());
-
-        return documents;
-    }
-
-    private void authorizeDocuments(List<Document> documents, UUID requesterId, UUID folderId) {
-        // If folderId was used, verify folder ownership first
-        if (folderId != null) {
-            folderRepository.findByIdAndDeletedAtIsNull(folderId)
-                .ifPresent(folder -> {
-                    if (!isAdmin() && !folder.getOwnerId().equals(requesterId)) {
-                        throw new RuntimeException("Access denied to folder: " + folderId);
-                    }
-                });
-        }
-
-        // Verify ownership of each document
-        for (Document doc : documents) {
-            if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
-                throw new RuntimeException("Access denied to document: " + doc.getId());
-            }
-        }
-    }
-
-    private List<Question> generateQuestionsFromText(String mergedContent, Long quizId, Integer numberOfQuestions) throws Exception {
+    private List<Question> generateQuestionsFromText(String documentText, UUID quizId, Integer numberOfQuestions) throws Exception {
         String prompt = String.format(
                 "Based on the following document content, generate exactly %d multiple-choice questions in JSON format. " +
                 "Each question should have: 'content' (the question), 'optionA', 'optionB', 'optionC', 'optionD' (the answer choices), " +
@@ -191,7 +154,7 @@ public class QuizServiceImpl implements QuizService {
                 "Document:\n%s\n\n" +
                 "Return ONLY valid JSON array, no markdown formatting, no code blocks.",
                 numberOfQuestions,
-                mergedContent.substring(0, Math.min(3000, mergedContent.length()))
+                documentText.substring(0, Math.min(5000, documentText.length()))
         );
 
         String aiResponse = ragService.generateContent(prompt);
@@ -200,7 +163,7 @@ public class QuizServiceImpl implements QuizService {
         return parseQuestionsFromResponse(aiResponse, quizId);
     }
 
-    private List<Question> parseQuestionsFromResponse(String jsonResponse, Long quizId) throws Exception {
+    private List<Question> parseQuestionsFromResponse(String jsonResponse, UUID quizId) throws Exception {
         List<Question> questions = new ArrayList<>();
         try {
             JsonNode node = objectMapper.readTree(jsonResponse);
@@ -214,7 +177,7 @@ public class QuizServiceImpl implements QuizService {
                     String correctAnswer = item.has("correctAnswer") ? item.get("correctAnswer").asText().trim() : "";
 
                     if (!content.isBlank() && !optionA.isBlank() && !optionB.isBlank() &&
-                        !optionC.isBlank() && !optionD.isBlank() && !correctAnswer.isBlank()) {
+                            !optionC.isBlank() && !optionD.isBlank() && !correctAnswer.isBlank()) {
                         Question question = Question.builder()
                                 .quizId(quizId)
                                 .content(content)
@@ -231,7 +194,7 @@ public class QuizServiceImpl implements QuizService {
             }
         } catch (Exception e) {
             System.err.println("[LOG - QUIZ ERROR] Failed to parse questions: " + e.getMessage());
-            throw new RuntimeException("Failed to parse AI-generated questions", e);
+            throw new RuntimeException("Failed to parse AI-generated questions.", e);
         }
         return questions;
     }

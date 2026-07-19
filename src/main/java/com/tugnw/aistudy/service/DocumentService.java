@@ -15,7 +15,11 @@ public interface DocumentService {
 
     List<DocumentResponse> getDocumentsByFolder(UUID ownerId, UUID folderId);
 
+    List<DocumentResponse> getSharedFolderDocuments(UUID userId, UUID folderId);
+
     DocumentResponse getDocumentById(UUID id, UUID ownerId);
+
+    DocumentResponse getSharedDocumentById(UUID id, UUID requesterId);
 
     DocumentResponse updateDocument(UUID id, UUID ownerId, DocumentUpdateRequest request);
 
@@ -29,7 +33,5 @@ public interface DocumentService {
 
     String generateShareableLink(UUID id, UUID ownerId);
 
-    List<DocumentResponse> getDocumentsBySharedFolder(UUID shareToken, UUID requesterId);
-
-    String getDocumentSummary(UUID id, UUID requesterId);
+    boolean hasShareAccess(UUID documentId, UUID userId);
 }

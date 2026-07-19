@@ -18,8 +18,8 @@ import java.util.UUID;
 public class Flashcard {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "document_id", nullable = false)
     private UUID documentId;

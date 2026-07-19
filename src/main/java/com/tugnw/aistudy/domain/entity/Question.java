@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "question")
@@ -17,11 +18,11 @@ import java.time.LocalDateTime;
 public class Question {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "quiz_id", nullable = false)
-    private Long quizId;
+    private UUID quizId;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;

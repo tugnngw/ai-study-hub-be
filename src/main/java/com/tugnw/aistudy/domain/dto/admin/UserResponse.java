@@ -3,6 +3,7 @@ package com.tugnw.aistudy.domain.dto.admin;
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
 import com.tugnw.aistudy.domain.enums.AuthProvider;
+import com.tugnw.aistudy.domain.enums.Plan;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,4 +29,6 @@ public class UserResponse {
     private Instant createdAt;
     private Instant updatedAt;
     private Instant deletedAt;
+    private Plan plan;
+    private Integer storageGb;
 }

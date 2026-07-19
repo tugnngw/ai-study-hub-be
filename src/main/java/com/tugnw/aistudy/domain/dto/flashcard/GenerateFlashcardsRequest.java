@@ -1,20 +1,23 @@
 package com.tugnw.aistudy.domain.dto.flashcard;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
 import lombok.Data;
-import java.util.List;
 import java.util.UUID;
 
 @Data
+@Schema(description = "Request to generate flashcards from a document")
 public class GenerateFlashcardsRequest {
 
-    // Generation source (choose one: documentId/documentIds, or folderId)
-    private UUID documentId;                    // Backward compatibility
-    private List<UUID> documentIds;             // New: Multiple documents
-    private UUID folderId;                      // New: Entire folder
-    private boolean includeAllDocuments = false; // New: If folderId, feztch all docs
+    @NotNull(message = "Document ID must not be null")
+    @Schema(description = "Document ID to generate from", example = "a1b2c3d4-...", requiredMode = Schema.RequiredMode.REQUIRED)
+    private UUID documentId;
 
-    // Generation parameter
     @Min(value = 1, message = "Number of cards must be at least 1")
+    @Schema(description = "Number of flashcards to generate", example = "10", minimum = "1")
     private Integer numberOfCards;
+
+    @Schema(description = "Force regeneration (replaces existing)", example = "false", defaultValue = "false")
+    private boolean force;
 }

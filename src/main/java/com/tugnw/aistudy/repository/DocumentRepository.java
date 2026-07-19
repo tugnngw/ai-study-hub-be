@@ -17,6 +17,8 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     List<Document> findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID folderId);
 
+    List<Document> findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(UUID folderId, String status);
+
     Long countByOwnerIdAndDeletedAtIsNull(UUID ownerId);
 
     // Kiểm tra storage usage
@@ -31,10 +33,4 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     List<Document> findAllByDeletedAtIsNull();
 
     List<Document> findAllBy();
-
-    /**
-     * Fetch multiple documents by IDs, excluding soft-deleted records.
-     * Order is NOT guaranteed by default; handled by DocumentSourceResolver if needed.
-     */
-    List<Document> findByIdInAndDeletedAtIsNull(List<UUID> ids);
 }

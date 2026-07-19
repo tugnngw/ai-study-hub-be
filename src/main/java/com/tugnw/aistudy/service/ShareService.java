@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.service;
 
+import com.tugnw.aistudy.domain.dto.share.SaveToFolderResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareRequest;
 import com.tugnw.aistudy.domain.entity.Share;
@@ -11,11 +12,10 @@ public interface ShareService {
     ShareResponse shareDocument(ShareRequest request, UUID ownerId);
     List<ShareResponse> getSharesByOwner(UUID ownerId);
     List<ShareResponse> getSharesWithMe(UUID userId);
-    void removeShare(UUID shareToken, UUID ownerId);
-    ShareResponse saveToMyFolder(UUID shareToken, UUID folderId, String title, String description);
+    void removeShare(UUID shareId, UUID ownerId);
+    void removeShareByToken(String shareToken, UUID ownerId);
+    SaveToFolderResponse saveToMyFolder(UUID shareId, UUID folderId, String title, String description, UUID requesterId);
     String getShareLink(UUID folderId);
-    String getShareLink(String shareToken);
-    String getDownloadUrl(String shareToken);
-    Share getShareEntity(Long shareId);
+    Share getShareEntity(UUID shareId);
     ShareResponse getShareInfo(UUID id, String type, UUID ownerId);
 }

@@ -9,7 +9,7 @@ public interface AdminDocumentService {
     List<DocumentResponse> getDocumentsByStatus(String status);
     List<DocumentResponse> getTrashDocuments();
     void deleteDocument(UUID id);
-    void restoreDocument(UUID id);
+    void restoreDocument(UUID id, UUID adminId, String adminName);
     void approveDocument(UUID id);
     void rejectDocument(UUID id);
 }

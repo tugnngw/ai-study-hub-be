@@ -55,7 +55,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
                         .requestMatchers(
-                                 "/api/auth/register",
+                                "/api/payment/webhook",
+                                "/api/auth/register",
                                  "/api/auth/login",
                                  "/api/auth/refresh", 
                                  "/oauth2/**",

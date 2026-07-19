@@ -18,11 +18,11 @@ import java.util.UUID;
 public class QuizAttempt {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "quiz_id", nullable = false)
-    private Long quizId;
+    private UUID quizId;
 
     @Column(name = "account_id", nullable = false)
     private UUID accountId;

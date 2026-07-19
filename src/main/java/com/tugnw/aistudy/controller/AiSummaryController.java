@@ -4,12 +4,16 @@ import com.tugnw.aistudy.domain.dto.ai.SummaryRequest;
 import com.tugnw.aistudy.domain.dto.ai.SummaryResponse;
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.entity.Document;
-import com.tugnw.aistudy.service.DocumentSourceResolver;
+import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,30 +22,31 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/ai")
+@Tag(name = "AI Summary", description = "AI-generated document summaries with caching")
 @Validated
 @CrossOrigin(origins = "*", allowedHeaders = "*", exposedHeaders = "Authorization")
 @RequiredArgsConstructor
 public class AiSummaryController {
 
     private final KnowledgePreparationService knowledgePreparationService;
-    private final DocumentSourceResolver documentSourceResolver;
+    private final DocumentRepository documentRepository;
 
     @PostMapping("/summary")
+    @Operation(summary = "Generate or regenerate AI summary", description = "Generate summary for a document. force=true regenerates and overwrites cache.")
     public ResponseEntity<ApiResponse<SummaryResponse>> generateSummary(
             @Valid @RequestBody SummaryRequest request,
             Authentication authentication) throws Exception {
 
         UUID requesterId = getCurrentUserId(authentication);
 
-        List<Document> documents = documentSourceResolver.resolveByDocumentIds(request.getDocumentIds());
-        if (documents.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("No accessible documents found for the given IDs"));
+        Document document = documentRepository.findByIdAndDeletedAtIsNull(request.getDocumentId())
+                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
+
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+            throw new AccessDeniedException("You do not have permission to access this document");
         }
 
-        authorizeDocuments(documents, requesterId);
-
-        String mergedMarkdown = knowledgePreparationService.prepareKnowledge(documents, request.isForce());
+        String mergedMarkdown = knowledgePreparationService.prepareKnowledge(List.of(document), request.isForce());
 
         return ResponseEntity.ok(ApiResponse.success(
                 "AI Summary generated successfully",
@@ -49,17 +54,36 @@ public class AiSummaryController {
         ));
     }
 
-    private void authorizeDocuments(List<Document> documents, UUID requesterId) {
-        for (Document doc : documents) {
-            if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
-                throw new RuntimeException("Access denied to document: " + doc.getId());
-            }
+    @GetMapping("/summary/{documentId}")
+    @Operation(summary = "Get cached summary", description = "Returns cached AI summary without regenerating. Returns empty if none exists.")
+    public ResponseEntity<ApiResponse<SummaryResponse>> getCachedSummary(
+            @PathVariable UUID documentId,
+            Authentication authentication) {
+
+        UUID requesterId = getCurrentUserId(authentication);
+
+        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
+                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
+
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+            throw new AccessDeniedException("You do not have permission to access this document");
         }
+
+        if (document.getSummary() == null || document.getSummary().trim().isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.success(
+                    "No summary available. Use POST to generate one.",
+                    new SummaryResponse("")
+            ));
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "Cached summary retrieved",
+                new SummaryResponse(document.getSummary())
+        ));
     }
 
     private boolean isAdmin() {
-        Authentication auth = org.springframework.security.core.context.SecurityContextHolder
-                .getContext().getAuthentication();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null && auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }

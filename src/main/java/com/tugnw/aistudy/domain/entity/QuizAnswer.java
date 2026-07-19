@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "quiz_answer", uniqueConstraints = {
@@ -19,14 +20,14 @@ import java.time.LocalDateTime;
 public class QuizAnswer {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "attempt_id", nullable = false)
-    private Long attemptId;
+    private UUID attemptId;
 
     @Column(name = "question_id", nullable = false)
-    private Long questionId;
+    private UUID questionId;
 
     @Column(name = "selected_answer", length = 1)
     private String selectedAnswer;

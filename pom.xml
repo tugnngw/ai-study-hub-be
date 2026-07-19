@@ -141,6 +141,13 @@
             <version>2.8.9</version>
         </dependency>
 
+        <!-- pom.xml -->
+        <dependency>
+            <groupId>vn.payos</groupId>
+            <artifactId>payos-java</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
         <!-- .env support -->
         <dependency>
             <groupId>me.paulschwarz</groupId>
