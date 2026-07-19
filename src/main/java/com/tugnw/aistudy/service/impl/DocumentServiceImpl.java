@@ -8,6 +8,8 @@ import com.tugnw.aistudy.domain.mapper.DocumentMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
+import com.tugnw.aistudy.service.RagService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
+    private final RagService ragService; // Đã thêm RagService
 
     @Override
     public List<DocumentResponse> uploadDocuments(UUID ownerId, DocumentUploadRequest request) {
