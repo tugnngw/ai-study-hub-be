@@ -54,6 +54,7 @@ services:
       MAIL_FROM_NAME: ${MAIL_FROM_NAME}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
     depends_on:
       postgres:
         condition: service_healthy
