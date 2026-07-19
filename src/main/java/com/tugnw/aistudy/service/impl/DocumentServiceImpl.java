@@ -3,14 +3,25 @@ package com.tugnw.aistudy.service.impl;
 import com.tugnw.aistudy.domain.dto.document.DocumentResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentUploadRequest;
 import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
+import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.entity.Document;
+import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.mapper.DocumentMapper;
+import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
+import com.tugnw.aistudy.service.QuotaService;
+import com.tugnw.aistudy.repository.FolderRepository;
+import com.tugnw.aistudy.repository.ShareRepository;
+import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.RagService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,10 +33,13 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional
 public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final ShareRepository shareRepository;
+    private final FolderRepository folderRepository;
     private final DocumentMapper documentMapper;
     private final CloudinaryService cloudinaryService;
     private final RagService ragService; // Đã thêm RagService
@@ -99,42 +113,57 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     @Transactional(readOnly = true)
-    public DocumentResponse getDocumentById(Long id, UUID ownerId) {
+    public List<DocumentResponse> getSharedFolderDocuments(UUID userId, UUID folderId) {
+        boolean hasFolderShareAccess = shareRepository.existsByFolderIdAndSharedAccountIdAndRevokedFalse(folderId, userId);
+        if (!hasFolderShareAccess && !isAdmin()) {
+            throw new AccessDeniedException("You do not have permission to access this shared folder");
+        }
+
+        List<Document> documents = documentRepository
+                .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(folderId, "READY");
+
+        return documents.stream()
+                .map(documentMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DocumentResponse getDocumentById(UUID id, UUID ownerId) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (!document.getOwnerId().equals(ownerId)) {
-            throw new RuntimeException("You do not have permission to access this document");
+        if (!isAdmin() && !document.getOwnerId().equals(ownerId) && !hasShareAccess(id, ownerId)) {
+            throw new AccessDeniedException("You do not have permission to access this document");
         }
 
         return documentMapper.toResponse(document);
     }
 
     @Override
-    public DocumentResponse updateDocument(Long id, UUID ownerId, DocumentUpdateRequest request) {
+    public DocumentResponse updateDocument(UUID id, UUID ownerId, DocumentUpdateRequest request) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (!document.getOwnerId().equals(ownerId)) {
-            throw new RuntimeException("You do not have permission to update this document");
+        if (!isAdmin() && !document.getOwnerId().equals(ownerId)) {
+            throw new AccessDeniedException("You do not have permission to update this document");
         }
 
         if (request.getTitle() != null) document.setTitle(request.getTitle());
         if (request.getDescription() != null) document.setDescription(request.getDescription());
         if (request.getFolderId() != null) document.setFolderId(request.getFolderId());
-        if (request.getSubjectId() != null) document.setSubjectId(request.getSubjectId());
 
         Document updatedDocument = documentRepository.save(document);
         return documentMapper.toResponse(updatedDocument);
     }
 
     @Override
-    public void deleteDocument(Long id, UUID ownerId) {
+    public void deleteDocument(UUID id, UUID ownerId) {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
         if (!document.getOwnerId().equals(ownerId)) {
-            throw new RuntimeException("You do not have permission to delete this document");
+            throw new AccessDeniedException("You do not have permission to delete this document");
         }
 
         document.setDeletedAt(LocalDateTime.now());
@@ -142,13 +171,55 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public String getDocumentDownloadUrl(Long id, UUID ownerId) {
-        // TODO: Implement
-        return null;
+    public List<DocumentResponse> getTrashDocuments(UUID requesterId) {
+        List<Document> docs = isAdmin()
+            ? documentRepository.findByDeletedAtIsNotNullOrderByCreatedAtDesc()
+            : documentRepository.findByOwnerIdAndDeletedAtIsNotNullOrderByCreatedAtDesc(requesterId);
+        return docs.stream().map(documentMapper::toResponse).toList();
     }
 
     @Override
-    public String generateShareableLink(Long id, UUID ownerId) {
+    public void restoreDocument(UUID id, UUID requesterId) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        if (document.getDeletedAt() == null) {
+            throw new RuntimeException("Document is not in trash");
+        }
+
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+            throw new AccessDeniedException("You do not have permission to restore this document");
+        }
+
+        document.setDeletedAt(null);
+        documentRepository.save(document);
+    }
+
+    @Override
+    public String getDocumentDownloadUrl(UUID id, UUID ownerId) {
+        Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        if (!isAdmin() && !document.getOwnerId().equals(ownerId) && !hasShareAccess(id, ownerId)) {
+            throw new AccessDeniedException("You do not have permission to access this document");
+        }
+
+        // Log download activity
+        Account owner = accountRepository.findById(ownerId).orElse(null);
+        if (owner != null) {
+            activityLogService.logActivity(
+                    ownerId,
+                    owner.getUsername(),
+                    ActivityType.DOCUMENT_DOWNLOAD,
+                    "Downloaded document: " + document.getTitle()
+            );
+        }
+
+        return document.getCloudinaryUrl();
+    }
+
+    @Override
+    public String generateShareableLink(UUID id, UUID ownerId) {
         // TODO: Implement shareable link logic
         return null;
     }

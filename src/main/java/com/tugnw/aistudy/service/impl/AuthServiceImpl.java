@@ -6,17 +6,25 @@ import com.tugnw.aistudy.domain.dto.auth.LoginRequest;
 import com.tugnw.aistudy.domain.dto.auth.RefreshTokenRequest;
 import com.tugnw.aistudy.domain.dto.auth.RegisterRequest;
 import com.tugnw.aistudy.domain.entity.Account;
+import com.tugnw.aistudy.domain.entity.PaymentPlan;
+import com.tugnw.aistudy.domain.entity.Subscription;
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
+import com.tugnw.aistudy.domain.enums.ActivityType;
+import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.exception.InvalidTokenException;
 import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.repository.AccountRepository;
+import com.tugnw.aistudy.repository.PaymentPlanRepository;
+import com.tugnw.aistudy.repository.SubscriptionRepository;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.security.JwtTokenProvider;
+import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.AuthService;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -29,6 +37,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final AccountRepository accountRepository;
@@ -36,6 +45,9 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final AccountMapper accountMapper;
+    private final ActivityLogService activityLogService;
+    private final PaymentPlanRepository paymentPlanRepository;
+    private final SubscriptionRepository subscriptionRepository;
 
     @Override
     public AuthResponse register(RegisterRequest request) {
@@ -54,7 +66,19 @@ public class AuthServiceImpl implements AuthService {
                 .lastLoginAt(Instant.now())
                 .build();
 
-        accountRepository.save(account);
+        account = accountRepository.save(account);
+
+        // Create FREE subscription for new user
+        createFreeSubscription(account);
+        log.info("Created FREE subscription for new user: {}", account.getUsername());
+
+        // Log activity for user registration
+        activityLogService.logActivity(
+                account.getId(),
+                account.getUsername(),
+                ActivityType.USER_REGISTER,
+                "User registered a new account"
+        );
 
         // Generate JWT tokens
         Authentication authentication = new UsernamePasswordAuthenticationToken(
@@ -87,6 +111,10 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException("Invalid username or password");
         }
 
+        if (account.getStatus() != AccountStatus.ACTIVE) {
+            throw new InvalidCredentialsException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để biết thêm chi tiết.");
+        }
+
         // Verify password
         if (!passwordEncoder.matches(request.password(), account.getPasswordHash())) {
             throw new InvalidCredentialsException("Invalid username or password");
@@ -115,7 +143,7 @@ public class AuthServiceImpl implements AuthService {
                 response.fullName(),
                 response.role(),
                 accessToken,
-                null, // refreshToken not implemented yet
+                refreshToken,
                 3600000L // 1 hour expiration in ms
         );
     }
@@ -163,5 +191,56 @@ public class AuthServiceImpl implements AuthService {
     public void logout(LogoutRequest request) {
         // Logout logic can be implemented here if needed
         // For JWT, logout is typically client-side (token deletion)
+    }
+
+    private void logTokenIssued(String flow, Account account, String accessToken, String refreshToken) {
+        log.info("AUTH_TOKEN_ISSUED flow={} userId={} username={} accessTokenPresent={} accessTokenLength={} accessTokenPrefix={} refreshTokenPresent={} refreshTokenLength={} refreshTokenPrefix={}",
+                flow,
+                account.getId(),
+                account.getUsername(),
+                accessToken != null && !accessToken.isBlank(),
+                accessToken == null ? 0 : accessToken.length(),
+                tokenPrefix(accessToken),
+                refreshToken != null && !refreshToken.isBlank(),
+                refreshToken == null ? 0 : refreshToken.length(),
+                tokenPrefix(refreshToken));
+    }
+
+    private String tokenPrefix(String token) {
+        if (token == null || token.isBlank()) {
+            return "NONE";
+        }
+        return token.substring(0, Math.min(12, token.length())) + "...";
+    }
+
+    private void createFreeSubscription(Account account) {
+        PaymentPlan freePlan = paymentPlanRepository.findByIsActiveTrue().stream()
+                .filter(plan -> "FREE".equalsIgnoreCase(plan.getName()))
+                .findFirst()
+                .orElse(null);
+
+        if (freePlan == null) {
+            log.warn("FREE plan not found in database — no subscription created for user: {}", account.getUsername());
+            return;
+        }
+
+        Subscription subscription = Subscription.builder()
+                .accountId(account.getId())
+                .plan(freePlan)
+                .status(SubscriptionStatus.ACTIVE)
+                .startDate(Instant.now())
+                .endDate(null)
+                .pricePaid(0L)
+                .storageGbGranted(freePlan.getStorageGb() != null ? freePlan.getStorageGb() : 1.0)
+                .aiQuestionsGranted(freePlan.getAiQuestions() != null ? freePlan.getAiQuestions() : 5)
+                .flashcardLimitGranted(freePlan.getFlashcardLimit() != null ? freePlan.getFlashcardLimit() : 0)
+                .questionLimitGranted(freePlan.getQuestionLimit() != null ? freePlan.getQuestionLimit() : 0)
+                .summaryLimitGranted(freePlan.getSummaryLimit() != null ? freePlan.getSummaryLimit() : 0)
+                .chatLimitGranted(freePlan.getChatLimit() != null ? freePlan.getChatLimit() : 0)
+                .tierGranted(freePlan.getTier() != null ? freePlan.getTier() : 0)
+                .autoRenew(false)
+                .build();
+
+        subscriptionRepository.save(subscription);
     }
 }

@@ -34,10 +34,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             System.out.println("DEBUG: Request path: " + request.getRequestURI());
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 String username = tokenProvider.getUsernameFromJWT(jwt);
+                System.out.println("DEBUG: Username extracted: " + username);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+                if (!userDetails.isEnabled() || !userDetails.isAccountNonLocked()) {
+                    System.out.println("DEBUG: Account is locked or disabled for user: " + username);
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"ACCOUNT_LOCKED\",\"message\":\"Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.\"}");
+                    return;
+                }
 
                 // Add debug logging
                 System.out.println("User Authorities: " + userDetails.getAuthorities());
+                System.out.println("DEBUG: User exists and loaded");
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -55,6 +65,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 System.out.println("DEBUG: Token validation failed");
             }
         } catch (Exception ex) {
+            System.out.println("DEBUG: Exception in JWT filter: " + ex.getMessage());
+            ex.printStackTrace();
             logger.error("Could not set user authentication in security context", ex);
         }
 
