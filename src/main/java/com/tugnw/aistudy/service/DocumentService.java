@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public interface DocumentService {
 
-    DocumentResponse uploadDocument(UUID ownerId, DocumentUploadRequest request);
+    List<DocumentResponse> uploadDocuments(UUID ownerId, DocumentUploadRequest request);
 
     List<DocumentResponse> getDocumentsByOwner(UUID ownerId);
 

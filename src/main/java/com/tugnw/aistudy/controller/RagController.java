@@ -1,48 +1,36 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.rag.RagProcessRequest;
 import com.tugnw.aistudy.service.RagService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.util.Map;
 
 @RestController
-@RequestMapping("/api/rag")
-@CrossOrigin(origins = "*") 
+@RequestMapping("/api/v1/rag")
+@RequiredArgsConstructor
 public class RagController {
 
     private final RagService ragService;
 
-    public RagController(RagService ragService) {
-        this.ragService = ragService;
+    @PostMapping("/process")
+    public ResponseEntity<String> processDocumentPipeline(@RequestBody RagProcessRequest request) {
+        try {
+            // Chạy toàn bộ luồng: Tải -> Trích xuất -> Chunking -> Embedding -> Lưu DB Vector
+            ragService.processAndSaveDocumentPipeline(request.getDocumentId());
+            return ResponseEntity.ok("Xử lý tài liệu và nạp cơ sở dữ liệu Vector RAG thành công!");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Pipeline thất bại: " + e.getMessage());
+        }
     }
 
-    // // Endpoint 1: FE gọi cái này khi bấm nút Upload
-    // @PostMapping("/upload")
-    // public ResponseEntity<?> uploadDocument(
-    //         @RequestParam("file") MultipartFile file,
-    //         @RequestParam("documentId") Long documentId) { 
-    //     try {
-    //         String result = ragService.processAndSaveDocument(file, documentId);
-    //         return ResponseEntity.ok(Map.of("message", result));
-    //     } catch (Exception e) {
-    //         e.printStackTrace();
-    //         return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
-    //     }
-    // }
-
-    // Endpoint 2: FE gọi cái này khi chat
-    @PostMapping("/ask")
-    public ResponseEntity<?> askQuestion(
-            @RequestParam("documentId") Long documentId,
-            @RequestParam("question") String question) {
+    @PostMapping("/chat")
+    public ResponseEntity<com.tugnw.aistudy.domain.dto.rag.RagChatResponse> chatWithFolder(@RequestBody com.tugnw.aistudy.domain.dto.rag.RagChatRequest request) {
         try {
-            String answer = ragService.askQuestion(documentId, question);
-            return ResponseEntity.ok(Map.of("answer", answer));
+            com.tugnw.aistudy.domain.dto.rag.RagChatResponse response = ragService.chatWithFolderContext(request);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(new com.tugnw.aistudy.domain.dto.rag.RagChatResponse("Lỗi hệ thống chat: " + e.getMessage(), java.util.Collections.emptySet()));
         }
     }
 }

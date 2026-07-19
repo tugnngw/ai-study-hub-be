@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,50 +31,47 @@ public class DocumentServiceImpl implements DocumentService {
     private final RagService ragService; // Đã thêm RagService
 
     @Override
-    public DocumentResponse uploadDocument(UUID ownerId, DocumentUploadRequest request) {
-        MultipartFile file = request.getFile();
+    public List<DocumentResponse> uploadDocuments(UUID ownerId, DocumentUploadRequest request) {
+        List<DocumentResponse> responses = new ArrayList<>();
 
-        // Validate file size (max 50MB)
-        long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-        if (file.getSize() > MAX_FILE_SIZE) {
-            throw new RuntimeException("Kích thước file vượt quá giới hạn 50MB");
+        for (MultipartFile file : request.getFiles()) {
+            // Validate file size (max 50MB)
+            long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+            if (file.getSize() > MAX_FILE_SIZE) {
+                throw new RuntimeException("File size exceeds limit (50MB)");
+            }
+
+            // Validate file type
+            String contentType = file.getContentType();
+            boolean allowedType = contentType != null && (
+                contentType.equals("application/pdf") ||
+                contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
+                contentType.equals("text/plain") ||
+                contentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            );
+            if (!allowedType) {
+                throw new RuntimeException("Invalid file type. Only PDF, DOCX, TXT, PPTX are allowed");
+            }
+
+            // Upload file to Cloudinary
+            var uploadResult = cloudinaryService.upload(file);
+
+            Document document = documentMapper.toEntity(request);
+            document.setOwnerId(ownerId);
+            document.setCloudinaryUrl((String) uploadResult.get("secure_url"));
+            document.setPublicId((String) uploadResult.get("public_id"));
+            document.setMimeType(contentType);
+            document.setFileSize(file.getSize());
+            document.setStatus("ready");
+
+            Document savedDocument = documentRepository.save(document);
+
+            // Add to responses
+            responses.add(documentMapper.toResponse(savedDocument));
         }
 
-        // ĐÃ FIX: Khóa chặt định dạng chỉ cho phép PDF để tránh Crash hệ thống AI
-        String contentType = file.getContentType();
-        boolean allowedType = contentType != null && contentType.equals("application/pdf");
-        
-        if (!allowedType) {
-            throw new RuntimeException("Định dạng không hợp lệ. Hệ thống AI hiện tại chỉ hỗ trợ file PDF.");
-        }
-
-        // TODO: Check total user storage (max 1GB)
-
-        // Upload file to Cloudinary
-        var uploadResult = cloudinaryService.upload(file);
-
-        Document document = documentMapper.toEntity(request);
-        document.setOwnerId(ownerId);
-        document.setCloudinaryUrl((String) uploadResult.get("url"));
-        document.setPublicId((String) uploadResult.get("public_id"));
-        document.setMimeType(contentType);
-        document.setFileSize(file.getSize());
-        document.setStatus("processing"); // Trạng thái chờ AI xử lý
-
-        Document savedDocument = documentRepository.save(document);
-
-        // KÍCH HOẠT AI RAG
-        try {
-            ragService.processAndSaveDocument(file, savedDocument.getId());
-            // Cập nhật thành active nếu AI đọc và băm nhỏ thành công
-            savedDocument.setStatus("active");
-            documentRepository.save(savedDocument);
-        } catch (Exception e) {
-            // Bắt lỗi nếu file PDF bị hỏng hoặc lỗi gọi Gemini API
-            throw new RuntimeException("Lỗi trong quá trình AI xử lý tài liệu: " + e.getMessage());
-        }
-
-        return documentMapper.toResponse(savedDocument);
+        // Return all responses
+        return responses;
     }
 
     @Override

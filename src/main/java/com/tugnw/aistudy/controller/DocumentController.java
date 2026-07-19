@@ -10,8 +10,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,24 +33,34 @@ public class DocumentController {
      */
     @PostMapping(consumes = {"multipart/form-data"})
     @io.swagger.v3.oas.annotations.Operation(
-            summary = "Upload a document",
-            description = "Upload a document file with metadata. Supported file types: PDF, DOCX, TXT, PPTX. Max size: 50MB"
+            summary = "Upload one or more documents",
+            description = "Upload document files with metadata. Supported file types: PDF, DOCX, TXT, PPTX. Max size: 50MB each. You can select multiple files at once."
     )
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            description = "Document upload request with file and metadata",
-            required = true,
-            content = @io.swagger.v3.oas.annotations.media.Content(
-                    mediaType = "multipart/form-data",
-                    schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = DocumentUploadRequest.class)
-            )
-    )
-    public ResponseEntity<DocumentResponse> uploadDocument(
-            @ModelAttribute @Valid DocumentUploadRequest request,
+    public ResponseEntity<List<DocumentResponse>> uploadDocument(
+            @Parameter(description = "Files to upload (multiple files allowed)", required = true, 
+                      content = @Content(mediaType = "multipart/form-data", 
+                      array = @ArraySchema(schema = @Schema(type = "string", format = "binary"))))
+            @RequestParam("files") List<MultipartFile> files,
+            @Parameter(description = "Title for all files")
+            @RequestParam(value = "title", required = false) String title,
+            @Parameter(description = "Description")
+            @RequestParam(value = "description", required = false) String description,
+            @Parameter(description = "Folder ID")
+            @RequestParam(value = "folderId", required = false) UUID folderId,
+            @Parameter(description = "Subject ID")
+            @RequestParam(value = "subjectId", required = false) Long subjectId,
             Authentication authentication) {
 
+        DocumentUploadRequest request = new DocumentUploadRequest();
+        request.setFiles(files);
+        if (title != null) request.setTitle(title);
+        if (description != null) request.setDescription(description);
+        request.setFolderId(folderId);
+        request.setSubjectId(subjectId);
+
         UUID ownerId = getCurrentUserId(authentication);
-        DocumentResponse response = documentService.uploadDocument(ownerId, request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        List<DocumentResponse> responses = documentService.uploadDocuments(ownerId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
     /**

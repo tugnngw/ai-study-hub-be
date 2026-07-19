@@ -1,8 +1,15 @@
 package com.tugnw.aistudy.service;
+import com.tugnw.aistudy.domain.dto.rag.RagChatRequest;
+import com.tugnw.aistudy.domain.dto.rag.RagChatResponse;
 
-import org.springframework.web.multipart.MultipartFile;
 
 public interface RagService {
-    String processAndSaveDocument(MultipartFile file, Long id) throws Exception;
-    String askQuestion(Long id, String question) throws Exception;
+    // Hàm từ Giai đoạn 1
+    String extractTextFromDocument(Long documentId) throws Exception;
+    
+    // Hàm mới cho Giai đoạn 2
+    void processAndSaveDocumentPipeline(Long documentId) throws Exception;
+
+    // Hàm mới cho Giai đoạn 3
+    RagChatResponse chatWithFolderContext(RagChatRequest chatRequest) throws Exception;
 }
