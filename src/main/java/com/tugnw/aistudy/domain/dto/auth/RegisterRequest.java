@@ -21,6 +21,11 @@ public record RegisterRequest(
         @NotBlank(message = "Full name is required")
         @Size(max = 30, message = "Full name must not exceed 30 characters")
         @Schema(description = "Full name", example = "John Doe", maxLength = 30)
-        String fullName
+        String fullName,
+
+        @Size(max = 100, message = "Email must not exceed 100 characters")
+        @Pattern(regexp = "^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$", message = "Email must be valid")
+        @Schema(description = "Email for verification", example = "john@example.com")
+        String email
 ) {
 }

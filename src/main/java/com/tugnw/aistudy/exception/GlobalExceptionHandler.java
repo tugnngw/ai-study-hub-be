@@ -43,6 +43,24 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEmailNotVerified(EmailNotVerifiedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(TokenExpiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTokenExpired(TokenExpiredException ex) {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(TokenAlreadyUsedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTokenAlreadyUsed(TokenAlreadyUsedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)

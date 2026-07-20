@@ -17,6 +17,7 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
     Optional<Account> findByAuthProviderAndProviderIdAndDeletedAtIsNull(AuthProvider authProvider, String providerId);
     Optional<Account> findByEmailIgnoreCaseAndDeletedAtIsNull(String email);
+    Optional<Account> findByVerificationToken(String verificationToken);
     boolean existsByUsernameIgnoreCaseAndDeletedAtIsNull(String username);
     boolean existsByEmailIgnoreCaseAndDeletedAtIsNull(String email);
     

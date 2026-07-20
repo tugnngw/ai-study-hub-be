@@ -29,6 +29,9 @@ public record AuthResponse(
         String refreshToken,
 
         @Schema(description = "Token expiration in milliseconds", example = "900000")
-        Long expiresIn
+        Long expiresIn,
+
+        @Schema(description = "Whether email has been verified")
+        boolean emailVerified
 ) {
 }

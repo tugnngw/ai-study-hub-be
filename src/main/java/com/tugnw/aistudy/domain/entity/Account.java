@@ -92,6 +92,19 @@ public class Account implements UserDetails {
     @Column(name = "storage_gb", nullable = false)
     private Double storageGb = 1.0D;
 
+    @Builder.Default
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
+    @Column(name = "verification_token")
+    private String verificationToken;
+
+    @Column(name = "verification_token_expires_at")
+    private Instant verificationTokenExpiresAt;
+
+    @Column(name = "verification_token_verified_at")
+    private Instant verificationTokenVerifiedAt;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));

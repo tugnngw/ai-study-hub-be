@@ -49,4 +49,7 @@ public class AccountMeResponse {
 
     @Schema(description = "Last update timestamp")
     private Instant updatedAt;
+
+    @Schema(description = "Whether email has been verified")
+    private boolean emailVerified;
 }
