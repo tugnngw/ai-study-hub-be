@@ -27,8 +27,6 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Transactional
-@Slf4j
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private final AccountRepository accountRepository;
