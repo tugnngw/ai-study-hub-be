@@ -38,6 +38,9 @@ public class AccountMeResponse {
     @Schema(description = "Account status", example = "ACTIVE")
     private AccountStatus status;
 
+    @Schema(description = "Email verified", example = "false")
+    private boolean emailVerified;
+
     @Schema(description = "Subscription plan", example = "FREE")
     private Plan plan;
 

@@ -22,9 +22,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.UUID;
 
-
-@Transactional
-@Slf4j
 @Component
 @RequiredArgsConstructor
 @Transactional
@@ -111,12 +108,12 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 .orElseGet(() -> accountRepository.save(Account.builder()
                         .username(generateUniqueUsername(email))
                         .email(email)
+                        .emailVerified(true)
                         .fullName(fullName)
                         .avatarUrl(avatarUrl)
                         .authProvider(AuthProvider.GOOGLE)
                         .providerId(providerId)
                         .passwordHash(UUID.randomUUID().toString())
-                        .passwordHash(UUID.randomUUID().toString()) // Password hash is not necessary for OAuth accounts
                         // Set default role and status if creating a new user
                         .role(com.tugnw.aistudy.domain.enums.AccountRole.USER) // Assuming default role is USER
                         .status(com.tugnw.aistudy.domain.enums.AccountStatus.ACTIVE) // Assuming default status is ACTIVE
@@ -128,6 +125,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         account.setAuthProvider(AuthProvider.GOOGLE); // Ensure auth provider is set
         account.setProviderId(providerId);
         account.setEmail(email);
+        account.setEmailVerified(true);
         // Only update email, fullName, avatarUrl if they are not set or blank
         account.setFullName(account.getFullName() == null || account.getFullName().isBlank() ? fullName : account.getFullName());
         account.setAvatarUrl(account.getAvatarUrl() == null || account.getAvatarUrl().isBlank() ? avatar : account.getAvatarUrl());

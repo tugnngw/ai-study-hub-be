@@ -3,7 +3,6 @@ package com.tugnw.aistudy.service.impl;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.security.CustomUserDetails;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -12,7 +11,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class CustomUserDetailsServiceImpl implements UserDetailsService {
 
     private final AccountRepository accountRepository;

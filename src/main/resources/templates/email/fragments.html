@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <th:block th:fragment="styles">
+        <meta charset="UTF-8" />
+        <style type="text/css">
+            /* Base reset */
+            body, table, td, p, a, li, blockquote {
+                -webkit-text-size-adjust: 100%;
+                -ms-text-size-adjust: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            table, td {
+                mso-table-lspace: 0pt;
+                mso-table-rspace: 0pt;
+            }
+            img {
+                -ms-interpolation-mode: bicubic;
+                border: 0;
+                height: auto;
+                line-height: 100%;
+                outline: none;
+                text-decoration: none;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                font-size: 16px;
+                line-height: 1.6;
+                color: #333333;
+                background-color: #f4f4f4;
+            }
+            .email-wrapper {
+                width: 100%;
+                table-layout: fixed;
+                background-color: #f4f4f4;
+                padding: 20px 0;
+            }
+            .email-container {
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: #ffffff;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            }
+            .email-header {
+                background-color: #4f46e5;
+                padding: 32px 24px;
+                text-align: center;
+            }
+            .email-header h1 {
+                color: #ffffff;
+                font-size: 24px;
+                font-weight: 600;
+                margin: 0;
+            }
+            .email-body {
+                padding: 32px 24px;
+            }
+            .email-footer {
+                padding: 20px 24px;
+                text-align: center;
+                font-size: 13px;
+                color: #999999;
+                border-top: 1px solid #eeeeee;
+            }
+            .email-button {
+                display: inline-block;
+                padding: 14px 32px;
+                background-color: #4f46e5;
+                color: #ffffff !important;
+                text-decoration: none;
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: 500;
+                margin: 16px 0;
+            }
+            .email-button:hover {
+                background-color: #4338ca;
+            }
+            .text-center { text-align: center; }
+            .mt-16 { margin-top: 16px; }
+            .mb-16 { margin-bottom: 16px; }
+            .text-muted { color: #666666; font-size: 14px; }
+        </style>
+    </th:block>
+
+    <!-- Header fragment: expects `title` context variable -->
+    <th:block th:fragment="header">
+        <div class="email-header">
+            <h1 th:text="${title}">AI Study Hub</h1>
+        </div>
+    </th:block>
+
+    <!-- Button fragment: expects `buttonUrl` and `buttonText` context variables -->
+    <th:block th:fragment="button">
+        <div class="text-center" style="margin: 24px 0;">
+            <a th:href="${buttonUrl}" class="email-button" th:text="${buttonText}">Click here</a>
+        </div>
+    </th:block>
+
+    <!-- Footer fragment -->
+    <th:block th:fragment="footer">
+        <div class="email-footer">
+            <p th:text="#{email.footer}">© AI Study Hub. All rights reserved.</p>
+            <p style="margin-top: 4px;">If you did not request this email, please ignore it.</p>
+        </div>
+    </th:block>
+</head>
+<body>
+</body>
+</html>

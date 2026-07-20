@@ -3,18 +3,20 @@ package com.tugnw.aistudy.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
-import javax.crypto.SecretKey;
 
+import javax.crypto.SecretKey;
 import java.security.Key;
 import java.util.Date;
+import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class JwtTokenProvider {
 
     @Value("${app.jwt.secret}")
@@ -30,7 +32,7 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        this.key = Keys.hmacShaKeyFor(java.util.Base64.getDecoder().decode(jwtSecret)); // Ensure proper key initialization
+        this.key = Keys.hmacShaKeyFor(java.util.Base64.getDecoder().decode(jwtSecret));
     }
 
     public String generateToken(Authentication authentication) {
@@ -38,15 +40,17 @@ public class JwtTokenProvider {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
 
-        String token = Jwts.builder()
-                .setSubject(userDetails.getUsername())
-                .claim("role", userDetails.getAuthorities().stream().map(grantedAuthority -> grantedAuthority.getAuthority()).collect(java.util.stream.Collectors.joining(",")))
-                .setIssuedAt(new Date())
-                .setExpiration(expiryDate)
-                .signWith(key, SignatureAlgorithm.HS256)
+        String roles = userDetails.getAuthorities().stream()
+                .map(Object::toString)
+                .collect(Collectors.joining(","));
+
+        return Jwts.builder()
+                .subject(userDetails.getUsername())
+                .claim("role", roles)
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(key)
                 .compact();
-        System.out.println("DEBUG JwtTokenProvider: Generated token length: " + token.length());
-        return token;
     }
 
     public String generateRefreshToken(Authentication authentication) {
@@ -55,11 +59,11 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtRefreshExpirationInMs);
 
         return Jwts.builder()
-                .setSubject(userDetails.getUsername())
+                .subject(userDetails.getUsername())
                 .claim("tokenType", "refresh")
-                .setIssuedAt(now)
-                .setExpiration(expiryDate)
-                .signWith(key, SignatureAlgorithm.HS256)
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(key)
                 .compact();
     }
 
@@ -83,19 +87,18 @@ public class JwtTokenProvider {
                     .verifyWith((SecretKey) key)
                     .build()
                     .parseSignedClaims(token);
-
             return true;
         } catch (io.jsonwebtoken.security.SignatureException e) {
-            System.out.println("DEBUG JWT: Invalid signature - " + e.getMessage());
+            log.warn("JWT invalid signature");
             return false;
         } catch (io.jsonwebtoken.ExpiredJwtException e) {
-            System.out.println("DEBUG JWT: Token expired - " + e.getMessage());
+            log.debug("JWT expired");
             return false;
         } catch (io.jsonwebtoken.MalformedJwtException e) {
-            System.out.println("DEBUG JWT: Malformed token - " + e.getMessage());
+            log.warn("JWT malformed");
             return false;
         } catch (JwtException | IllegalArgumentException e) {
-            System.out.println("DEBUG JWT: Validation failed - " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            log.warn("JWT validation failed: {}", e.getClass().getSimpleName());
             return false;
         }
     }

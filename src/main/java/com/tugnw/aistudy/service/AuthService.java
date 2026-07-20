@@ -1,16 +1,15 @@
 package com.tugnw.aistudy.service;
 
-import com.nimbusds.openid.connect.sdk.LogoutRequest;
-import com.tugnw.aistudy.domain.dto.auth.AuthResponse;
-import com.tugnw.aistudy.domain.dto.auth.LoginRequest;
-import com.tugnw.aistudy.domain.dto.auth.RefreshTokenRequest;
-import com.tugnw.aistudy.domain.dto.auth.RegisterRequest;
+import com.tugnw.aistudy.domain.dto.auth.*;
 
 public interface AuthService {
     AuthResponse register(RegisterRequest request);
 
     AuthResponse login(LoginRequest request);
 
-    void logout(LogoutRequest request);
+    void logout();
+
     AuthResponse refresh(RefreshTokenRequest request);
+
+    void updateProfile(String username, UpdateProfileRequest request);
 }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head th:replace="~{email/fragments :: styles}">
+    <meta charset="UTF-8" />
+</head>
+<body>
+<table class="email-wrapper" role="presentation" cellpadding="0" cellspacing="0">
+    <tr>
+        <td align="center">
+            <table class="email-container" role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td>
+                        <th:block th:replace="~{email/fragments :: header}" />
+                    </td>
+                </tr>
+                <tr>
+                    <td class="email-body">
+                        <th:block layout:fragment="content">
+                            <!-- Extending templates fill this area -->
+                        </th:block>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <th:block th:replace="~{email/fragments :: footer}" />
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

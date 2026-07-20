@@ -34,7 +34,7 @@ public class Account implements UserDetails {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
-    @Column(unique = true, length = 40)
+    @Column(unique = true, length = 255)
     private String email;
 
     @Column(name = "password_hash", nullable = false, length = 255)
@@ -82,6 +82,10 @@ public class Account implements UserDetails {
     @Builder.Default
     @Column(name = "version", nullable = false)
     private Long version = 0L;
+
+    @Builder.Default
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

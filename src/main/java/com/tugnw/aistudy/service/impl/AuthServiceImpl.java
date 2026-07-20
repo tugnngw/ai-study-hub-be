@@ -1,10 +1,6 @@
 package com.tugnw.aistudy.service.impl;
 
-import com.nimbusds.openid.connect.sdk.LogoutRequest;
-import com.tugnw.aistudy.domain.dto.auth.AuthResponse;
-import com.tugnw.aistudy.domain.dto.auth.LoginRequest;
-import com.tugnw.aistudy.domain.dto.auth.RefreshTokenRequest;
-import com.tugnw.aistudy.domain.dto.auth.RegisterRequest;
+import com.tugnw.aistudy.domain.dto.auth.*;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.Subscription;
@@ -14,55 +10,75 @@ import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.exception.InvalidTokenException;
+import com.tugnw.aistudy.exception.ResourceNotFoundException;
+import com.tugnw.aistudy.exception.EmailNotVerifiedException;
 import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.PaymentPlanRepository;
 import com.tugnw.aistudy.repository.SubscriptionRepository;
+import com.tugnw.aistudy.repository.VerificationTokenRepository;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.security.JwtTokenProvider;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.AuthService;
+import com.tugnw.aistudy.service.VerificationService;
+import com.tugnw.aistudy.config.VerificationProperties;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.UUID;
+import java.util.Locale;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
 @Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final AccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final AccountMapper accountMapper;
     private final ActivityLogService activityLogService;
     private final PaymentPlanRepository paymentPlanRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final VerificationService verificationService;
+    private final VerificationProperties verificationProperties;
+    private final VerificationTokenRepository verificationTokenRepository;
 
     @Override
+    @Transactional
     public AuthResponse register(RegisterRequest request) {
         // Check if username already exists
         if (accountRepository.existsByUsernameIgnoreCaseAndDeletedAtIsNull(request.username())) {
             throw new InvalidCredentialsException("Username already exists");
         }
 
+        // Normalize email if provided
+        String normalizedEmail = null;
+        if (request.email() != null && !request.email().isBlank()) {
+            normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
+
+            // Check if email already exists
+            if (accountRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(normalizedEmail)) {
+                throw new InvalidCredentialsException("Email already exists");
+            }
+        }
+
         // Create new account
         Account account = Account.builder()
                 .username(request.username())
+                .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .fullName(request.fullName())
                 .role(AccountRole.USER)
                 .status(AccountStatus.ACTIVE)
+                .emailVerified(false)
                 .lastLoginAt(Instant.now())
                 .build();
 
@@ -80,29 +96,21 @@ public class AuthServiceImpl implements AuthService {
                 "User registered a new account"
         );
 
-        // Generate JWT tokens
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-                new CustomUserDetails(account),
-                null,
-                new CustomUserDetails(account).getAuthorities()
-        );
+        if (normalizedEmail != null) {
+            // Email provided → user must verify before logging in
+            if (verificationProperties.isAutoSendOnRegister()) {
+                verificationService.sendVerificationEmail(normalizedEmail);
+            }
+            log.info("Email verification required for account {}", account.getId());
+            return buildAuthResponse(account, null, null);
+        }
 
-        String accessToken = jwtTokenProvider.generateToken(authentication);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
-        logTokenIssued("register", account, accessToken, refreshToken);
+        // No email → auto-login immediately
+        String accessToken = jwtTokenProvider.generateToken(toAuthentication(account));
+        String refreshToken = jwtTokenProvider.generateRefreshToken(toAuthentication(account));
 
-        // Map account to response and add tokens
-        AuthResponse response = accountMapper.toAuthResponse(account);
-        return new AuthResponse(
-                response.userId(),
-                response.username(),
-                response.email(),
-                response.fullName(),
-                response.role(),
-                accessToken,
-                refreshToken,
-                3600000L // 1 hour expiration in ms
-        );
+        log.info("AUTH_TOKEN_ISSUED flow=register userId={} username={}", account.getId(), account.getUsername());
+        return buildAuthResponse(account, accessToken, refreshToken);
     }
 
     @Override
@@ -121,36 +129,25 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException("Invalid username or password");
         }
 
+        // Verify email if account has an email
+        if (account.getEmail() != null && !account.isEmailVerified()) {
+            throw new EmailNotVerifiedException("Email chưa được xác thực. Vui lòng kiểm tra hộp thư hoặc yêu cầu gửi lại email xác thực.");
+        }
+
         // Update last login time
         account.setLastLoginAt(Instant.now());
         accountRepository.save(account);
 
         // Generate JWT tokens
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-                new CustomUserDetails(account),
-                null,
-                new CustomUserDetails(account).getAuthorities()
-        );
+        String accessToken = jwtTokenProvider.generateToken(toAuthentication(account));
+        String refreshToken = jwtTokenProvider.generateRefreshToken(toAuthentication(account));
 
-        String accessToken = jwtTokenProvider.generateToken(authentication);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
-        logTokenIssued("login", account, accessToken, refreshToken);
-
-        // Map account to response and add tokens
-        AuthResponse response = accountMapper.toAuthResponse(account);
-        return new AuthResponse(
-                response.userId(),
-                response.username(),
-                response.email(),
-                response.fullName(),
-                response.role(),
-                accessToken,
-                refreshToken,
-                3600000L // 1 hour expiration in ms
-        );
+        log.info("AUTH_TOKEN_ISSUED flow=login userId={} username={}", account.getId(), account.getUsername());
+        return buildAuthResponse(account, accessToken, refreshToken);
     }
 
     @Override
+    @Transactional
     public AuthResponse refresh(RefreshTokenRequest request) {
         String refreshToken = request.refreshToken();
 
@@ -169,55 +166,99 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidTokenException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để biết thêm chi tiết.");
         }
 
-        // Create authentication from the account
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-                new CustomUserDetails(account),
-                null,
-                new CustomUserDetails(account).getAuthorities()
-        );
-
         // Generate new tokens
-        String newAccessToken = jwtTokenProvider.generateToken(authentication);
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(authentication);
-        logTokenIssued("refresh", account, newAccessToken, newRefreshToken);
+        String newAccessToken = jwtTokenProvider.generateToken(toAuthentication(account));
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(toAuthentication(account));
 
-        AuthResponse response = accountMapper.toAuthResponse(account);
-        return new AuthResponse(
-                response.userId(),
-                response.username(),
-                response.email(),
-                response.fullName(),
-                response.role(),
-                newAccessToken,
-                newRefreshToken,
-                (long) jwtTokenProvider.getJwtExpirationInMs()
-        );
+        log.info("AUTH_TOKEN_ISSUED flow=refresh userId={} username={}", account.getId(), account.getUsername());
+        return buildAuthResponse(account, newAccessToken, newRefreshToken);
     }
 
     @Override
-    public void logout(LogoutRequest request) {
-        // Logout logic can be implemented here if needed
-        // For JWT, logout is typically client-side (token deletion)
+    public void logout() {
+        // JWT is stateless — logout is handled client-side by discarding the token.
+        log.debug("Logout requested (no-op, stateless JWT)");
     }
 
-    private void logTokenIssued(String flow, Account account, String accessToken, String refreshToken) {
-        log.info("AUTH_TOKEN_ISSUED flow={} userId={} username={} accessTokenPresent={} accessTokenLength={} accessTokenPrefix={} refreshTokenPresent={} refreshTokenLength={} refreshTokenPrefix={}",
-                flow,
-                account.getId(),
-                account.getUsername(),
-                accessToken != null && !accessToken.isBlank(),
-                accessToken == null ? 0 : accessToken.length(),
-                tokenPrefix(accessToken),
-                refreshToken != null && !refreshToken.isBlank(),
-                refreshToken == null ? 0 : refreshToken.length(),
-                tokenPrefix(refreshToken));
-    }
-
-    private String tokenPrefix(String token) {
-        if (token == null || token.isBlank()) {
-            return "NONE";
+    @Override
+    @Transactional
+    public void updateProfile(String username, UpdateProfileRequest request) {
+        Account account = accountRepository.findByUsername(username);
+        if (account == null) {
+            throw new ResourceNotFoundException("Account not found");
         }
-        return token.substring(0, Math.min(12, token.length())) + "...";
+
+        // -- Full name --
+        if (request.fullName() != null) {
+            account.setFullName(request.fullName().trim());
+        }
+
+        // -- Email --
+        if (request.email() != null) {
+            if (request.email().isBlank()) {
+                // Email explicitly removed
+                account.setEmail(null);
+                account.setEmailVerified(false);
+                accountRepository.save(account);
+                verificationTokenRepository.deleteByAccount(account);
+            } else {
+                String newEmail = request.email().trim().toLowerCase(Locale.ROOT);
+
+                // Duplicate check — exclude self by ID
+                Optional<Account> existingByEmail = accountRepository
+                        .findByEmailIgnoreCaseAndDeletedAtIsNull(newEmail);
+                if (existingByEmail.isPresent() && !existingByEmail.get().getId().equals(account.getId())) {
+                    throw new InvalidCredentialsException("Email already in use");
+                }
+
+                if (newEmail.equals(account.getEmail())) {
+                    log.info("Email unchanged for account {}", account.getId());
+                } else {
+                    account.setEmail(newEmail);
+                    account.setEmailVerified(false);
+
+                    // Persist before performing side effects
+                    accountRepository.save(account);
+
+                    // Delete old verification tokens
+                    verificationTokenRepository.deleteByAccount(account);
+
+                    // sendVerificationEmail internally creates a new token
+                    if (verificationProperties.isAutoSendOnRegister()) {
+                        verificationService.sendVerificationEmail(newEmail);
+                    }
+                }
+            }
+        }
+
+        accountRepository.save(account);
+        log.info("Profile updated for account {}", account.getId());
+    }
+
+    /**
+     * Build a {@link UsernamePasswordAuthenticationToken} from an account.
+     */
+    private Authentication toAuthentication(Account account) {
+        CustomUserDetails principal = new CustomUserDetails(account);
+        return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+    }
+
+    /**
+     * Build an {@link AuthResponse} from account and tokens.
+     */
+    private AuthResponse buildAuthResponse(Account account, String accessToken, String refreshToken) {
+        AuthResponse mapped = accountMapper.toAuthResponse(account);
+        return new AuthResponse(
+                mapped.userId(),
+                mapped.username(),
+                mapped.email(),
+                mapped.fullName(),
+                mapped.role(),
+                account.isEmailVerified(),
+                accessToken,
+                refreshToken,
+                (long) jwtTokenProvider.getJwtExpirationInMs()
+        );
     }
 
     private void createFreeSubscription(Account account) {

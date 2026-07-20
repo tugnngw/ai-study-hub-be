@@ -22,6 +22,9 @@ public record AuthResponse(
         @Schema(description = "Account role", example = "USER")
         AccountRole role,
 
+        @Schema(description = "Email verified", example = "false")
+        boolean emailVerified,
+
         @Schema(description = "JWT access token")
         String accessToken,
 

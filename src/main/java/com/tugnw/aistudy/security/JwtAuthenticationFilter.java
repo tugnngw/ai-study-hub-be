@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.flywaydb.core.internal.util.StringUtils;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,6 +19,7 @@ import java.io.IOException;
 
 @Component
 @AllArgsConstructor
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
@@ -30,27 +32,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             String jwt = getJwtFromRequest(request);
-            System.out.println("DEBUG: Token received: " + (jwt != null ? "YES (length: " + jwt.length() + ")" : "NO"));
-            System.out.println("DEBUG: Request path: " + request.getRequestURI());
-            System.out.println("DEBUG: Request method: " + request.getMethod());
-            System.out.println("DEBUG: Full Authorization header: " + request.getHeader("Authorization"));
-            
+            log.debug("Request: {} {} tokenPresent={}", request.getMethod(), request.getRequestURI(), jwt != null);
+
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 String username = tokenProvider.getUsernameFromJWT(jwt);
-                System.out.println("DEBUG: Username extracted: " + username);
+                log.debug("Authenticating user: {}", username);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
                 if (!userDetails.isEnabled() || !userDetails.isAccountNonLocked()) {
-                    System.out.println("DEBUG: Account is locked or disabled for user: " + username);
+                    log.warn("Account locked/disabled: {}", username);
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.setContentType("application/json");
                     response.getWriter().write("{\"error\":\"ACCOUNT_LOCKED\",\"message\":\"Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.\"}");
                     return;
                 }
 
-                // Add debug logging
-                System.out.println("User Authorities: " + userDetails.getAuthorities());
-                System.out.println("DEBUG: User exists and loaded");
+                log.debug("User authorities: {}", userDetails.getAuthorities());
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -63,16 +60,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new WebAuthenticationDetailsSource().buildDetails(request)
                 );
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-                System.out.println("DEBUG: Authentication successful for user: " + username);
+                log.debug("Authentication successful: {}", username);
             } else if (StringUtils.hasText(jwt)) {
-                System.out.println("DEBUG: Token validation failed");
-            } else {
-                System.out.println("DEBUG: No JWT token found");
+                log.warn("JWT validation failed for request: {}", request.getRequestURI());
             }
         } catch (Exception ex) {
-            System.out.println("DEBUG: Exception in JWT filter: " + ex.getMessage());
-            ex.printStackTrace();
-            logger.error("Could not set user authentication in security context", ex);
+            log.error("Could not set user authentication in security context", ex);
         }
 
         filterChain.doFilter(request, response);
