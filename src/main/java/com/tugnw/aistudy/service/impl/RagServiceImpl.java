@@ -11,6 +11,7 @@ import com.tugnw.aistudy.repository.ChatMessageRepository;
 import com.tugnw.aistudy.repository.ChatSessionRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.DocumentChunkRepository;
+import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.RagService;
 import com.tugnw.aistudy.service.RagStatusService;
@@ -52,6 +53,7 @@ public class RagServiceImpl implements RagService {
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
     private final QuotaService quotaService;
+    private final DocumentService documentService;
     private final RagStatusService ragStatusService;
 
     private final Tika tika = new Tika();
@@ -86,12 +88,8 @@ public class RagServiceImpl implements RagService {
     @Override
     @Transactional(readOnly = true)
     public String extractTextFromDocument(UUID documentId, UUID requesterId) throws Exception {
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
-                .orElseThrow(() -> new RuntimeException("Tài liệu không tồn tại hoặc đã bị xóa."));
-
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new AccessDeniedException("You do not have permission to access this document");
-        }
+        // Use centralized access check — AI operations require READY status
+        Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
 
         String fileUrl = document.getCloudinaryUrl();
         if (fileUrl == null || fileUrl.isBlank()) {
@@ -131,16 +129,7 @@ public class RagServiceImpl implements RagService {
         log.info("[STEP0] ENTER pipeline documentId={} thread={}", documentId, Thread.currentThread().getName());
         Instant start = Instant.now();
 
-        Document doc = documentRepository.findByIdAndDeletedAtIsNull(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
-
-        log.info("[STEP1] Document loaded documentId={} status={} aiStatus={} ownerId={} chunkCount={}",
-                documentId, doc.getStatus(), doc.getAiStatus(), doc.getOwnerId(),
-                chunkRepository.countByDocumentId(documentId));
-
-        if (!isAdmin() && !doc.getOwnerId().equals(requesterId)) {
-            throw new AccessDeniedException("You do not have permission to process this document");
-        }
+        Document doc = documentService.getAccessibleDocument(documentId, requesterId, true);
 
         long chunkCount = chunkRepository.countByDocumentId(documentId);
         if (chunkCount > 0 && doc.getAiStatus() == AiProcessingStatus.COMPLETED) {
@@ -256,18 +245,16 @@ public class RagServiceImpl implements RagService {
     @Override
     @Transactional(readOnly = true)
     public String getDocumentProcessingStatus(UUID documentId, UUID requesterId) {
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId).orElse(null);
-        if (document != null) {
-            if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-                throw new RuntimeException("You do not have permission to view this document");
-            }
+        try {
+            Document document = documentService.getAccessibleDocument(documentId, requesterId, false);
             String aiStatus = document.getAiStatus() != null ? document.getAiStatus().name() : "NOT_STARTED";
             log.info("[STATUS {}] returning aiStatus={} (document.status={})",
                     documentId, aiStatus, document.getStatus());
             return aiStatus;
+        } catch (Exception e) {
+            log.warn("[STATUS {}] Access denied or not found", documentId);
+            return "not_found";
         }
-        log.warn("[STATUS {}] Document not found", documentId);
-        return "not_found";
     }
 
     private List<Double> getEmbeddingFromGemini(String text) {
@@ -356,14 +343,9 @@ public class RagServiceImpl implements RagService {
     @Override
     public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) {
         UUID docId = chatRequest.getDocumentId();
+        // Verify document ownership and approval status
+        Document document = documentService.getAccessibleDocument(docId, requesterId, true);
         log.info("[CHAT] Document {}: {}", docId, truncate(chatRequest.getQuestion(), 80));
-
-        // Verify document ownership
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(docId)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new AccessDeniedException("You do not have permission to access this document");
-        }
 
         // Embed question
         List<Double> queryVector = getEmbeddingFromGemini(chatRequest.getQuestion());

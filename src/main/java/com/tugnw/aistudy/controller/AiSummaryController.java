@@ -4,7 +4,7 @@ import com.tugnw.aistudy.domain.dto.ai.SummaryRequest;
 import com.tugnw.aistudy.domain.dto.ai.SummaryResponse;
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.entity.Document;
-import com.tugnw.aistudy.repository.DocumentRepository;
+import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,7 +29,7 @@ import java.util.UUID;
 public class AiSummaryController {
 
     private final KnowledgePreparationService knowledgePreparationService;
-    private final DocumentRepository documentRepository;
+    private final DocumentService documentService;
 
     @PostMapping("/summary")
     @Operation(summary = "Generate or regenerate AI summary", description = "Generate summary for a document. force=true regenerates and overwrites cache.")
@@ -39,12 +39,7 @@ public class AiSummaryController {
 
         UUID requesterId = getCurrentUserId(authentication);
 
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(request.getDocumentId())
-                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
-
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new AccessDeniedException("You do not have permission to access this document");
-        }
+        Document document = documentService.getAccessibleDocument(request.getDocumentId(), requesterId, true);
 
         String mergedMarkdown = knowledgePreparationService.prepareKnowledge(List.of(document), request.isForce());
 
@@ -62,12 +57,7 @@ public class AiSummaryController {
 
         UUID requesterId = getCurrentUserId(authentication);
 
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
-
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new AccessDeniedException("You do not have permission to access this document");
-        }
+        Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
 
         if (document.getSummary() == null || document.getSummary().trim().isEmpty()) {
             return ResponseEntity.ok(ApiResponse.success(

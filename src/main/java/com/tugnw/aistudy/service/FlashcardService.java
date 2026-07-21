@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.service;
 
+import com.tugnw.aistudy.domain.dto.flashcard.FlashcardGenerateResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.FlashcardResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.GenerateFlashcardsRequest;
 
@@ -8,7 +9,7 @@ import java.util.UUID;
 
 public interface FlashcardService {
 
-    List<FlashcardResponse> generateFlashcards(UUID documentId, UUID requesterId, GenerateFlashcardsRequest request) throws Exception;
+    FlashcardGenerateResponse generateFlashcards(UUID documentId, UUID requesterId, GenerateFlashcardsRequest request) throws Exception;
 
     List<FlashcardResponse> getFlashcardsByDocument(UUID documentId, UUID requesterId);
 }

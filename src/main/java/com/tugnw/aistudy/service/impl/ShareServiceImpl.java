@@ -12,6 +12,7 @@ import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.repository.ShareRepository;
+import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.ShareService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +33,7 @@ public class ShareServiceImpl implements ShareService {
     private final AccountRepository accountRepository;
     private final FolderRepository folderRepository;
     private final DocumentRepository documentRepository;
+    private final DocumentService documentService;
 
     @Value("${app.frontend-url:http://localhost:5173}")
     private String frontendUrl;
@@ -100,12 +102,8 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     public ShareResponse shareDocument(ShareRequest request, UUID ownerId) {
-        Document document = documentRepository.findByIdAndOwnerIdAndDeletedAtIsNull(request.getDocumentId(), ownerId)
-                .orElseThrow(() -> new IllegalArgumentException("Document not found or you don't have permission"));
-
-        if ("REJECT".equalsIgnoreCase(document.getStatus())) {
-            throw new IllegalArgumentException("Tài liệu bị từ chối duyệt, không thể chia sẻ");
-        }
+        // Only READY documents can be shared
+        Document document = documentService.getAccessibleDocument(request.getDocumentId(), ownerId, true);
 
         if ((request.getEmail() == null || request.getEmail().isBlank()) &&
                 (request.getUsername() == null || request.getUsername().isBlank())) {
@@ -398,6 +396,10 @@ public class ShareServiceImpl implements ShareService {
         if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(Instant.now())) {
             throw new IllegalArgumentException("This share has expired");
         }
+        // Only READY documents are accessible via public share
+        if (share.getDocument() != null && !"READY".equalsIgnoreCase(share.getDocument().getStatus())) {
+            throw new IllegalArgumentException("Tài liệu chưa được phê duyệt.");
+        }
         return mapToResponse(share);
     }
 
@@ -418,6 +420,9 @@ public class ShareServiceImpl implements ShareService {
             throw new IllegalArgumentException("This share has been revoked");
         }
         if (share.getDocument() != null) {
+            if (!"READY".equalsIgnoreCase(share.getDocument().getStatus())) {
+                throw new IllegalArgumentException("Tài liệu chưa được phê duyệt.");
+            }
             return share.getDocument().getCloudinaryUrl();
         }
         throw new IllegalArgumentException("No downloadable file for this share");

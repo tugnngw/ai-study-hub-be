@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -58,6 +59,20 @@ public class AdminUserController {
     public ResponseEntity<ApiResponse<UserResponse>> deleteUser(@PathVariable UUID id) {
         log.debug("[ADMIN_ACTION] Soft deleting user with ID: {}", id);
         return ResponseEntity.ok(ApiResponse.success(adminUserService.softDeleteUser(id)));
+    }
+
+    @DeleteMapping("/{id}/hard")
+    @Operation(summary = "Permanently delete a user account")
+    public ResponseEntity<ApiResponse<Void>> hardDeleteUser(@PathVariable UUID id) {
+        log.debug("[ADMIN_ACTION] Hard deleting user with ID: {}", id);
+        adminUserService.hardDeleteUser(id);
+        return ResponseEntity.ok(ApiResponse.success("User permanently deleted", null));
+    }
+
+    @GetMapping("/trash")
+    @Operation(summary = "Get soft-deleted user accounts for trash view")
+    public ResponseEntity<ApiResponse<List<com.tugnw.aistudy.domain.dto.admin.UserResponse>>> getTrashUsers() {
+        return ResponseEntity.ok(ApiResponse.success(adminUserService.getSoftDeletedAccounts()));
     }
 
     @PatchMapping("/{id}/restore")

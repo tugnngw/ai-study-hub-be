@@ -135,6 +135,13 @@ public class PasswordResetServiceImpl implements PasswordResetService {
 
         if (existing.isPresent()) {
             AccountToken vt = existing.get();
+            Instant cooldownEnd = vt.getCreatedAt().plusSeconds(60);
+            if (Instant.now().isBefore(cooldownEnd)) {
+                long secondsLeft = java.time.Duration.between(Instant.now(), cooldownEnd).toSeconds();
+                throw new IllegalArgumentException(
+                    "Vui lòng đợi " + Math.max(1, secondsLeft) + " giây trước khi yêu cầu gửi lại mã OTP."
+                );
+            }
             log.info("Reusing existing PASSWORD_RESET token for account {}", account.getId());
             emailService.sendPasswordResetEmail(account.getEmail(), account.getFullName(), vt.getToken());
             return;

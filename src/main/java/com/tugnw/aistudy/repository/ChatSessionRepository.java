@@ -13,4 +13,8 @@ public interface ChatSessionRepository extends JpaRepository<ChatSession, UUID> 
 
     @Query("SELECT cs.id FROM ChatSession cs WHERE cs.documentId IN :documentIds")
     List<UUID> findSessionIdsByDocumentIds(@Param("documentIds") List<UUID> documentIds);
+
+    List<ChatSession> findByDocumentId(UUID documentId);
+
+    void deleteByDocumentId(UUID documentId);
 }

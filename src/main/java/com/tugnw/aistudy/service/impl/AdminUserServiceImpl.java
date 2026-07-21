@@ -2,6 +2,7 @@ package com.tugnw.aistudy.service.impl;
 
 import com.tugnw.aistudy.domain.dto.admin.UserResponse;
 import com.tugnw.aistudy.domain.entity.Account;
+import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
 import com.tugnw.aistudy.exception.ResourceNotFoundException;
 import com.tugnw.aistudy.repository.AccountRepository;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -124,5 +126,27 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .updatedAt(account.getUpdatedAt())
                 .deletedAt(account.getDeletedAt())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void hardDeleteUser(UUID id) {
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+
+        if (account.getRole() == AccountRole.ADMIN) {
+            throw new IllegalArgumentException("Cannot delete admin accounts.");
+        }
+
+        accountRepository.delete(account);
+        log.info("[ADMIN] Hard deleted user: {} ({})", account.getUsername(), id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserResponse> getSoftDeletedAccounts() {
+        return accountRepository.findByDeletedAtIsNotNull().stream()
+                .map(this::toUserResponse)
+                .toList();
     }
 }

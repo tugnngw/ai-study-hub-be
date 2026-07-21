@@ -113,6 +113,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                         .avatarUrl(avatarUrl)
                         .authProvider(AuthProvider.GOOGLE)
                         .providerId(providerId)
+                        .emailVerified(true)  // OAuth provider already verified the email
                         .passwordHash(UUID.randomUUID().toString())
                         .passwordHash(UUID.randomUUID().toString()) // Password hash is not necessary for OAuth accounts
                         // Set default role and status if creating a new user

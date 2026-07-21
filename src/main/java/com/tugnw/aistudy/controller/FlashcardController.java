@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.flashcard.FlashcardGenerateResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.FlashcardResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.GenerateFlashcardsRequest;
 import com.tugnw.aistudy.service.FlashcardService;
@@ -28,16 +29,16 @@ public class FlashcardController {
 
     @PostMapping("/generate")
     @Operation(summary = "Generate flashcards", description = "Generate or retrieve flashcards for a document. Use force=true to regenerate.")
-    public ResponseEntity<List<FlashcardResponse>> generateFlashcards(
+    public ResponseEntity<FlashcardGenerateResponse> generateFlashcards(
             @Valid @RequestBody GenerateFlashcardsRequest request,
             Authentication authentication) throws Exception {
         UUID requesterId = getCurrentUserId(authentication);
-        List<FlashcardResponse> responses = flashcardService.generateFlashcards(
+        FlashcardGenerateResponse response = flashcardService.generateFlashcards(
                 request.getDocumentId(),
                 requesterId,
                 request
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(responses);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{documentId}")

@@ -15,8 +15,9 @@ import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
-import com.tugnw.aistudy.service.RagService;
+import com.tugnw.aistudy.repository.ChatSessionRepository;
 
+import com.tugnw.aistudy.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -45,6 +46,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final ActivityLogService activityLogService;
     private final AccountRepository accountRepository;
     private final QuotaService quotaService;
+    private final ChatSessionRepository chatSessionRepository;
 
     private boolean isAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -61,13 +63,7 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional(readOnly = true)
     public DocumentResponse getSharedDocumentById(UUID id, UUID requesterId) {
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
-
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId) && !hasShareAccess(id, requesterId)) {
-            throw new AccessDeniedException("You do not have permission to access this document");
-        }
-
+        Document document = getAccessibleDocument(id, requesterId, false);
         return documentMapper.toResponse(document);
     }
 
@@ -168,23 +164,40 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional(readOnly = true)
     public List<DocumentResponse> getDocumentsByOwner(UUID ownerId) {
-        List<Document> documents = documentRepository
-                .findByOwnerIdAndDeletedAtIsNullOrderByCreatedAtDesc(ownerId);
-
-        return documents.stream()
+        return documentRepository
+                .findByOwnerIdAndDeletedAtIsNullOrderByCreatedAtDesc(ownerId)
+                .stream()
                 .map(documentMapper::toResponse)
+                .map(this::sanitizeForListing)
                 .toList();
+    }
+
+    /** Strip file URL from non-READY docs so listing doesn't leak content. */
+    private DocumentResponse sanitizeForListing(DocumentResponse resp) {
+        if (!"READY".equalsIgnoreCase(resp.getStatus())) {
+            resp.setCloudinaryUrl(null);
+        }
+        return resp;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DocumentResponse> getDocumentsByFolder(UUID ownerId, UUID folderId) {
-        // TODO: Check owner has permission to access this folder
         List<Document> documents = documentRepository
                 .findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
 
+        // Only return documents the user has access to
         return documents.stream()
+                .filter(d -> {
+                    try {
+                        getAccessibleDocument(d.getId(), ownerId, false);
+                        return true;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                })
                 .map(documentMapper::toResponse)
+                .map(this::sanitizeForListing)
                 .toList();
     }
 
@@ -207,14 +220,13 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional(readOnly = true)
     public DocumentResponse getDocumentById(UUID id, UUID ownerId) {
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
-
-        if (!isAdmin() && !document.getOwnerId().equals(ownerId) && !hasShareAccess(id, ownerId)) {
-            throw new AccessDeniedException("You do not have permission to access this document");
+        Document document = getAccessibleDocument(id, ownerId, false);
+        DocumentResponse resp = documentMapper.toResponse(document);
+        // Strip file URL for non-READY docs — content is inaccessible.
+        if (!"READY".equalsIgnoreCase(resp.getStatus())) {
+            resp.setCloudinaryUrl(null);
         }
-
-        return documentMapper.toResponse(document);
+        return resp;
     }
 
     @Override
@@ -248,6 +260,37 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
+    public void permanentDeleteDocument(UUID id, UUID requesterId) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + id));
+
+        // 1) Must already be in trash (soft-deleted first)
+        if (document.getDeletedAt() == null) {
+            throw new IllegalArgumentException("Document must be in trash before permanent deletion");
+        }
+
+        boolean isOwner = document.getOwnerId().equals(requesterId);
+        if (!isOwner && !isAdmin()) {
+            throw new AccessDeniedException("You do not have permission to permanently delete this document");
+        }
+
+        // 2) Delete external resources BEFORE removing the DB row.
+        //    If Cloudinary fails, exception propagates, DB untouched.
+        if (document.getPublicId() != null) {
+            cloudinaryService.delete(document.getPublicId());
+        }
+
+        // 3) Clean up AI resources owned by RagService.
+        chatSessionRepository.deleteByDocumentId(id);
+
+        // 4) DB delete — all child tables with ON DELETE CASCADE
+        //    (document_chunk, flashcard, quiz, share, report, bookmark,
+        //     study_report) are cleaned automatically.
+        documentRepository.delete(document);
+        log.info("Permanently deleted document {} by user {}", id, requesterId);
+    }
+
+    @Override
     public List<DocumentResponse> getTrashDocuments(UUID requesterId) {
         List<Document> docs = isAdmin()
             ? documentRepository.findByDeletedAtIsNotNullOrderByCreatedAtDesc()
@@ -274,12 +317,7 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public String getDocumentDownloadUrl(UUID id, UUID ownerId) {
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
-
-        if (!isAdmin() && !document.getOwnerId().equals(ownerId) && !hasShareAccess(id, ownerId)) {
-            throw new AccessDeniedException("You do not have permission to access this document");
-        }
+        Document document = getAccessibleDocument(id, ownerId, true);
 
         // Log download activity
         Account owner = accountRepository.findById(ownerId).orElse(null);
@@ -299,5 +337,45 @@ public class DocumentServiceImpl implements DocumentService {
     public String generateShareableLink(UUID id, UUID ownerId) {
         // TODO: Implement shareable link logic
         return null;
+    }
+
+    @Override
+    public Document getAccessibleDocument(UUID documentId, UUID requesterId, boolean aiRequired) {
+        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
+                .orElseThrow(() -> new RuntimeException("Document not found"));
+
+        boolean isOwner = document.getOwnerId().equals(requesterId);
+        boolean isShared = hasShareAccess(documentId, requesterId);
+        boolean isAdmin = isAdmin();
+
+        // Admin always bypasses status checks
+        if (isAdmin) {
+            return document;
+        }
+
+        // Owner always bypasses status checks for view/manage operations
+        if (isOwner && !aiRequired) {
+            return document;
+        }
+
+        // Owner: AI operations require READY status
+        if (isOwner) {
+            if (!"READY".equalsIgnoreCase(document.getStatus())) {
+                throw new AccessDeniedException(
+                    "Tài liệu chưa được phê duyệt. Vui lòng đợi quản trị viên xét duyệt."
+                );
+            }
+            return document;
+        }
+
+        // Shared user: must have share access AND document must be READY
+        if (isShared) {
+            if (!"READY".equalsIgnoreCase(document.getStatus())) {
+                throw new AccessDeniedException("Tài liệu chưa được phê duyệt.");
+            }
+            return document;
+        }
+
+        throw new AccessDeniedException("You do not have permission to access this document");
     }
 }

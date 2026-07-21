@@ -128,12 +128,19 @@ public class VerificationServiceImpl implements VerificationService {
             return;
         }
 
-        // Reuse existing active token
+        // Reuse existing active token — enforce 60s cooldown to prevent SMTP spam
         Optional<AccountToken> existing = accountTokenRepository
                 .findActiveByAccountAndType(account, AccountTokenType.EMAIL_VERIFICATION, Instant.now());
 
         if (existing.isPresent()) {
             AccountToken vt = existing.get();
+            Instant cooldownEnd = vt.getCreatedAt().plusSeconds(60);
+            if (Instant.now().isBefore(cooldownEnd)) {
+                long secondsLeft = java.time.Duration.between(Instant.now(), cooldownEnd).toSeconds();
+                throw new IllegalArgumentException(
+                    "Vui lòng đợi " + Math.max(1, secondsLeft) + " giây trước khi yêu cầu gửi lại email xác thực."
+                );
+            }
             log.info("Reusing existing verification token for account {}", account.getId());
             emailService.sendVerificationEmail(account.getEmail(), account.getFullName(), vt.getToken());
             return;

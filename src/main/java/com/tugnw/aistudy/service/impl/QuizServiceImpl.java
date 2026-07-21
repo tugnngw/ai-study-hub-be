@@ -12,6 +12,7 @@ import com.tugnw.aistudy.domain.mapper.QuizMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.QuizRepository;
 import com.tugnw.aistudy.repository.QuestionRepository;
+import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.QuizService;
@@ -28,6 +29,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -35,6 +37,7 @@ import java.util.UUID;
 public class QuizServiceImpl implements QuizService {
 
     private final RagService ragService;
+    private final DocumentService documentService;
     private final DocumentRepository documentRepository;
     private final QuizRepository quizRepository;
     private final QuestionRepository questionRepository;
@@ -43,31 +46,17 @@ public class QuizServiceImpl implements QuizService {
     private final QuotaService quotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private static final int MAX_QUESTION_LENGTH = 500;
+    private static final int MAX_OPTION_LENGTH = 500;
+
     @Override
     @Transactional
     public QuizResponse generateQuiz(UUID documentId, UUID requesterId, GenerateQuizRequest request) throws Exception {
         log.info("[LOG - QUIZ] Starting quiz generation for document: " + documentId);
 
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
+        Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
 
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new AccessDeniedException("You do not have permission to access this document");
-        }
-
-        // Always regenerate — delete existing quizzes + questions, create fresh
-        List<Quiz> existing = quizRepository.findByDocumentId(documentId);
-        for (Quiz q : existing) {
-            List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(q.getId());
-            questionRepository.deleteAll(questions);
-        }
-        quizRepository.deleteAll(existing);
-        quizRepository.flush();
-        if (!existing.isEmpty()) {
-            log.info("[LOG - QUIZ] Deleted " + existing.size() + " existing quizzes.");
-        }
-
-        // Check quota — mỗi lần bấm gen chỉ tốn 1 lần, không phụ thuộc số lượng câu hỏi
+        // Check quota trước khi gọi AI
         if (!quotaService.checkQuota(requesterId, "question")) {
             throw new RuntimeException("Bạn đã đạt giới hạn số lần tạo câu hỏi cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
         }
@@ -80,7 +69,41 @@ public class QuizServiceImpl implements QuizService {
 
         log.info("[LOG - QUIZ] Extracted text length: " + documentText.length());
 
+        // Bước 1: Gọi AI trước — chưa persist gì cả
+        UUID quizId = UUID.randomUUID();
+        List<Question> parsed = generateQuestionsFromText(documentText, quizId, request.getNumberOfQuestions());
+        int rawCount = parsed.size();
+
+        // Bước 2: Validate từng câu, skip câu lỗi
+        List<Question> valid = validateQuestions(parsed);
+        int savedCount = valid.size();
+
+        // Bước 3: 0 câu hợp lệ hoặc quá ít → throw, giữ nguyên quiz cũ
+        int requested = request.getNumberOfQuestions();
+        if (valid.isEmpty()) {
+            log.error("[LOG - QUIZ] All {} parsed questions failed validation.", rawCount);
+            throw new RuntimeException("AI không tạo được câu hỏi hợp lệ từ tài liệu này. Vui lòng thử lại.");
+        }
+        if ((double) savedCount / requested < 0.3) {
+            log.error("[LOG - QUIZ] Only {}/{} questions valid, below 30% threshold.", savedCount, requested);
+            throw new RuntimeException("Chất lượng câu hỏi tạo ra quá thấp (" + savedCount + "/" + requested + " hợp lệ). Vui lòng thử lại.");
+        }
+
+        // Bước 4: Xóa quiz cũ — lúc này AI đã trả về kết quả OK
+        List<Quiz> existing = quizRepository.findByDocumentId(documentId);
+        for (Quiz q : existing) {
+            List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(q.getId());
+            questionRepository.deleteAll(questions);
+        }
+        quizRepository.deleteAll(existing);
+        quizRepository.flush();
+        if (!existing.isEmpty()) {
+            log.info("[LOG - QUIZ] Deleted " + existing.size() + " existing quizzes.");
+        }
+
+        // Bước 5: Save quiz mới
         Quiz quiz = Quiz.builder()
+                .id(quizId)
                 .documentId(document.getId())
                 .title("AI-Generated Quiz")
                 .generatedByAi(true)
@@ -88,22 +111,16 @@ public class QuizServiceImpl implements QuizService {
                 .build();
 
         Quiz savedQuiz = quizRepository.save(quiz);
-        log.info("[LOG - QUIZ] Created quiz with ID: " + savedQuiz.getId());
-
-        List<Question> generatedQuestions = generateQuestionsFromText(
-                documentText,
-                savedQuiz.getId(),
-                request.getNumberOfQuestions()
-        );
-        questionRepository.saveAll(generatedQuestions);
+        questionRepository.saveAll(valid);
 
         // Increment generation counter
         document.setQuizGenerations(document.getQuizGenerations() == null ? 1 : document.getQuizGenerations() + 1);
         documentRepository.save(document);
 
-        log.info("[LOG - QUIZ] Successfully generated and saved " + generatedQuestions.size() + " questions.");
+        String message = buildResultMessage(savedCount, requested, rawCount);
+        log.info("[LOG - QUIZ] {}", message);
 
-        List<QuestionResponse> questionResponses = quizMapper.toQuestionResponseList(generatedQuestions);
+        List<QuestionResponse> questionResponses = quizMapper.toQuestionResponseList(valid);
         return QuizResponse.builder()
                 .id(savedQuiz.getId())
                 .title(savedQuiz.getTitle())
@@ -117,12 +134,7 @@ public class QuizServiceImpl implements QuizService {
     public List<QuizResponse> getQuizByDocument(UUID documentId, UUID requesterId) {
         log.info("[LOG - QUIZ] Fetching quizzes for document: " + documentId);
 
-        Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found or has been deleted."));
-
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
-            throw new AccessDeniedException("You do not have permission to access quizzes for this document.");
-        }
+        Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
 
         List<Quiz> quizzes = quizRepository.findByDocumentIdOrderByCreatedAtDesc(documentId);
         List<QuizResponse> responses = new ArrayList<>();
@@ -167,11 +179,23 @@ public class QuizServiceImpl implements QuizService {
             if (node.isArray()) {
                 for (JsonNode item : node) {
                     String content = item.has("content") ? item.get("content").asText().trim() : "";
-                    String optionA = item.has("optionA") ? item.get("optionA").asText().trim() : "";
-                    String optionB = item.has("optionB") ? item.get("optionB").asText().trim() : "";
-                    String optionC = item.has("optionC") ? item.get("optionC").asText().trim() : "";
-                    String optionD = item.has("optionD") ? item.get("optionD").asText().trim() : "";
-                    String correctAnswer = item.has("correctAnswer") ? item.get("correctAnswer").asText().trim() : "";
+
+                    // Hỗ trợ cả format options:[...] mới và optionA/B/C/D cũ
+                    String optionA, optionB, optionC, optionD;
+                    if (item.has("options") && item.get("options").isArray() && item.get("options").size() == 4) {
+                        JsonNode opts = item.get("options");
+                        optionA = opts.get(0).asText().trim();
+                        optionB = opts.get(1).asText().trim();
+                        optionC = opts.get(2).asText().trim();
+                        optionD = opts.get(3).asText().trim();
+                    } else {
+                        optionA = item.has("optionA") ? item.get("optionA").asText().trim() : "";
+                        optionB = item.has("optionB") ? item.get("optionB").asText().trim() : "";
+                        optionC = item.has("optionC") ? item.get("optionC").asText().trim() : "";
+                        optionD = item.has("optionD") ? item.get("optionD").asText().trim() : "";
+                    }
+
+                    String correctAnswer = item.has("correctAnswer") ? item.get("correctAnswer").asText().trim().toUpperCase() : "";
 
                     if (!content.isBlank() && !optionA.isBlank() && !optionB.isBlank() &&
                             !optionC.isBlank() && !optionD.isBlank() && !correctAnswer.isBlank()) {
@@ -194,6 +218,68 @@ public class QuizServiceImpl implements QuizService {
             throw new RuntimeException("Failed to parse AI-generated questions.", e);
         }
         return questions;
+    }
+
+    private List<Question> validateQuestions(List<Question> questions) {
+        List<Question> valid = new ArrayList<>();
+        for (Question q : questions) {
+            String content = q.getContent();
+            String ca = q.getCorrectAnswer();
+            String[] opts = {q.getOptionA(), q.getOptionB(), q.getOptionC(), q.getOptionD()};
+
+            boolean skip = false;
+            String reason = null;
+
+            if (content.length() > MAX_QUESTION_LENGTH) {
+                skip = true;
+                reason = "content too long (" + content.length() + " > " + MAX_QUESTION_LENGTH + ")";
+            } else if (Stream.of(opts).anyMatch(o -> o.length() > MAX_OPTION_LENGTH)) {
+                skip = true;
+                reason = "option too long (> " + MAX_OPTION_LENGTH + ")";
+            } else if (Stream.of(opts).filter(String::isBlank).count() > 0) {
+                skip = true;
+                reason = "one or more options blank after trim";
+            } else if (!ca.matches("[A-D]")) {
+                skip = true;
+                reason = "invalid correctAnswer: \"" + ca + "\"";
+            } else {
+                int correctIdx = ca.charAt(0) - 'A';
+                if (opts[correctIdx].isBlank()) {
+                    skip = true;
+                    reason = "correctAnswer points to empty option";
+                }
+            }
+
+            if (!skip && valid.stream().anyMatch(v -> v.getContent().equalsIgnoreCase(content))) {
+                skip = true;
+                reason = "duplicate content in batch";
+            }
+
+            if (skip) {
+                log.warn("[LOG - QUIZ] Skipped question: {} — content=\"{}\"", reason, truncate(content, 60));
+            } else {
+                valid.add(q);
+            }
+        }
+        return valid;
+    }
+
+    private String buildResultMessage(int saved, int requested, int raw) {
+        if (saved == requested) {
+            return "Đã tạo thành công " + saved + " câu hỏi.";
+        }
+        if (saved < 1) {
+            return "Không tạo được câu hỏi nào. Vui lòng thử lại.";
+        }
+        if (saved == raw) {
+            return "Yêu cầu " + requested + " câu hỏi, AI tạo được " + raw + ". Đã lưu " + saved + " câu hỏi.";
+        }
+        return "Đã tạo " + saved + "/" + requested + " câu hỏi. "
+                + (raw - saved) + " câu bị lỗi format hoặc trùng lặp đã được bỏ qua.";
+    }
+
+    private String truncate(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max) + "...";
     }
 
     private boolean isAdmin() {

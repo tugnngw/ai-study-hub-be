@@ -10,6 +10,7 @@ import com.tugnw.aistudy.service.ShareService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -19,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/documents")
 @Tag(name = "Documents", description = "Document CRUD, upload, share, trash")
@@ -144,6 +146,15 @@ public class DocumentController {
     public ResponseEntity<Void> deleteDocument(@PathVariable UUID id, Authentication authentication) {
         UUID ownerId = getCurrentUserId(authentication);
         documentService.deleteDocument(id, ownerId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @Operation(summary = "Permanently delete document (from trash)")
+    public ResponseEntity<Void> permanentDeleteDocument(@PathVariable UUID id, Authentication authentication) {
+        log.info("=== [PERMANENT DELETE] CONTROLLER HIT id={} ===", id);
+        UUID requesterId = getCurrentUserId(authentication);
+        documentService.permanentDeleteDocument(id, requesterId);
         return ResponseEntity.noContent().build();
     }
 
