@@ -102,9 +102,12 @@ public class KnowledgePreparationServiceImpl implements KnowledgePreparationServ
 
             log.info("[SUMMARY] Summary generation succeeded for document {}", docId);
             return markdownSummary;
-        } catch (Exception e) {
-            log.error("[SUMMARY] Summary generation failed for document {}: {}", docId, e.getMessage());
-            throw e;
+        } catch (Throwable e) {
+            log.error("[SUMMARY] Summary generation failed for document {}: {}", docId, e.getMessage(), e);
+            if (e instanceof Exception) {
+                throw (Exception) e;
+            }
+            throw new RuntimeException("Summary generation failed", e);
         } finally {
             lock.unlock();
             if (!lock.hasQueuedThreads()) {

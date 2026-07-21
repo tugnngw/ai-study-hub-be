@@ -94,13 +94,6 @@
         </dependency>
 
         <!--Add by Hoang-->
-         <!-- Apache PDFBox -->
-        <dependency>
-            <groupId>org.apache.pdfbox</groupId>
-            <artifactId>pdfbox</artifactId>
-            <version>3.0.2</version>
-        </dependency>
-
         <!-- PGVector -->
         <dependency>
             <groupId>com.pgvector</groupId>

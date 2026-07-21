@@ -13,6 +13,7 @@ import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.DocumentChunkRepository;
 import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.RagService;
+import com.tugnw.aistudy.service.RagStatusService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
@@ -51,6 +52,7 @@ public class RagServiceImpl implements RagService {
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
     private final QuotaService quotaService;
+    private final RagStatusService ragStatusService;
 
     private final Tika tika = new Tika();
     private final RestTemplate restTemplate = new RestTemplate();
@@ -175,25 +177,14 @@ public class RagServiceImpl implements RagService {
 
             Duration elapsed = Duration.between(start, Instant.now());
             log.info("[STEP8] Pipeline completed documentId={} elapsedMs={}", documentId, elapsed.toMillis());
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("[CATCH] ENTER documentId={} class={} message={}", documentId,
                     e.getClass().getSimpleName(), e.getMessage(), e);
-            log.info("[CATCH] documentId={} BEFORE save — doc.status={} doc.aiStatus={}",
-                    documentId, doc.getStatus(), doc.getAiStatus());
-            doc.setAiStatus(AiProcessingStatus.FAILED);
-            try {
-                documentRepository.save(doc);
-                log.info("[CATCH] AFTER save — committed documentId={}", documentId);
-            } catch (Exception saveEx) {
-                log.error("[CATCH] FAILED to save documentId={} error={}", documentId, saveEx.getMessage(), saveEx);
+            ragStatusService.markProcessingFailed(documentId);
+            if (e instanceof Exception) {
+                throw (Exception) e;
             }
-            // Reload from DB to verify persistence
-            Document reloaded = documentRepository.findById(documentId).orElse(null);
-            if (reloaded != null) {
-                log.info("[CATCH] reloaded from DB documentId={} status={} aiStatus={}",
-                        documentId, reloaded.getStatus(), reloaded.getAiStatus());
-            }
-            throw e;
+            throw new RuntimeException("Pipeline failed", e);
         }
     }
 
