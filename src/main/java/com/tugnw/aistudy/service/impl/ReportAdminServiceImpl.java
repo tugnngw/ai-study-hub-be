@@ -31,6 +31,8 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         .reason(rs.getString("reason"))
         .status(rs.getString("status"))
         .adminComment(rs.getString("admin_comment"))
+        .cloudinaryUrl(rs.getString("cloudinary_url"))
+        .mimeType(rs.getString("mime_type"))
         .createdAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null)
         .build();
 
@@ -38,20 +40,20 @@ public class ReportAdminServiceImpl implements ReportAdminService {
     public Page<ReportResponse> getReports(Pageable pageable) {
         String countSql = "SELECT COUNT(*) FROM report";
         Integer total = jdbcTemplate.queryForObject(countSql, Integer.class);
-        
-        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, r.created_at " +
+
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
                 "FROM report r " +
                 "LEFT JOIN account a ON r.reporter_id = a.id " +
                 "LEFT JOIN document d ON r.document_id = d.id " +
                 "ORDER BY r.created_at DESC " +
                 "LIMIT ? OFFSET ?";
-        
+
         List<ReportResponse> reports = jdbcTemplate.query(
             dataSql,
             new Object[]{pageable.getPageSize(), pageable.getOffset()},
             rowMapper
         );
-        
+
         return new PageImpl<>(reports, pageable, total != null ? total : 0);
     }
 
@@ -59,21 +61,21 @@ public class ReportAdminServiceImpl implements ReportAdminService {
     public Page<ReportResponse> getReportsByReporter(UUID reporterId, Pageable pageable) {
         String countSql = "SELECT COUNT(*) FROM report WHERE reporter_id = ?";
         Integer total = jdbcTemplate.queryForObject(countSql, Integer.class, reporterId);
-        
-        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, r.created_at " +
+
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
                 "FROM report r " +
                 "LEFT JOIN account a ON r.reporter_id = a.id " +
                 "LEFT JOIN document d ON r.document_id = d.id " +
                 "WHERE r.reporter_id = ? " +
                 "ORDER BY r.created_at DESC " +
                 "LIMIT ? OFFSET ?";
-        
+
         List<ReportResponse> reports = jdbcTemplate.query(
             dataSql,
             new Object[]{reporterId, pageable.getPageSize(), pageable.getOffset()},
             rowMapper
         );
-        
+
         return new PageImpl<>(reports, pageable, total != null ? total : 0);
     }
 
@@ -82,19 +84,19 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         String countSql = "SELECT COUNT(*) FROM report";
         Integer total = jdbcTemplate.queryForObject(countSql, Integer.class);
         
-        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, r.created_at " +
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
                 "FROM report r " +
                 "LEFT JOIN account a ON r.reporter_id = a.id " +
                 "LEFT JOIN document d ON r.document_id = d.id " +
                 "ORDER BY r.created_at DESC " +
                 "LIMIT ? OFFSET ?";
-        
+
         List<ReportResponse> reports = jdbcTemplate.query(
             dataSql,
             new Object[]{pageable.getPageSize(), pageable.getOffset()},
             rowMapper
         );
-        
+
         return new PageImpl<>(reports, pageable, total != null ? total : 0);
     }
 }

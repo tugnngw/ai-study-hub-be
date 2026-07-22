@@ -21,5 +21,7 @@ public class ReportResponse {
     private String reason;
     private String status;
     private String adminComment;
+    private String cloudinaryUrl;
+    private String mimeType;
     private LocalDateTime createdAt;
 }
