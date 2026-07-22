@@ -222,8 +222,8 @@ public class DocumentServiceImpl implements DocumentService {
     public DocumentResponse getDocumentById(UUID id, UUID ownerId) {
         Document document = getAccessibleDocument(id, ownerId, false);
         DocumentResponse resp = documentMapper.toResponse(document);
-        // Strip file URL for non-READY docs — content is inaccessible to non-admins.
-        if (!"READY".equalsIgnoreCase(resp.getStatus()) && !isAdmin()) {
+        // Strip file URL for non-READY docs — only strip for non-owners and non-admins.
+        if (!"READY".equalsIgnoreCase(resp.getStatus()) && !isAdmin() && !document.getOwnerId().equals(ownerId)) {
             resp.setCloudinaryUrl(null);
         }
         return resp;
