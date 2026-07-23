@@ -4,7 +4,6 @@ import com.tugnw.aistudy.security.JwtAuthenticationFilter;
 import com.tugnw.aistudy.security.OAuth2LoginSuccessHandler;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -20,7 +19,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpMethod;
 import java.util.List;
@@ -56,15 +54,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
                         .requestMatchers(
                                 "/api/payment/webhook",
-                                "/api/auth/register",
-                                 "/api/auth/login",
-                                 "/api/auth/refresh",
-                                 "/api/auth/verify",
-                                 "/api/auth/send-verification",
-                                 "/api/auth/resend-verification-by-username",
-                                 "/api/auth/forgot-password",
-                                 "/api/auth/verify-otp",
-                                 "/api/auth/reset-password",
+                                "/api/auth/**",
                                  "/api/public/**",
                                  "/oauth2/**",
                                 "/login/oauth2/**",
@@ -76,8 +66,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
-                        .successHandler(oAuth2LoginSuccessHandler)
-                );
+                        .successHandler(oAuth2LoginSuccessHandler));
 
         http.addFilterBefore(jwtAuthenticationFilter,
                 UsernamePasswordAuthenticationFilter.class);
@@ -85,8 +74,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint((req, res, authEx) -> {
                     res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     res.getWriter().write("{\"error\":\"Unauthenticated\"}");
-                })
-        );
+                }));
 
         return http.build();
     }
@@ -94,7 +82,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:5174", "http://localhost:3001"));
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:5174"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));  // Cho phép tất cả headers
         configuration.setExposedHeaders(List.of("Authorization", "Content-Type"));  // Expose Authorization header
