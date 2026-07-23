@@ -1,8 +1,10 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.FlashcardGenerateResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.FlashcardResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.GenerateFlashcardsRequest;
+import com.tugnw.aistudy.service.CurrentUserService;
 import com.tugnw.aistudy.service.FlashcardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,42 +28,26 @@ import java.util.UUID;
 public class FlashcardController {
 
     private final FlashcardService flashcardService;
+    private final CurrentUserService currentUserService;
 
     @PostMapping("/generate")
     @Operation(summary = "Generate flashcards", description = "Generate or retrieve flashcards for a document. Use force=true to regenerate.")
-    public ResponseEntity<FlashcardGenerateResponse> generateFlashcards(
-            @Valid @RequestBody GenerateFlashcardsRequest request,
-            Authentication authentication) throws Exception {
-        UUID requesterId = getCurrentUserId(authentication);
+    public ApiResponse<FlashcardGenerateResponse> generateFlashcards(
+            @Valid @RequestBody GenerateFlashcardsRequest request) throws Exception {
         FlashcardGenerateResponse response = flashcardService.generateFlashcards(
                 request.getDocumentId(),
-                requesterId,
-                request
-        );
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+                currentUserService.getCurrentUserId(),
+                request);
+        return ApiResponse.success("Flashcards generated successfully", response);
     }
 
     @GetMapping("/{documentId}")
     @Operation(summary = "Get flashcards by document")
-    public ResponseEntity<List<FlashcardResponse>> getFlashcardsByDocument(
-            @PathVariable UUID documentId,
-            Authentication authentication) {
-        UUID requesterId = getCurrentUserId(authentication);
+    public ApiResponse<List<FlashcardResponse>> getFlashcardsByDocument(
+            @PathVariable UUID documentId) {
         List<FlashcardResponse> responses = flashcardService.getFlashcardsByDocument(
                 documentId,
-                requesterId
-        );
-        return ResponseEntity.ok(responses);
-    }
-
-    private UUID getCurrentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new RuntimeException("User chưa đăng nhập");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
-            return userDetails.getAccount().getId();
-        }
-        throw new RuntimeException("Không thể xác định user");
+                currentUserService.getCurrentUserId());
+        return ApiResponse.success(responses);
     }
 }

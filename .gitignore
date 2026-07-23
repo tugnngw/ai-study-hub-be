@@ -38,3 +38,5 @@ build/
 ###AI_ONLY
 .claude
 AI_ONLY
+.omo
+logs

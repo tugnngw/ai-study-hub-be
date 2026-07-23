@@ -49,39 +49,30 @@ public class FlashcardServiceImpl implements FlashcardService {
     @Override
     @Transactional
     public FlashcardGenerateResponse generateFlashcards(UUID documentId, UUID requesterId, GenerateFlashcardsRequest request) throws Exception {
-        log.info("[LOG - FLASHCARD] Starting flashcard generation for document: " + documentId);
 
         Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
 
-        // Check quota trước khi gọi AI
-        if (!quotaService.checkQuota(requesterId, "flashcard")) {
+        if (!quotaService.checkQuota(requesterId, "flashcard"))
             throw new RuntimeException("Bạn đã đạt giới hạn số lần tạo flashcard cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
-        }
 
         String documentText = ragService.extractTextFromDocument(document.getId(), requesterId);
 
-        if (documentText == null || documentText.isBlank()) {
-            throw new RuntimeException("Unable to extract text from document.");
-        }
+        if (documentText == null || documentText.isBlank()) throw new RuntimeException("Unable to extract text from document.");
 
-        if (documentText.length() < MIN_DOCUMENT_TEXT_LENGTH) {
+        if (documentText.length() < MIN_DOCUMENT_TEXT_LENGTH)
             log.warn("[LOG - FLASHCARD] Document text too short ({} chars), quality may be poor", documentText.length());
-        }
 
         log.info("[LOG - FLASHCARD] Extracted text length: " + documentText.length());
 
         // Bước 1: Gọi AI trước — chưa xóa card cũ
-        int requestedCount = request.getNumberOfCards();
-        List<Flashcard> parsed = generateFlashcardsFromText(documentText, document.getId(), requestedCount);
-        int rawCount = parsed.size();
+        List<Flashcard> parsed = generateFlashcardsFromText(documentText, document.getId(), request.getNumberOfCards());
 
         // Bước 2: Validate từng card, skip card lỗi
         List<Flashcard> valid = validateFlashcards(parsed, document.getId());
-        int savedCount = valid.size();
 
         // Bước 3: 0 card hợp lệ → fail hoàn toàn, giữ nguyên card cũ
         if (valid.isEmpty()) {
-            log.error("[LOG - FLASHCARD] All {} parsed flashcards failed validation.", rawCount);
+            log.error("[LOG - FLASHCARD] All {} parsed flashcards failed validation.", parsed.size());
             throw new RuntimeException("AI không tạo được flashcard hợp lệ từ tài liệu này. Vui lòng thử lại.");
         }
 
@@ -100,14 +91,14 @@ public class FlashcardServiceImpl implements FlashcardService {
         document.setFlashcardGenerations(document.getFlashcardGenerations() == null ? 1 : document.getFlashcardGenerations() + 1);
         documentRepository.save(document);
 
-        String message = buildResultMessage(savedCount, requestedCount, rawCount);
+        String message = buildResultMessage(valid.size(), request.getNumberOfCards(), parsed.size());
         log.info("[LOG - FLASHCARD] {}", message);
 
         return FlashcardGenerateResponse.builder()
                 .flashcards(flashcardMapper.toResponseList(valid))
-                .requestedCount(requestedCount)
-                .rawCount(rawCount)
-                .savedCount(savedCount)
+                .requestedCount(request.getNumberOfCards())
+                .rawCount(parsed.size())
+                .savedCount(valid.size())
                 .message(message)
                 .build();
     }
@@ -130,12 +121,8 @@ public class FlashcardServiceImpl implements FlashcardService {
                 "Document:\n%s\n\n" +
                 "Return ONLY valid JSON array, no markdown formatting, no code blocks.",
                 numberOfCards,
-                documentText.substring(0, Math.min(3000, documentText.length()))
-        );
-
+                documentText.substring(0, Math.min(3000, documentText.length())));
         String aiResponse = ragService.generateContent(prompt);
-        log.info("[LOG - FLASHCARD] Gemini response received, parsing flashcards...");
-
         return parseFlashcardsFromResponse(aiResponse, documentId);
     }
 
