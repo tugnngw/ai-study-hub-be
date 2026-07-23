@@ -31,18 +31,11 @@ public class FolderServiceImpl implements FolderService {
     private final SubjectRepository subjectRepository;
     private final DocumentRepository documentRepository;
 
-    private boolean isAdmin() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null && auth.getAuthorities().stream()
-            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    }
-
     @Override
     public FolderResponse createFolder(UUID ownerId, FolderCreateRequest request) {
         boolean exists = folderRepository.existsByOwnerIdAndNameAndDeletedAtIsNull(ownerId, request.getName());
-        if (exists) {
+        if (exists)
             throw new RuntimeException("Folder with this name already exists");
-        }
 
         Subject subject = subjectRepository.findById(request.getSubjectId())
                 .orElseThrow(() -> new RuntimeException("Subject not found"));
@@ -78,9 +71,8 @@ public class FolderServiceImpl implements FolderService {
         Folder folder = folderRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
 
-        if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !folder.getOwnerId().equals(ownerId))
             throw new AccessDeniedException("You do not have permission to access this folder");
-        }
 
         FolderResponse resp = folderMapper.toResponse(folder);
         long documentCount = documentRepository.countByFolderIdAndDeletedAtIsNull(folder.getId());
@@ -93,23 +85,18 @@ public class FolderServiceImpl implements FolderService {
         Folder folder = folderRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
 
-        if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !folder.getOwnerId().equals(ownerId))
             throw new AccessDeniedException("You do not have permission to update this folder");
-        }
 
         if (request.getName() != null && !request.getName().trim().isEmpty()
                 && !request.getName().equals(folder.getName())) {
-
-            boolean exists = folderRepository.existsByOwnerIdAndNameAndDeletedAtIsNull(ownerId, request.getName());
-            if (exists) {
+            if (folderRepository.existsByOwnerIdAndNameAndDeletedAtIsNull(ownerId, request.getName()))
                 throw new RuntimeException("Folder with this name already exists");
-            }
             folder.setName(request.getName());
         }
 
-        if (request.getDescription() != null) {
+        if (request.getDescription() != null)
             folder.setDescription(request.getDescription());
-        }
 
         if (request.getSubjectId() != null) {
             Subject subject = subjectRepository.findById(request.getSubjectId())
@@ -129,11 +116,51 @@ public class FolderServiceImpl implements FolderService {
         Folder folder = folderRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Folder not found"));
 
-        if (!isAdmin() && !folder.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !folder.getOwnerId().equals(ownerId))
             throw new AccessDeniedException("You do not have permission to delete this folder");
-        }
 
         folder.setDeletedAt(LocalDateTime.now());
         folderRepository.save(folder);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FolderResponse> getTrashFolders(UUID requesterId) {
+        List<Folder> folders = isAdmin()
+            ? folderRepository.findByDeletedAtIsNotNullOrderByCreatedAtDesc()
+            : folderRepository.findByOwnerIdAndDeletedAtIsNotNullOrderByCreatedAtDesc(requesterId);
+        return folders.stream().map(folderMapper::toResponse).toList();
+    }
+
+    @Override
+    public void restoreFolder(UUID id, UUID requesterId) {
+        Folder folder = folderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Folder not found"));
+        if (folder.getDeletedAt() == null)
+            throw new RuntimeException("Folder is not in trash");
+        if (!isAdmin() && !folder.getOwnerId().equals(requesterId))
+            throw new AccessDeniedException("You do not have permission to restore this folder");
+        folder.setDeletedAt(null);
+        folderRepository.save(folder);
+    }
+
+    @Override
+    public void permanentDeleteFolder(UUID id, UUID requesterId) {
+        Folder folder = folderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Folder not found"));
+        if (folder.getDeletedAt() == null)
+            throw new RuntimeException("Folder must be in trash before permanent deletion");
+        boolean isOwner = folder.getOwnerId().equals(requesterId);
+        if (!isOwner && !isAdmin())
+            throw new AccessDeniedException("You do not have permission to permanently delete this folder");
+        folderRepository.delete(folder);
+    }
+
+    // ============ HELPER METHODS ============
+
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 }
