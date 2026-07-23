@@ -14,6 +14,8 @@ import javax.crypto.SecretKey;
 import java.security.Key;
 import java.util.Date;
 
+import static org.apache.commons.compress.harmony.pack200.PackingUtils.log;
+
 @Component
 public class JwtTokenProvider {
 
@@ -45,7 +47,7 @@ public class JwtTokenProvider {
                 .setExpiration(expiryDate)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
-        System.out.println("DEBUG JwtTokenProvider: Generated token length: " + token.length());
+        log("DEBUG JwtTokenProvider: Generated token length: " + token.length());
         return token;
     }
 
@@ -86,16 +88,16 @@ public class JwtTokenProvider {
 
             return true;
         } catch (io.jsonwebtoken.security.SignatureException e) {
-            System.out.println("DEBUG JWT: Invalid signature - " + e.getMessage());
+            log("DEBUG JWT: Invalid signature - " + e.getMessage());
             return false;
         } catch (io.jsonwebtoken.ExpiredJwtException e) {
-            System.out.println("DEBUG JWT: Token expired - " + e.getMessage());
+            log("DEBUG JWT: Token expired - " + e.getMessage());
             return false;
         } catch (io.jsonwebtoken.MalformedJwtException e) {
-            System.out.println("DEBUG JWT: Malformed token - " + e.getMessage());
+            log("DEBUG JWT: Malformed token - " + e.getMessage());
             return false;
         } catch (JwtException | IllegalArgumentException e) {
-            System.out.println("DEBUG JWT: Validation failed - " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            log("DEBUG JWT: Validation failed - " + e.getClass().getSimpleName() + ": " + e.getMessage());
             return false;
         }
     }

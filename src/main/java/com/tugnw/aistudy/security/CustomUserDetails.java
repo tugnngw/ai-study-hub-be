@@ -23,8 +23,7 @@ public class CustomUserDetails implements UserDetails {
         AccountRole role = account.getRole();
         if (role != null) {
             return Collections.singletonList(
-                    new SimpleGrantedAuthority("ROLE_" + account.getRole().name().toUpperCase())
-            );
+                    new SimpleGrantedAuthority("ROLE_" + account.getRole().name().toUpperCase()));
         }
         return Collections.emptyList();
     }

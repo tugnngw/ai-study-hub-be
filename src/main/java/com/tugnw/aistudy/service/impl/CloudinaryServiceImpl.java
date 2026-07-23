@@ -19,9 +19,10 @@ public class CloudinaryServiceImpl implements CloudinaryService {
     public Map<String, Object> upload(MultipartFile file) {
         try {
             String originalFilename = file.getOriginalFilename();
-            if (originalFilename == null) {
+
+            if (originalFilename == null)
                 originalFilename = "file";
-            }
+
             Map<String, Object> options = Map.of(
                     "resource_type", "auto",
                     "use_filename", true,
