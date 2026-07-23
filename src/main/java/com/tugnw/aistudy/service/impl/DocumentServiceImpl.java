@@ -6,6 +6,7 @@ import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.domain.enums.ActivityType;
+import com.tugnw.aistudy.domain.enums.DocumentStatus;
 import com.tugnw.aistudy.domain.mapper.DocumentMapper;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
@@ -48,25 +49,6 @@ public class DocumentServiceImpl implements DocumentService {
     private final QuotaService quotaService;
     private final ChatSessionRepository chatSessionRepository;
 
-    private boolean isAdmin() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null && auth.getAuthorities().stream()
-            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public boolean hasShareAccess(UUID documentId, UUID userId) {
-        return shareRepository.existsByDocumentIdAndSharedAccountIdAndRevokedFalse(documentId, userId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public DocumentResponse getSharedDocumentById(UUID id, UUID requesterId) {
-        Document document = getAccessibleDocument(id, requesterId, false);
-        return documentMapper.toResponse(document);
-    }
-
     @Override
     public List<DocumentResponse> uploadDocuments(UUID ownerId, DocumentUploadRequest request) {
         List<DocumentResponse> responses = new ArrayList<>();
@@ -75,9 +57,8 @@ public class DocumentServiceImpl implements DocumentService {
         long totalIncoming = 0;
         for (MultipartFile file : request.getFiles()) {
             totalIncoming += file.getSize();
-            if (file.getSize() > MAX_FILE_SIZE) {
+            if (file.getSize() > MAX_FILE_SIZE)
                 throw new RuntimeException("File size exceeds limit (50MB)");
-            }
         }
 
         // Check storage quota from active subscription or free plan
@@ -87,8 +68,6 @@ public class DocumentServiceImpl implements DocumentService {
             long storageLimitBytes = (long) (storageLimitGb * 1024L * 1024L * 1024L);
             long usedBytes = documentRepository.sumFileSizeByOwnerId(ownerId);
             if (usedBytes + totalIncoming > storageLimitBytes) {
-                log.warn("Storage limit exceeded for user {}: used={}, limit={}, incoming={}",
-                    ownerId, formatBytes(usedBytes), formatBytes(storageLimitBytes), formatBytes(totalIncoming));
                 throw new RuntimeException(
                     "Bạn đã sử dụng hết dung lượng lưu trữ (" + formatBytes(usedBytes) + "/" + formatBytes(storageLimitBytes) + "). "
                     + "Vui lòng nâng cấp gói Premium để có thêm không gian."
@@ -106,9 +85,8 @@ public class DocumentServiceImpl implements DocumentService {
                 contentType.equals("text/plain") ||
                 contentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
             );
-            if (!allowedType) {
+            if (!allowedType)
                 throw new RuntimeException("Invalid file type. Only PDF, DOCX, TXT, PPTX are allowed");
-            }
 
             // Upload file to Cloudinary
             var uploadResult = cloudinaryService.upload(file);
@@ -120,9 +98,8 @@ public class DocumentServiceImpl implements DocumentService {
             if (request.getFolderId() != null) {
                 var folder = folderRepository.findById(request.getFolderId())
                     .orElseThrow(() -> new RuntimeException("Folder not found"));
-                if (folder.getSubject() != null) {
+                if (folder.getSubject() != null)
                     document.setSubjectId(folder.getSubject().getId());
-                }
             }
 
             document.setCloudinaryUrl((String) uploadResult.get("secure_url"));
@@ -143,22 +120,11 @@ public class DocumentServiceImpl implements DocumentService {
                         "Uploaded document: " + savedDocument.getTitle()
                 );
             }
-
             // Add to responses
             responses.add(documentMapper.toResponse(savedDocument));
-            
-
         }
-
         // Return all responses
         return responses;
-    }
-
-    private String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
-        if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
-        return String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
     }
 
     @Override
@@ -170,14 +136,6 @@ public class DocumentServiceImpl implements DocumentService {
                 .map(documentMapper::toResponse)
                 .map(this::sanitizeForListing)
                 .toList();
-    }
-
-    /** Strip file URL from non-READY docs so listing doesn't leak content. */
-    private DocumentResponse sanitizeForListing(DocumentResponse resp) {
-        if (!"READY".equalsIgnoreCase(resp.getStatus())) {
-            resp.setCloudinaryUrl(null);
-        }
-        return resp;
     }
 
     @Override
@@ -203,29 +161,12 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DocumentResponse> getSharedFolderDocuments(UUID userId, UUID folderId) {
-        boolean hasFolderShareAccess = shareRepository.existsByFolderIdAndSharedAccountIdAndRevokedFalse(folderId, userId);
-        if (!hasFolderShareAccess && !isAdmin()) {
-            throw new AccessDeniedException("You do not have permission to access this shared folder");
-        }
-
-        List<Document> documents = documentRepository
-                .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(folderId, "READY");
-
-        return documents.stream()
-                .map(documentMapper::toResponse)
-                .toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public DocumentResponse getDocumentById(UUID id, UUID ownerId) {
         Document document = getAccessibleDocument(id, ownerId, false);
         DocumentResponse resp = documentMapper.toResponse(document);
         // Strip file URL for non-READY docs — only strip for non-owners and non-admins.
-        if (!"READY".equalsIgnoreCase(resp.getStatus()) && !isAdmin() && !document.getOwnerId().equals(ownerId)) {
+        if (!DocumentStatus.READY.name().equalsIgnoreCase(resp.getStatus()) && !isAdmin() && !document.getOwnerId().equals(ownerId))
             resp.setCloudinaryUrl(null);
-        }
         return resp;
     }
 
@@ -234,9 +175,8 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (!isAdmin() && !document.getOwnerId().equals(ownerId)) {
+        if (!isAdmin() && !document.getOwnerId().equals(ownerId))
             throw new AccessDeniedException("You do not have permission to update this document");
-        }
 
         if (request.getTitle() != null) document.setTitle(request.getTitle());
         if (request.getDescription() != null) document.setDescription(request.getDescription());
@@ -251,9 +191,8 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (!document.getOwnerId().equals(ownerId)) {
+        if (!document.getOwnerId().equals(ownerId))
             throw new AccessDeniedException("You do not have permission to delete this document");
-        }
 
         document.setDeletedAt(LocalDateTime.now());
         documentRepository.save(document);
@@ -265,27 +204,23 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + id));
 
         // 1) Must already be in trash (soft-deleted first)
-        if (document.getDeletedAt() == null) {
+        if (document.getDeletedAt() == null)
             throw new IllegalArgumentException("Document must be in trash before permanent deletion");
-        }
 
         boolean isOwner = document.getOwnerId().equals(requesterId);
-        if (!isOwner && !isAdmin()) {
+        if (!isOwner && !isAdmin())
             throw new AccessDeniedException("You do not have permission to permanently delete this document");
-        }
 
         // 2) Delete external resources BEFORE removing the DB row.
         //    If Cloudinary fails, exception propagates, DB untouched.
-        if (document.getPublicId() != null) {
+        if (document.getPublicId() != null)
             cloudinaryService.delete(document.getPublicId());
-        }
 
         // 3) Clean up AI resources owned by RagService.
         chatSessionRepository.deleteByDocumentId(id);
 
         // 4) DB delete — all child tables with ON DELETE CASCADE
-        //    (document_chunk, flashcard, quiz, share, report, bookmark,
-        //     study_report) are cleaned automatically.
+        //    (document_chunk, flashcard, quiz, share, report, bookmark, study_report) are cleaned automatically.
         documentRepository.delete(document);
         log.info("Permanently deleted document {} by user {}", id, requesterId);
     }
@@ -303,13 +238,11 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        if (document.getDeletedAt() == null) {
+        if (document.getDeletedAt() == null)
             throw new RuntimeException("Document is not in trash");
-        }
 
-        if (!isAdmin() && !document.getOwnerId().equals(requesterId)) {
+        if (!isAdmin() && !document.getOwnerId().equals(requesterId))
             throw new AccessDeniedException("You do not have permission to restore this document");
-        }
 
         document.setDeletedAt(null);
         documentRepository.save(document);
@@ -329,14 +262,7 @@ public class DocumentServiceImpl implements DocumentService {
                     "Downloaded document: " + document.getTitle()
             );
         }
-
         return document.getCloudinaryUrl();
-    }
-
-    @Override
-    public String generateShareableLink(UUID id, UUID ownerId) {
-        // TODO: Implement shareable link logic
-        return null;
     }
 
     @Override
@@ -344,38 +270,75 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
                 .orElseThrow(() -> new RuntimeException("Document not found"));
 
-        boolean isOwner = document.getOwnerId().equals(requesterId);
-        boolean isShared = hasShareAccess(documentId, requesterId);
-        boolean isAdmin = isAdmin();
-
         // Admin always bypasses status checks
-        if (isAdmin) {
-            return document;
-        }
+        if (isAdmin()) return document;
 
         // Owner always bypasses status checks for view/manage operations
-        if (isOwner && !aiRequired) {
-            return document;
-        }
+        if (document.getOwnerId().equals(requesterId) && !aiRequired) return document;
 
         // Owner: AI operations require READY status
-        if (isOwner) {
-            if (!"READY".equalsIgnoreCase(document.getStatus())) {
-                throw new AccessDeniedException(
-                    "Tài liệu chưa được phê duyệt. Vui lòng đợi quản trị viên xét duyệt."
-                );
-            }
+        if (document.getOwnerId().equals(requesterId)) {
+            if (!DocumentStatus.READY.name().equalsIgnoreCase(document.getStatus()))
+                throw new AccessDeniedException("Tài liệu chưa được phê duyệt. Vui lòng đợi quản trị viên xét duyệt.");
             return document;
         }
 
         // Shared user: must have share access AND document must be READY
-        if (isShared) {
-            if (!"READY".equalsIgnoreCase(document.getStatus())) {
+        if (hasShareAccess(documentId, requesterId)) {
+            if (!DocumentStatus.READY.name().equalsIgnoreCase(document.getStatus()))
                 throw new AccessDeniedException("Tài liệu chưa được phê duyệt.");
-            }
             return document;
         }
-
         throw new AccessDeniedException("You do not have permission to access this document");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasShareAccess(UUID documentId, UUID userId) {
+        return shareRepository.existsByDocumentIdAndSharedAccountIdAndRevokedFalse(documentId, userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DocumentResponse getSharedDocumentById(UUID id, UUID requesterId) {
+        Document document = getAccessibleDocument(id, requesterId, false);
+        return documentMapper.toResponse(document);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentResponse> getSharedFolderDocuments(UUID userId, UUID folderId) {
+        boolean hasFolderShareAccess = shareRepository.existsByFolderIdAndSharedAccountIdAndRevokedFalse(folderId, userId);
+        if (!hasFolderShareAccess && !isAdmin())
+            throw new AccessDeniedException("You do not have permission to access this shared folder");
+
+        List<Document> documents = documentRepository
+                .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(folderId, DocumentStatus.READY.name());
+
+        return documents.stream()
+                .map(documentMapper::toResponse)
+                .toList();
+    }
+
+    // ============ HELPER METHODS ============
+
+    /** Strip file URL from non-READY docs so listing doesn't leak content. */
+    private DocumentResponse sanitizeForListing(DocumentResponse resp) {
+        if (!DocumentStatus.READY.name().equalsIgnoreCase(resp.getStatus()))
+            resp.setCloudinaryUrl(null);
+        return resp;
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
+        return String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
+    }
+
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 }

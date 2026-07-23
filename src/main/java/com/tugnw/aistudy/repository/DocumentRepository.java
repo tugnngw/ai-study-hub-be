@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -58,4 +59,6 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     @Query("SELECT COALESCE(SUM(d.quizGenerations), 0) FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
     long sumQuizGenerationsByOwnerId(@Param("ownerId") UUID ownerId);
+
+    long countByCreatedAtAfter(LocalDateTime date);
 }
