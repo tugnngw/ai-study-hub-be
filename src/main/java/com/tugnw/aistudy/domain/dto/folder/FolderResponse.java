@@ -36,4 +36,7 @@ public class FolderResponse {
 
     @Schema(description = "Number of documents in this folder", example = "3")
     private int documentCount;
+
+    @Schema(description = "Soft-delete timestamp")
+    private LocalDateTime deletedAt;
 }

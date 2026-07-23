@@ -18,4 +18,7 @@ public interface FolderService {
     FolderResponse updateFolder(UUID id, UUID ownerId, FolderUpdateRequest request);
 
     void deleteFolder(UUID id, UUID ownerId);
+    List<FolderResponse> getTrashFolders(UUID requesterId);
+    void restoreFolder(UUID id, UUID requesterId);
+    void permanentDeleteFolder(UUID id, UUID requesterId);
 }
