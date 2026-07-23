@@ -38,15 +38,12 @@ public class VerificationServiceImpl implements VerificationService {
     @Transactional
     public void sendVerificationEmail(String email) {
         Optional<Account> opt = accountRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(email);
-        if (opt.isEmpty()) {
-            log.info("Send-verification requested for unknown email (suppressed)");
-            return;
-        }
+        if (opt.isEmpty()) return;
+
         Account account = opt.get();
-        if (account.isEmailVerified()) {
-            log.info("Account {} already verified, skipping send", account.getId());
-            return;
-        }
+
+        if (account.isEmailVerified()) return;
+
         doSendVerification(account);
     }
 
@@ -56,10 +53,8 @@ public class VerificationServiceImpl implements VerificationService {
         Account account = accountRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(email)
                 .orElseThrow(() -> new InvalidTokenException("Account not found with email: " + email));
 
-        if (account.isEmailVerified()) {
-            log.info("Account {} already verified, skipping resend", account.getId());
-            return;
-        }
+        if (account.isEmailVerified()) return;
+
         doSendVerification(account);
     }
 
@@ -67,10 +62,7 @@ public class VerificationServiceImpl implements VerificationService {
     @Transactional
     public void resendVerificationByUsername(String username) {
         Account account = accountRepository.findByUsernameIgnoreCaseAndDeletedAtIsNull(username);
-        if (account == null || account.getEmail() == null || account.isEmailVerified()) {
-            log.info("Resend-by-username: no eligible account for user '{}' (suppressed)", username);
-            return;
-        }
+        if (account == null || account.getEmail() == null || account.isEmailVerified()) return;
         doSendVerification(account);
     }
 
@@ -80,13 +72,11 @@ public class VerificationServiceImpl implements VerificationService {
         AccountToken vt = accountTokenRepository.findByTokenAndType(token, AccountTokenType.EMAIL_VERIFICATION)
                 .orElseThrow(() -> new InvalidTokenException("Invalid verification token"));
 
-        if (vt.isExpired()) {
+        if (vt.isExpired())
             throw new TokenExpiredException("Verification token has expired. Please request a new one.");
-        }
 
-        if (vt.isUsed()) {
+        if (vt.isUsed())
             throw new TokenAlreadyUsedException("This verification link has already been used.");
-        }
 
         Account account = vt.getAccount();
 
@@ -97,7 +87,6 @@ public class VerificationServiceImpl implements VerificationService {
         if (account.isEmailVerified()) {
             vt.setUsedAt(Instant.now());
             accountTokenRepository.save(vt);
-            log.info("Account {} already verified, marking token used", account.getId());
             return;
         }
 
@@ -108,9 +97,9 @@ public class VerificationServiceImpl implements VerificationService {
         // Mark token as used
         vt.setUsedAt(Instant.now());
         accountTokenRepository.save(vt);
-
-        log.info("Account {} email verified successfully", account.getId());
     }
+
+    // ============ HELPER METHODS ============
 
     /**
      * Reuse or generate an email verification token.
@@ -123,10 +112,7 @@ public class VerificationServiceImpl implements VerificationService {
         entityManager.lock(account, LockModeType.PESSIMISTIC_WRITE);
 
         // Re-check after lock: a concurrent verify may have just committed
-        if (account.isEmailVerified()) {
-            log.info("Account {} already verified, skipping send", account.getId());
-            return;
-        }
+        if (account.isEmailVerified()) return;
 
         // Reuse existing active token — enforce 60s cooldown to prevent SMTP spam
         Optional<AccountToken> existing = accountTokenRepository
@@ -138,10 +124,8 @@ public class VerificationServiceImpl implements VerificationService {
             if (Instant.now().isBefore(cooldownEnd)) {
                 long secondsLeft = java.time.Duration.between(Instant.now(), cooldownEnd).toSeconds();
                 throw new IllegalArgumentException(
-                    "Vui lòng đợi " + Math.max(1, secondsLeft) + " giây trước khi yêu cầu gửi lại email xác thực."
-                );
+                    "Vui lòng đợi " + Math.max(1, secondsLeft) + " giây trước khi yêu cầu gửi lại email xác thực.");
             }
-            log.info("Reusing existing verification token for account {}", account.getId());
             emailService.sendVerificationEmail(account.getEmail(), account.getFullName(), vt.getToken());
             return;
         }
@@ -159,7 +143,6 @@ public class VerificationServiceImpl implements VerificationService {
                 .build();
         accountTokenRepository.save(vt);
 
-        log.info("Generated new verification token for account {}", account.getId());
         emailService.sendVerificationEmail(account.getEmail(), account.getFullName(), tokenValue);
     }
 }
