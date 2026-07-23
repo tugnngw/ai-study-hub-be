@@ -3,6 +3,7 @@ package com.tugnw.aistudy.service.impl;
 import com.tugnw.aistudy.domain.dto.account.AccountMeResponse;
 import com.tugnw.aistudy.domain.dto.account.UpdateProfileRequest;
 import com.tugnw.aistudy.domain.entity.Account;
+import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.service.AccountService;
@@ -23,11 +24,12 @@ public class AccountServiceImpl implements AccountService {
 
     private final AccountRepository accountRepository;
     private final VerificationService verificationService;
+    private final AccountMapper accountMapper;
 
     @Override
     public AccountMeResponse getMe(Authentication authentication) {
         Account account = loadAccount(authentication);
-        return toResponse(account);
+        return accountMapper.toAccountMeResponse(account);
     }
 
     @Override
@@ -35,13 +37,12 @@ public class AccountServiceImpl implements AccountService {
     public AccountMeResponse updateProfile(Authentication authentication, UpdateProfileRequest request) {
         Account account = loadAccount(authentication);
 
-        // ── Update fullName ─────────────────────────────────────────────
+        // Update fullName
         if (request.fullName() != null && !request.fullName().isBlank()
-                && !request.fullName().equals(account.getFullName())) {
+                && !request.fullName().equals(account.getFullName()))
             account.setFullName(request.fullName().trim());
-        }
 
-        // ── Update email ────────────────────────────────────────────────
+        // Update email
         // Only process when a non-empty email is explicitly provided
         if (request.email() != null && !request.email().isBlank()) {
             String newEmail = request.email().trim().toLowerCase(Locale.ROOT);
@@ -51,9 +52,8 @@ public class AccountServiceImpl implements AccountService {
                 // Duplicate check — exclude self by ID
                 Optional<Account> existing = accountRepository
                         .findByEmailIgnoreCaseAndDeletedAtIsNull(newEmail);
-                if (existing.isPresent() && !existing.get().getId().equals(account.getId())) {
+                if (existing.isPresent() && !existing.get().getId().equals(account.getId()))
                     throw new InvalidCredentialsException("Email already in use");
-                }
 
                 account.setEmail(newEmail);
                 account.setEmailVerified(false);
@@ -68,35 +68,19 @@ public class AccountServiceImpl implements AccountService {
         }
 
         accountRepository.save(account);
-        log.info("Profile updated for account {}", account.getId());
-        return toResponse(account);
+        return accountMapper.toAccountMeResponse(account);
     }
 
+    // ============ HELPER METHODS ============
+
     private Account loadAccount(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
+        if (authentication == null || !authentication.isAuthenticated())
             throw new RuntimeException("Authentication required");
-        }
         String username = authentication.getName();
         Account account = accountRepository.findByUsername(username);
-        if (account == null) {
+        if (account == null)
             throw new RuntimeException("Account not found: " + username);
-        }
         return account;
     }
 
-    private AccountMeResponse toResponse(Account account) {
-        return AccountMeResponse.builder()
-                .id(account.getId().toString())
-                .username(account.getUsername())
-                .email(account.getEmail())
-                .fullName(account.getFullName())
-                .avatarUrl(account.getAvatarUrl())
-                .role(account.getRole())
-                .status(account.getStatus())
-                .plan(account.getPlan())
-                .createdAt(account.getCreatedAt())
-                .updatedAt(account.getUpdatedAt())
-                .emailVerified(account.isEmailVerified())
-                .build();
-    }
 }
