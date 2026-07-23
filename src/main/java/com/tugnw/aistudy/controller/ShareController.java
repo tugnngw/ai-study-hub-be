@@ -1,10 +1,11 @@
 package com.tugnw.aistudy.controller;
 
 import com.tugnw.aistudy.domain.dto.share.SaveToFolderRequest;
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.share.SaveToFolderResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareRequest;
-import com.tugnw.aistudy.security.CustomUserDetails;
+import com.tugnw.aistudy.service.CurrentUserService;
 import com.tugnw.aistudy.service.ShareService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,69 +21,52 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ShareController {
     private final ShareService shareService;
+    private final CurrentUserService currentUserService;
 
     @PostMapping
-    public ResponseEntity<ShareResponse> createShare(@RequestBody ShareRequest request, Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        if (request.getDocumentId() != null) {
-            return ResponseEntity.ok(shareService.shareDocument(request, ownerId));
-        }
-        return ResponseEntity.ok(shareService.shareFolder(request, ownerId));
+    public ApiResponse<ShareResponse> createShare(@RequestBody ShareRequest request) {
+        if (request.getDocumentId() != null)
+            return ApiResponse.success(shareService.shareDocument(request, currentUserService.getCurrentUserId()));
+        return ApiResponse.success(shareService.shareFolder(request, currentUserService.getCurrentUserId()));
     }
 
     @GetMapping("/owner")
-    public ResponseEntity<List<ShareResponse>> getSharesByOwner(Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        return ResponseEntity.ok(shareService.getSharesByOwner(ownerId));
+    public ApiResponse<List<ShareResponse>> getSharesByOwner() {
+        return ApiResponse.success(shareService.getSharesByOwner(currentUserService.getCurrentUserId()));
     }
 
     @GetMapping("/shared-with-me")
-    public ResponseEntity<List<ShareResponse>> getSharesWithMe(Authentication authentication) {
-        UUID userId = getCurrentUserId(authentication);
-        return ResponseEntity.ok(shareService.getSharesWithMe(userId));
+    public ApiResponse<List<ShareResponse>> getSharesWithMe() {
+        return ApiResponse.success(shareService.getSharesWithMe(currentUserService.getCurrentUserId()));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteShare(@PathVariable UUID id, Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        shareService.removeShare(id, ownerId);
-        return ResponseEntity.noContent().build();
+    public ApiResponse<Void> deleteShare(@PathVariable UUID id) {
+        shareService.removeShare(id, currentUserService.getCurrentUserId());
+        return ApiResponse.success(null);
     }
 
     @DeleteMapping("/token/{shareToken}")
-    public ResponseEntity<Void> deleteShareByToken(@PathVariable String shareToken, Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        shareService.removeShareByToken(shareToken, ownerId);
-        return ResponseEntity.noContent().build();
+    public ApiResponse<Void> deleteShareByToken(@PathVariable String shareToken) {
+        shareService.removeShareByToken(shareToken, currentUserService.getCurrentUserId());
+        return ApiResponse.success(null);
     }
 
     @PostMapping("/{shareId}/save")
-    public ResponseEntity<SaveToFolderResponse> saveToMyFolder(
+    public ApiResponse<SaveToFolderResponse> saveToMyFolder(
             @PathVariable UUID shareId,
-            @RequestBody SaveToFolderRequest request,
-            Authentication authentication) {
-        UUID requesterId = getCurrentUserId(authentication);
-        SaveToFolderResponse response = shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(), request.getDescription(), requesterId);
-        return ResponseEntity.ok(response);
+            @RequestBody SaveToFolderRequest request) {
+        return ApiResponse.success(shareService.saveToMyFolder(shareId, request.getFolderId(), request.getTitle(),
+                request.getDescription(), currentUserService.getCurrentUserId()));
     }
 
     @GetMapping("/{shareToken}/link")
-    public ResponseEntity<Map<String, String>> getShareLink(@PathVariable String shareToken) {
-        String link = shareService.getShareLinkByToken(shareToken);
-        return ResponseEntity.ok(Map.of("url", link));
+    public ApiResponse<Map<String, String>> getShareLink(@PathVariable String shareToken) {
+        return ApiResponse.success(Map.of("url", shareService.getShareLinkByToken(shareToken)));
     }
 
     @GetMapping("/{shareToken}/download")
-    public ResponseEntity<Map<String, String>> getDownloadUrl(@PathVariable String shareToken) {
-        String url = shareService.getDownloadUrlByToken(shareToken);
-        return ResponseEntity.ok(Map.of("url", url));
-    }
-
-    private UUID getCurrentUserId(Authentication authentication) {
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof CustomUserDetails userDetails) {
-            return userDetails.getAccount().getId();
-        }
-        throw new RuntimeException("Unauthorized");
+    public ApiResponse<Map<String, String>> getDownloadUrl(@PathVariable String shareToken) {
+        return ApiResponse.success(Map.of("url", shareService.getDownloadUrlByToken(shareToken)));
     }
 }

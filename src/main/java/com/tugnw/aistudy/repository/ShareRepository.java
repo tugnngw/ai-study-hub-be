@@ -2,6 +2,7 @@ package com.tugnw.aistudy.repository;
 
 import com.tugnw.aistudy.domain.entity.Share;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,7 +17,6 @@ public interface ShareRepository extends JpaRepository<Share, UUID> {
     List<Share> findBySharedAccountId(UUID sharedAccountId);
     Optional<Share> findByFolderIdAndSharedAccountId(UUID folderId, UUID sharedAccountId);
     Optional<Share> findByDocumentIdAndSharedAccountId(UUID documentId, UUID sharedAccountId);
-    boolean existsByOwnerIdAndVisibility(UUID ownerId, String visibility);
     boolean existsByDocumentIdAndSharedAccountIdAndRevokedFalse(UUID documentId, UUID sharedAccountId);
 
     boolean existsByFolderIdAndSharedAccountIdAndRevokedFalse(UUID folderId, UUID sharedAccountId);
@@ -28,4 +28,8 @@ public interface ShareRepository extends JpaRepository<Share, UUID> {
     List<Share> findByDocumentId(@Param("documentId") UUID documentId);
 
     Optional<Share> findByShareToken(String shareToken);
+
+    @Modifying
+    @Query("DELETE FROM Share s WHERE s.document.id = :documentId")
+    void deleteByDocumentId(@Param("documentId") UUID documentId);
 }
