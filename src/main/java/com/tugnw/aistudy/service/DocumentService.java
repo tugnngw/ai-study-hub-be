@@ -34,8 +34,6 @@ public interface DocumentService {
 
     String getDocumentDownloadUrl(UUID id, UUID ownerId);
 
-    String generateShareableLink(UUID id, UUID ownerId);
-
     boolean hasShareAccess(UUID documentId, UUID userId);
 
     /**

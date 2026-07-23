@@ -1,10 +1,12 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentUploadRequest;
 import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareRequest;
+import com.tugnw.aistudy.service.CurrentUserService;
 import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.ShareService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +25,7 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequestMapping("/api/documents")
+@RequiredArgsConstructor
 @Tag(name = "Documents", description = "Document CRUD, upload, share, trash")
 @Validated
 @CrossOrigin(origins = "*", allowedHeaders = "*", exposedHeaders = "Authorization")
@@ -30,172 +33,120 @@ public class DocumentController {
 
     private final DocumentService documentService;
     private final ShareService shareService;
-
-    public DocumentController(DocumentService documentService, ShareService shareService) {
-        this.documentService = documentService;
-        this.shareService = shareService;
-    }
+    private final CurrentUserService currentUserService;
 
     @PostMapping(consumes = {"multipart/form-data"})
     @Operation(summary = "Upload documents to a folder")
-    public ResponseEntity<List<DocumentResponse>> uploadDocument(
+    public ApiResponse<List<DocumentResponse>> uploadDocument(
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "title", required = false) String title,
             @RequestParam(value = "description", required = false) String description,
-            @RequestParam(value = "folderId", required = false) UUID folderId,
-            Authentication authentication) {
+            @RequestParam(value = "folderId", required = false) UUID folderId) {
 
         DocumentUploadRequest request = new DocumentUploadRequest();
         request.setFiles(files);
         if (title != null) request.setTitle(title);
         if (description != null) request.setDescription(description);
         request.setFolderId(folderId);
-
-        UUID ownerId = getCurrentUserId(authentication);
-        List<DocumentResponse> responses = documentService.uploadDocuments(ownerId, request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(responses);
+        List<DocumentResponse> responses = documentService.uploadDocuments(currentUserService.getCurrentUserId(), request);
+        return ApiResponse.success(responses);
     }
 
     @GetMapping
     @Operation(summary = "List current user's documents")
-    public ResponseEntity<List<DocumentResponse>> getDocuments(Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        return ResponseEntity.ok(documentService.getDocumentsByOwner(ownerId));
+    public ApiResponse<List<DocumentResponse>> getDocuments() {
+        return ApiResponse.success(documentService.getDocumentsByOwner(currentUserService.getCurrentUserId()));
     }
 
     @GetMapping("/folder/{folderId}")
     @Operation(summary = "List documents in a folder")
-    public ResponseEntity<List<DocumentResponse>> getDocumentsByFolder(
-            @PathVariable UUID folderId,
-            Authentication authentication) {
-
-        UUID ownerId = getCurrentUserId(authentication);
-        List<DocumentResponse> responses = documentService.getDocumentsByFolder(ownerId, folderId);
-        return ResponseEntity.ok(responses);
+    public ApiResponse<List<DocumentResponse>> getDocumentsByFolder(@PathVariable UUID folderId) {
+        List<DocumentResponse> responses = documentService.getDocumentsByFolder(currentUserService.getCurrentUserId(), folderId);
+        return ApiResponse.success(responses);
     }
 
     @GetMapping("/shared/folder/{folderId}")
     @Operation(summary = "List documents in a shared folder")
-    public ResponseEntity<List<DocumentResponse>> getSharedFolderDocuments(
-            @PathVariable UUID folderId,
-            Authentication authentication) {
-
-        UUID userId = getCurrentUserId(authentication);
-        List<DocumentResponse> responses = documentService.getSharedFolderDocuments(userId, folderId);
-        return ResponseEntity.ok(responses);
+    public ApiResponse<List<DocumentResponse>> getSharedFolderDocuments(@PathVariable UUID folderId) {
+        List<DocumentResponse> responses = documentService.getSharedFolderDocuments(currentUserService.getCurrentUserId(), folderId);
+        return ApiResponse.success(responses);
     }
 
     @GetMapping("/shared")
     @Operation(summary = "List shared documents (TODO)")
-    public ResponseEntity<List<DocumentResponse>> getSharedDocuments(Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        return ResponseEntity.ok(List.of());
+    public ApiResponse<List<DocumentResponse>> getSharedDocuments() {
+        return ApiResponse.success(List.of());
+
     }
 
     @GetMapping("/trash")
     @Operation(summary = "List soft-deleted documents")
-    public ResponseEntity<List<DocumentResponse>> getTrashDocuments(Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        return ResponseEntity.ok(documentService.getTrashDocuments(ownerId));
+    public ApiResponse<List<DocumentResponse>> getTrashDocuments() {
+        return ApiResponse.success(documentService.getTrashDocuments(currentUserService.getCurrentUserId()));
+
     }
 
     @PostMapping("/{id}/restore")
     @Operation(summary = "Restore document from trash")
-    public ResponseEntity<Void> restoreDocument(@PathVariable UUID id, Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        documentService.restoreDocument(id, ownerId);
-        return ResponseEntity.ok().build();
+    public ApiResponse<Void> restoreDocument(@PathVariable UUID id) {
+        documentService.restoreDocument(id, currentUserService.getCurrentUserId());
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get document by ID")
-    public ResponseEntity<DocumentResponse> getDocumentById(
-            @PathVariable UUID id,
-            Authentication authentication) {
-
-        UUID ownerId = getCurrentUserId(authentication);
-        DocumentResponse response = documentService.getDocumentById(id, ownerId);
-        return ResponseEntity.ok(response);
+    public ApiResponse<DocumentResponse> getDocumentById(@PathVariable UUID id) {
+        return ApiResponse.success(documentService.getDocumentById(id, currentUserService.getCurrentUserId()));
     }
 
     @GetMapping("/shared/{id}")
     @Operation(summary = "Get shared document by ID")
-    public ResponseEntity<DocumentResponse> getSharedDocumentById(
-            @PathVariable UUID id,
-            Authentication authentication) {
-
-        UUID requesterId = getCurrentUserId(authentication);
-        DocumentResponse response = documentService.getSharedDocumentById(id, requesterId);
-        return ResponseEntity.ok(response);
+    public ApiResponse<DocumentResponse> getSharedDocumentById(@PathVariable UUID id) {
+        return ApiResponse.success(documentService.getSharedDocumentById(id, currentUserService.getCurrentUserId()));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update document metadata")
-    public ResponseEntity<DocumentResponse> updateDocument(
+    public ApiResponse<DocumentResponse> updateDocument(
             @PathVariable UUID id,
-            @RequestBody DocumentUpdateRequest request,
-            Authentication authentication) {
-
-        UUID ownerId = getCurrentUserId(authentication);
-        DocumentResponse response = documentService.updateDocument(id, ownerId, request);
-        return ResponseEntity.ok(response);
+            @RequestBody DocumentUpdateRequest request) {
+        return ApiResponse.success(documentService.updateDocument(id, currentUserService.getCurrentUserId(), request));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Soft-delete document")
-    public ResponseEntity<Void> deleteDocument(@PathVariable UUID id, Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        documentService.deleteDocument(id, ownerId);
-        return ResponseEntity.noContent().build();
+    public ApiResponse<Void> deleteDocument(@PathVariable UUID id) {
+        documentService.deleteDocument(id, currentUserService.getCurrentUserId());
+        return ApiResponse.success(null);
     }
 
     @DeleteMapping("/{id}/permanent")
     @Operation(summary = "Permanently delete document (from trash)")
-    public ResponseEntity<Void> permanentDeleteDocument(@PathVariable UUID id, Authentication authentication) {
-        log.info("=== [PERMANENT DELETE] CONTROLLER HIT id={} ===", id);
-        UUID requesterId = getCurrentUserId(authentication);
-        documentService.permanentDeleteDocument(id, requesterId);
-        return ResponseEntity.noContent().build();
+    public ApiResponse<Void> permanentDeleteDocument(@PathVariable UUID id) {
+        documentService.permanentDeleteDocument(id, currentUserService.getCurrentUserId());
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/{id}/download")
     @Operation(summary = "Get document download URL")
-    public ResponseEntity<String> getDownloadUrl(
-            @PathVariable UUID id,
-            Authentication authentication) {
-
-        UUID ownerId = getCurrentUserId(authentication);
-        return ResponseEntity.ok(documentService.getDocumentDownloadUrl(id, ownerId));
+    public ApiResponse<String> getDownloadUrl(
+            @PathVariable UUID id) {
+        return ApiResponse.success(documentService.getDocumentDownloadUrl(id, currentUserService.getCurrentUserId()));
     }
 
     @PostMapping("/{id}/share")
     @Operation(summary = "Share a document with another user")
-    public ResponseEntity<ShareResponse> shareDocument(
+    public ApiResponse<ShareResponse> shareDocument(
             @PathVariable UUID id,
-            @RequestBody ShareRequest request,
-            Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
+            @RequestBody ShareRequest request) {
         request.setDocumentId(id);
-        return ResponseEntity.ok(shareService.shareDocument(request, ownerId));
+        return ApiResponse.success(shareService.shareDocument(request, currentUserService.getCurrentUserId()));
     }
 
     @GetMapping("/{id}/share-info")
     @Operation(summary = "Get document share info")
-    public ResponseEntity<ShareResponse> getDocumentShareInfo(
-            @PathVariable UUID id,
-            Authentication authentication) {
-        UUID ownerId = getCurrentUserId(authentication);
-        return ResponseEntity.ok(shareService.getShareInfo(id, "document", ownerId));
+    public ApiResponse<ShareResponse> getDocumentShareInfo(@PathVariable UUID id) {
+        return ApiResponse.success(shareService.getShareInfo(id, "document", currentUserService.getCurrentUserId()));
     }
 
-    private UUID getCurrentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new RuntimeException("User chưa đăng nhập");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
-            return userDetails.getAccount().getId();
-        }
-        throw new RuntimeException("Không thể xác định user");
-    }
 }
