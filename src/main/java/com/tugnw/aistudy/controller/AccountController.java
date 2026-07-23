@@ -28,17 +28,17 @@ public class AccountController {
 
     @GetMapping("/me")
     @Operation(summary = "Get current user", description = "Get current authenticated user details")
-    public ResponseEntity<ApiResponse<AccountMeResponse>> getCurrentUser(Authentication authentication) {
+    public ApiResponse<AccountMeResponse> getCurrentUser(Authentication authentication) {
         AccountMeResponse response = accountService.getMe(authentication);
-        return ResponseEntity.ok(ApiResponse.success("User retrieved successfully", response));
+        return ApiResponse.success("User retrieved successfully", response);
     }
 
     @PutMapping("/profile")
     @Operation(summary = "Update profile", description = "Update full name and/or email. If email changes, a verification email is sent.")
-    public ResponseEntity<ApiResponse<AccountMeResponse>> updateProfile(
+    public ApiResponse<AccountMeResponse> updateProfile(
             Authentication authentication,
             @Valid @RequestBody UpdateProfileRequest request) {
         AccountMeResponse response = accountService.updateProfile(authentication, request);
-        return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", response));
+        return ApiResponse.success("Profile updated successfully", response);
     }
 }
