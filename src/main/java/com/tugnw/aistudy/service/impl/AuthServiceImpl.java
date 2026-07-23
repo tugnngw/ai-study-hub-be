@@ -28,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -36,7 +35,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.Locale;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -46,7 +44,6 @@ public class AuthServiceImpl implements AuthService {
 
     private final AccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final AccountMapper accountMapper;
     private final ActivityLogService activityLogService;
@@ -60,9 +57,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse register(RegisterRequest request) {
         // Check if username already exists
-        if (accountRepository.existsByUsernameIgnoreCaseAndDeletedAtIsNull(request.username())) {
+        if (accountRepository.existsByUsernameIgnoreCaseAndDeletedAtIsNull(request.username()))
             throw new InvalidCredentialsException("Username already exists");
-        }
 
         // Normalize email if provided
         String normalizedEmail = null;
@@ -70,9 +66,8 @@ public class AuthServiceImpl implements AuthService {
             normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
 
             // Check if email already exists
-            if (accountRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(normalizedEmail)) {
+            if (accountRepository.existsByEmailIgnoreCaseAndDeletedAtIsNull(normalizedEmail))
                 throw new InvalidCredentialsException("Email already exists");
-            }
         }
 
         // Create new account
@@ -90,22 +85,18 @@ public class AuthServiceImpl implements AuthService {
 
         // Create FREE subscription for new user
         createFreeSubscription(account);
-        log.info("Created FREE subscription for new user: {}", account.getUsername());
 
         // Log activity for user registration
         activityLogService.logActivity(
                 account.getId(),
                 account.getUsername(),
                 ActivityType.USER_REGISTER,
-                "User registered a new account"
-        );
+                "User registered a new account");
 
         if (normalizedEmail != null) {
             // Email provided → user must verify before logging in
-            if (autoSendOnRegister) {
+            if (autoSendOnRegister)
                 verificationService.sendVerificationEmail(normalizedEmail);
-            }
-            log.info("Email verification required for account {}", account.getId());
             return buildAuthResponse(account, null, null);
         }
 
@@ -113,12 +104,10 @@ public class AuthServiceImpl implements AuthService {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 new CustomUserDetails(account),
                 null,
-                new CustomUserDetails(account).getAuthorities()
-        );
+                new CustomUserDetails(account).getAuthorities());
 
         String accessToken = jwtTokenProvider.generateToken(authentication);
         String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
-        logTokenIssued("register", account, accessToken, refreshToken);
 
         return buildAuthResponse(account, accessToken, refreshToken);
     }
@@ -126,23 +115,19 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse login(LoginRequest request) {
         Account account = accountRepository.findByUsername(request.username());
-        if (account == null) {
+        if (account == null)
             throw new InvalidCredentialsException("Invalid username or password");
-        }
 
-        if (account.getStatus() != AccountStatus.ACTIVE) {
+        if (account.getStatus() != AccountStatus.ACTIVE)
             throw new InvalidCredentialsException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để biết thêm chi tiết.");
-        }
 
         // Verify password
-        if (!passwordEncoder.matches(request.password(), account.getPasswordHash())) {
+        if (!passwordEncoder.matches(request.password(), account.getPasswordHash()))
             throw new InvalidCredentialsException("Invalid username or password");
-        }
 
         // Verify email if account has an email
-        if (account.getEmail() != null && !account.isEmailVerified()) {
+        if (account.getEmail() != null && !account.isEmailVerified())
             throw new EmailNotVerifiedException("Email chưa được xác thực. Vui lòng kiểm tra hộp thư hoặc yêu cầu gửi lại email xác thực.");
-        }
 
         // Update last login time
         account.setLastLoginAt(Instant.now());
@@ -152,12 +137,10 @@ public class AuthServiceImpl implements AuthService {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 new CustomUserDetails(account),
                 null,
-                new CustomUserDetails(account).getAuthorities()
-        );
+                new CustomUserDetails(account).getAuthorities());
 
         String accessToken = jwtTokenProvider.generateToken(authentication);
         String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
-        logTokenIssued("login", account, accessToken, refreshToken);
 
         return buildAuthResponse(account, accessToken, refreshToken);
     }
@@ -167,31 +150,26 @@ public class AuthServiceImpl implements AuthService {
         String refreshToken = request.refreshToken();
 
         // Validate the refresh token
-        if (!jwtTokenProvider.validateToken(refreshToken)) {
+        if (!jwtTokenProvider.validateToken(refreshToken))
             throw new InvalidTokenException("Invalid or expired refresh token");
-        }
 
         String username = jwtTokenProvider.getUsernameFromJWT(refreshToken);
         Account account = accountRepository.findByUsername(username);
-        if (account == null) {
+        if (account == null)
             throw new InvalidTokenException("Account not found for refresh token");
-        }
 
-        if (account.getStatus() != AccountStatus.ACTIVE) {
+        if (account.getStatus() != AccountStatus.ACTIVE)
             throw new InvalidTokenException("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để biết thêm chi tiết.");
-        }
 
         // Create authentication from the account
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 new CustomUserDetails(account),
                 null,
-                new CustomUserDetails(account).getAuthorities()
-        );
+                new CustomUserDetails(account).getAuthorities());
 
         // Generate new tokens
         String newAccessToken = jwtTokenProvider.generateToken(authentication);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(authentication);
-        logTokenIssued("refresh", account, newAccessToken, newRefreshToken);
 
         return buildAuthResponse(account, newAccessToken, newRefreshToken);
     }
@@ -201,6 +179,8 @@ public class AuthServiceImpl implements AuthService {
         // Logout logic can be implemented here if needed
         // For JWT, logout is typically client-side (token deletion)
     }
+
+    // ============ HELPER METHODS ============
 
     private AuthResponse buildAuthResponse(Account account, String accessToken, String refreshToken) {
         AuthResponse mapped = accountMapper.toAuthResponse(account);
@@ -213,28 +193,7 @@ public class AuthServiceImpl implements AuthService {
                 accessToken,
                 refreshToken,
                 accessToken != null ? (long) jwtTokenProvider.getJwtExpirationInMs() : 0L,
-                account.isEmailVerified()
-        );
-    }
-
-    private void logTokenIssued(String flow, Account account, String accessToken, String refreshToken) {
-        log.info("AUTH_TOKEN_ISSUED flow={} userId={} username={} accessTokenPresent={} accessTokenLength={} accessTokenPrefix={} refreshTokenPresent={} refreshTokenLength={} refreshTokenPrefix={}",
-                flow,
-                account.getId(),
-                account.getUsername(),
-                accessToken != null && !accessToken.isBlank(),
-                accessToken == null ? 0 : accessToken.length(),
-                tokenPrefix(accessToken),
-                refreshToken != null && !refreshToken.isBlank(),
-                refreshToken == null ? 0 : refreshToken.length(),
-                tokenPrefix(refreshToken));
-    }
-
-    private String tokenPrefix(String token) {
-        if (token == null || token.isBlank()) {
-            return "NONE";
-        }
-        return token.substring(0, Math.min(12, token.length())) + "...";
+                account.isEmailVerified());
     }
 
     private void createFreeSubscription(Account account) {
@@ -243,10 +202,7 @@ public class AuthServiceImpl implements AuthService {
                 .findFirst()
                 .orElse(null);
 
-        if (freePlan == null) {
-            log.warn("FREE plan not found in database — no subscription created for user: {}", account.getUsername());
-            return;
-        }
+        if (freePlan == null) return;
 
         Subscription subscription = Subscription.builder()
                 .accountId(account.getId())
@@ -255,13 +211,13 @@ public class AuthServiceImpl implements AuthService {
                 .startDate(Instant.now())
                 .endDate(null)
                 .pricePaid(0L)
-                .storageGbGranted(freePlan.getStorageGb() != null ? freePlan.getStorageGb() : 1.0)
-                .aiQuestionsGranted(freePlan.getAiQuestions() != null ? freePlan.getAiQuestions() : 5)
-                .flashcardLimitGranted(freePlan.getFlashcardLimit() != null ? freePlan.getFlashcardLimit() : 0)
-                .questionLimitGranted(freePlan.getQuestionLimit() != null ? freePlan.getQuestionLimit() : 0)
-                .summaryLimitGranted(freePlan.getSummaryLimit() != null ? freePlan.getSummaryLimit() : 0)
-                .chatLimitGranted(freePlan.getChatLimit() != null ? freePlan.getChatLimit() : 0)
-                .tierGranted(freePlan.getTier() != null ? freePlan.getTier() : 0)
+                .storageGbGranted(freePlan.getStorageGb())
+                .aiQuestionsGranted(freePlan.getAiQuestions())
+                .flashcardLimitGranted(freePlan.getFlashcardLimit())
+                .questionLimitGranted(freePlan.getQuestionLimit())
+                .summaryLimitGranted(freePlan.getSummaryLimit())
+                .chatLimitGranted(freePlan.getChatLimit())
+                .tierGranted(freePlan.getTier())
                 .autoRenew(false)
                 .build();
 

@@ -39,7 +39,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     @Transactional
     public void onAuthenticationSuccess(HttpServletRequest request,
                                         HttpServletResponse response,
-                                        Authentication authentication) throws IOException, ServletException {
+                                        Authentication authentication) throws IOException{
         OAuth2User principal = (OAuth2User) authentication.getPrincipal();
         Account account = findOrCreateGoogleAccount(principal);
         account.setLastLoginAt(Instant.now());
@@ -49,21 +49,10 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         Authentication auth = new UsernamePasswordAuthenticationToken(
                 new CustomUserDetails(account),
                 null,
-                new CustomUserDetails(account).getAuthorities()
-        );
+                new CustomUserDetails(account).getAuthorities());
         String accessToken = jwtTokenProvider.generateToken(auth);
 
         String refreshToken = jwtTokenProvider.generateRefreshToken(auth);
-
-        // Log token generation for OAuth
-        log.info("OAUTH_TOKEN_ISSUED userId={} email={} accessTokenPresent={} accessTokenLength={} refreshTokenPresent={} refreshTokenLength={} redirectUrl={}",
-                account.getId(),
-                account.getEmail(),
-                accessToken != null && !accessToken.isBlank(),
-                accessToken == null ? 0 : accessToken.length(),
-                refreshToken != null && !refreshToken.isBlank(),
-                refreshToken == null ? 0 : refreshToken.length(),
-                "oauth-success with tokens");
 
         // Redirect to frontend with JWT token
         String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl)
@@ -80,9 +69,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private Account findOrCreateGoogleAccount(OAuth2User principal) {
         // Require email_verified attribute
         String providerId = requireAttribute(principal, "sub");
-        if (!Boolean.TRUE.equals(principal.getAttribute("email_verified"))) {
+        if (!Boolean.TRUE.equals(principal.getAttribute("email_verified")))
             throw new IllegalArgumentException("Google email must be verified");
-        }
 
         // Normalize attributes
         String email = normalizeEmail(principal.getAttribute("email"));
@@ -99,10 +87,10 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         return accountRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(email)
                 .map(account -> {
                     // If email already exists, check if it's a Google account
-                    if (account.getAuthProvider() != AuthProvider.GOOGLE) {
+                    if (account.getAuthProvider() != AuthProvider.GOOGLE)
                         // If already registered with another method, throw an error
                         throw new InvalidCredentialsException("Email already registered with another login method");
-                    }
+
                     // If already linked with Google, update account info
                     return updateGoogleAccount(account, email, fullName, avatarUrl, providerId);
                 })
@@ -138,23 +126,19 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         String base = email.substring(0, email.indexOf('@'))
                 .replaceAll("[^a-zA-Z0-9_]", "_")
                 .toLowerCase();
-        if (base.isBlank()) {
-            base = "google_user";
-        }
+        if (base.isBlank()) base = "google_user";
 
         String username = base;
         // Find username to ensure uniqueness
-        while (accountRepository.existsByUsernameIgnoreCaseAndDeletedAtIsNull(username)) {
+        while (accountRepository.existsByUsernameIgnoreCaseAndDeletedAtIsNull(username))
             username = base + "_" + UUID.randomUUID().toString().substring(0, 8);
-        }
         return username;
     }
 
     // Normalize email: trim, lowercase, check for required attribute
     private String normalizeEmail(Object email) {
-        if (email == null || email.toString().isBlank()) {
+        if (email == null || email.toString().isBlank())
             throw new IllegalArgumentException("Google email is required");
-        }
         return email.toString().trim().toLowerCase();
     }
 
@@ -166,9 +150,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     // Get required attribute from OAuth2User, throw error if null or blank
     private String requireAttribute(OAuth2User principal, String name) {
         Object value = principal.getAttribute(name);
-        if (value == null || value.toString().isBlank()) {
+        if (value == null || value.toString().isBlank())
             throw new IllegalArgumentException("Google " + name + " is required");
-        }
         return value.toString();
     }
 }
