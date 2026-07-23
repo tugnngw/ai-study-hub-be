@@ -17,6 +17,8 @@ import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.QuizService;
 import com.tugnw.aistudy.service.RagService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -45,6 +47,9 @@ public class QuizServiceImpl implements QuizService {
     private final KnowledgePreparationService knowledgePreparationService;
     private final QuotaService quotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private static final int MAX_QUESTION_LENGTH = 500;
     private static final int MAX_OPTION_LENGTH = 500;
@@ -89,29 +94,33 @@ public class QuizServiceImpl implements QuizService {
             throw new RuntimeException("Chất lượng câu hỏi tạo ra quá thấp (" + savedCount + "/" + requested + " hợp lệ). Vui lòng thử lại.");
         }
 
-        // Bước 4: Xóa quiz cũ — lúc này AI đã trả về kết quả OK
-        List<Quiz> existing = quizRepository.findByDocumentId(documentId);
-        for (Quiz q : existing) {
-            List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(q.getId());
-            questionRepository.deleteAll(questions);
-        }
-        quizRepository.deleteAll(existing);
-        quizRepository.flush();
-        if (!existing.isEmpty()) {
-            log.info("[LOG - QUIZ] Deleted " + existing.size() + " existing quizzes.");
+        // Bước 4: Xóa quiz cũ — dùng JPQL bulk delete tránh optimistic lock
+        List<UUID> oldQuizIds = quizRepository.findIdsByDocumentId(documentId);
+        if (!oldQuizIds.isEmpty()) {
+            questionRepository.deleteByQuizIdIn(oldQuizIds);
+            quizRepository.deleteByDocumentId(documentId);
+            entityManager.flush();
+            // Xóa persistence context để tránh stale state
+            entityManager.clear();
+            log.info("[LOG - QUIZ] Deleted {} existing quizzes.", oldQuizIds.size());
         }
 
-        // Bước 5: Save quiz mới
+        // Bước 5: Save quiz mới — không set ID, để Hibernate tự gen
         Quiz quiz = Quiz.builder()
-                .id(quizId)
                 .documentId(document.getId())
                 .title("AI-Generated Quiz")
                 .generatedByAi(true)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        Quiz savedQuiz = quizRepository.save(quiz);
-        questionRepository.saveAll(valid);
+        entityManager.persist(quiz);
+        // Gán quizId cho questions sau khi đã persist
+        UUID savedQuizId = quiz.getId();
+        for (Question q : valid) {
+            q.setQuizId(savedQuizId);
+            entityManager.persist(q);
+        }
+        entityManager.flush();
 
         // Increment generation counter
         document.setQuizGenerations(document.getQuizGenerations() == null ? 1 : document.getQuizGenerations() + 1);
@@ -122,10 +131,10 @@ public class QuizServiceImpl implements QuizService {
 
         List<QuestionResponse> questionResponses = quizMapper.toQuestionResponseList(valid);
         return QuizResponse.builder()
-                .id(savedQuiz.getId())
-                .title(savedQuiz.getTitle())
-                .generatedByAi(savedQuiz.getGeneratedByAi())
-                .createdAt(savedQuiz.getCreatedAt())
+                .id(quiz.getId())
+                .title(quiz.getTitle())
+                .generatedByAi(quiz.getGeneratedByAi())
+                .createdAt(quiz.getCreatedAt())
                 .questions(questionResponses)
                 .build();
     }

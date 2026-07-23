@@ -18,4 +18,9 @@ public interface QuizRepository extends JpaRepository<Quiz, UUID> {
 
     @Query("SELECT q.id FROM Quiz q WHERE q.documentId IN :documentIds")
     List<UUID> findAllIdsByDocumentIds(@Param("documentIds") List<UUID> documentIds);
+
+    @Query("SELECT q.id FROM Quiz q WHERE q.documentId = :documentId")
+    List<UUID> findIdsByDocumentId(@Param("documentId") UUID documentId);
+
+    void deleteByDocumentId(UUID documentId);
 }

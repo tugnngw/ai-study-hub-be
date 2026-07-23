@@ -49,10 +49,10 @@ public class Subscription {
     private Long pricePaid;
 
     @Column(name = "storage_gb_granted", nullable = false)
-    private Double storageGbGranted;
+    private Double storageGbGranted = 1.0;
 
     @Column(name = "ai_questions_granted", nullable = false)
-    private Integer aiQuestionsGranted;
+    private Integer aiQuestionsGranted = 2;
 
     @Column(name = "flashcard_limit_granted", nullable = false)
     @Builder.Default

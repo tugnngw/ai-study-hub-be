@@ -14,6 +14,7 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
 
     List<Question> findByQuizIdOrderByCreatedAtAsc(UUID quizId);
     long countByQuizIdIn(List<UUID> quizIds);
+    void deleteByQuizIdIn(List<UUID> quizIds);
 
     @Query("SELECT COUNT(DISTINCT q.quizId) FROM Question q WHERE q.quizId IN :quizIds")
     long countDistinctQuizIdByQuizIdIn(@Param("quizIds") List<UUID> quizIds);
