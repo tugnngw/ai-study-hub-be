@@ -13,8 +13,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -34,29 +35,34 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         Instant lastWeek = now.minus(7, ChronoUnit.DAYS);
         Instant twoWeeksAgo = now.minus(14, ChronoUnit.DAYS);
 
+        LocalDateTime lastWeekLdt = LocalDateTime.ofInstant(lastWeek, ZoneId.systemDefault());
+        LocalDateTime twoWeeksAgoLdt = LocalDateTime.ofInstant(twoWeeksAgo, ZoneId.systemDefault());
+
         long totalUsers = accountRepository.count();
         long totalDocs = documentRepository.count();
-        
-        Long currentDownloads = activityLogRepository.countByActionTypeAndCreatedAtAfter(
-                ActivityType.DOCUMENT_DOWNLOAD, lastWeek);
-        Long previousDownloads = activityLogRepository.countByActionTypeAndCreatedAtAfter(
-                ActivityType.DOCUMENT_DOWNLOAD, twoWeeksAgo);
-        previousDownloads = previousDownloads - (currentDownloads != null ? currentDownloads : 0);
 
-        double usersTrend = calculateTrend(totalUsers, totalUsers);
-        double docsTrend = calculateTrend(totalDocs, totalDocs);
-        double downloadsTrend = calculateTrend(
-                currentDownloads != null ? currentDownloads : 0,
-                previousDownloads != null ? previousDownloads : 0
-        );
+        long usersLastWeek = accountRepository.countByCreatedAtAfter(lastWeek);
+        long usersPrevWeek = accountRepository.countByCreatedAtAfter(twoWeeksAgo) - usersLastWeek;
+
+        long docsLastWeek = documentRepository.countByCreatedAtAfter(lastWeekLdt);
+        long docsPrevWeek = documentRepository.countByCreatedAtAfter(twoWeeksAgoLdt) - docsLastWeek;
+
+        Long downloadsLastWeek = activityLogRepository.countByActionTypeAndCreatedAtAfter(
+                ActivityType.DOCUMENT_DOWNLOAD, lastWeek);
+        Long downloadsPrevWeek = activityLogRepository.countByActionTypeAndCreatedAtAfter(
+                ActivityType.DOCUMENT_DOWNLOAD, twoWeeksAgo);
+        downloadsPrevWeek = downloadsPrevWeek - (downloadsLastWeek != null ? downloadsLastWeek : 0);
 
         return DashboardStatsResponse.builder()
                 .totalUsers(totalUsers)
-                .totalUsersTrend(usersTrend)
+                .usersLastWeek(usersLastWeek)
+                .usersPrevWeek(usersPrevWeek)
                 .totalDocs(totalDocs)
-                .totalDocsTrend(docsTrend)
-                .totalDownloads(currentDownloads != null ? currentDownloads : 0L)
-                .totalDownloadsTrend(downloadsTrend)
+                .docsLastWeek(docsLastWeek)
+                .docsPrevWeek(docsPrevWeek)
+                .totalDownloads(downloadsLastWeek != null ? downloadsLastWeek : 0L)
+                .downloadsLastWeek(downloadsLastWeek != null ? downloadsLastWeek : 0L)
+                .downloadsPrevWeek(downloadsPrevWeek != null ? downloadsPrevWeek : 0L)
                 .build();
     }
 
@@ -71,60 +77,12 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     }
 
     private ActivityResponse mapToActivityResponse(ActivityLog log) {
-        String type = mapActivityTypeToFrontend(log.getActionType());
-        String title = log.getDescription();
-        String actor = log.getUserName() != null ? log.getUserName() : "System";
-        String time = formatRelativeTime(log.getCreatedAt());
-
         return ActivityResponse.builder()
                 .id(log.getId().toString())
-                .title(title)
-                .actor(actor)
-                .type(type)
-                .time(time)
+                .title(log.getDescription())
+                .actor(log.getUserName() != null ? log.getUserName() : "System")
+                .type(log.getActionType().name())
                 .createdAt(log.getCreatedAt())
                 .build();
-    }
-
-    private String mapActivityTypeToFrontend(ActivityType activityType) {
-        switch (activityType) {
-            case USER_REGISTER:
-            case USER_UPGRADE:
-                return "user";
-            case DOCUMENT_UPLOAD:
-                return "upload";
-            case DOCUMENT_DELETE:
-                return "delete";
-            case PAYMENT_FAILED:
-            case DOCUMENT_DOWNLOAD:
-            default:
-                return "report";
-        }
-    }
-
-    private String formatRelativeTime(Instant instant) {
-        Duration duration = Duration.between(instant, Instant.now());
-        long minutes = duration.toMinutes();
-        long hours = duration.toHours();
-        long days = duration.toDays();
-
-        if (minutes < 1) {
-            return "Vừa xong";
-        } else if (minutes < 60) {
-            return minutes + " phút trước";
-        } else if (hours < 24) {
-            return hours + " giờ trước";
-        } else if (days < 7) {
-            return days + " ngày trước";
-        } else {
-            return (days / 7) + " tuần trước";
-        }
-    }
-
-    private double calculateTrend(long current, long previous) {
-        if (previous == 0) {
-            return current > 0 ? 100.0 : 0.0;
-        }
-        return ((double) (current - previous) / previous) * 100.0;
     }
 }

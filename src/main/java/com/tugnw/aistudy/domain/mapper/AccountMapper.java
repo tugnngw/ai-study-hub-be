@@ -1,5 +1,7 @@
 package com.tugnw.aistudy.domain.mapper;
 
+import com.tugnw.aistudy.domain.dto.account.AccountMeResponse;
+import com.tugnw.aistudy.domain.dto.admin.UserResponse;
 import com.tugnw.aistudy.domain.dto.auth.AuthResponse;
 import com.tugnw.aistudy.domain.entity.Account;
 import org.mapstruct.Mapper;
@@ -14,4 +16,7 @@ public interface AccountMapper {
     @Mapping(target = "expiresIn", ignore = true)
     AuthResponse toAuthResponse(Account account);
 
+    AccountMeResponse toAccountMeResponse(Account account);
+
+    UserResponse toUserResponse(Account account);
 }

@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,64 +27,56 @@ public class AdminUserController {
 
     @GetMapping
     @Operation(summary = "Get all users")
-    public ResponseEntity<ApiResponse<Page<UserResponse>>> getAllUsers(Pageable pageable) {
-        log.debug("[ADMIN_ACTION] Getting all users");
-        return ResponseEntity.ok(ApiResponse.success(adminUserService.getAllUsers(pageable)));
+    public ApiResponse<Page<UserResponse>> getAllUsers(Pageable pageable) {
+        return ApiResponse.success(adminUserService.getAllUsers(pageable));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get user by ID")
-    public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable UUID id) {
-        log.debug("[ADMIN_ACTION] Getting user by ID: {}", id);
-        return ResponseEntity.ok(ApiResponse.success(adminUserService.getUserById(id)));
+    public ApiResponse<UserResponse> getUserById(@PathVariable UUID id) {
+        return ApiResponse.success(adminUserService.getUserById(id));
     }
 
     @PatchMapping("/{id}/lock")
     @Operation(summary = "Lock a user account")
-    public ResponseEntity<ApiResponse<UserResponse>> lockUser(@PathVariable UUID id) {
-        log.debug("[ADMIN_ACTION] Locking user with ID: {}", id);
-        return ResponseEntity.ok(ApiResponse.success(adminUserService.lockUser(id)));
+    public ApiResponse<UserResponse> lockUser(@PathVariable UUID id) {
+        return ApiResponse.success(adminUserService.lockUser(id));
     }
 
     @PatchMapping("/{id}/unlock")
     @Operation(summary = "Unlock a user account")
-    public ResponseEntity<ApiResponse<UserResponse>> unlockUser(@PathVariable UUID id) {
-        log.debug("[ADMIN_ACTION] Unlocking user with ID: {}", id);
-        return ResponseEntity.ok(ApiResponse.success(adminUserService.unlockUser(id)));
+    public ApiResponse<UserResponse> unlockUser(@PathVariable UUID id) {
+        return ApiResponse.success(adminUserService.unlockUser(id));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Soft delete a user account")
-    public ResponseEntity<ApiResponse<UserResponse>> deleteUser(@PathVariable UUID id) {
-        log.debug("[ADMIN_ACTION] Soft deleting user with ID: {}", id);
-        return ResponseEntity.ok(ApiResponse.success(adminUserService.softDeleteUser(id)));
+    public ApiResponse<UserResponse> deleteUser(@PathVariable UUID id) {
+        return ApiResponse.success(adminUserService.softDeleteUser(id));
     }
 
     @DeleteMapping("/{id}/hard")
     @Operation(summary = "Permanently delete a user account")
-    public ResponseEntity<ApiResponse<Void>> hardDeleteUser(@PathVariable UUID id) {
-        log.debug("[ADMIN_ACTION] Hard deleting user with ID: {}", id);
+    public ApiResponse<Void> hardDeleteUser(@PathVariable UUID id) {
         adminUserService.hardDeleteUser(id);
-        return ResponseEntity.ok(ApiResponse.success("User permanently deleted", null));
+        return ApiResponse.success("User permanently deleted", null);
     }
 
     @GetMapping("/trash")
     @Operation(summary = "Get soft-deleted user accounts for trash view")
-    public ResponseEntity<ApiResponse<List<com.tugnw.aistudy.domain.dto.admin.UserResponse>>> getTrashUsers() {
-        return ResponseEntity.ok(ApiResponse.success(adminUserService.getSoftDeletedAccounts()));
+    public ApiResponse<List<UserResponse>> getTrashUsers() {
+        return ApiResponse.success(adminUserService.getSoftDeletedAccounts());
     }
 
     @PatchMapping("/{id}/restore")
     @Operation(summary = "Restore a soft-deleted user account")
-    public ResponseEntity<ApiResponse<UserResponse>> restoreUser(@PathVariable UUID id) {
-        log.debug("[ADMIN_ACTION] Restoring user with ID: {}", id);
-        return ResponseEntity.ok(ApiResponse.success(adminUserService.restoreUser(id)));
+    public ApiResponse<UserResponse> restoreUser(@PathVariable UUID id) {
+        return ApiResponse.success(adminUserService.restoreUser(id));
     }
 
     @PatchMapping("/{id}/toggle-status")
     @Operation(summary = "Toggle user status (lock/unlock)")
-    public ResponseEntity<ApiResponse<UserResponse>> toggleStatus(@PathVariable UUID id) {
-        log.debug("[ADMIN_ACTION] Toggling status for user with ID: {}", id);
-        return ResponseEntity.ok(ApiResponse.success(adminUserService.toggleStatus(id)));
+    public ApiResponse<UserResponse> toggleStatus(@PathVariable UUID id) {
+        return ApiResponse.success(adminUserService.toggleStatus(id));
     }
 }

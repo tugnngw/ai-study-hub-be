@@ -16,6 +16,5 @@ public class ActivityResponse {
     private String title;
     private String actor;
     private String type;
-    private String time;
     private Instant createdAt;
 }

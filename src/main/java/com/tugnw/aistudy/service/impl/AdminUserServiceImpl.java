@@ -4,6 +4,7 @@ import com.tugnw.aistudy.domain.dto.admin.UserResponse;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
+import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.exception.ResourceNotFoundException;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.service.AdminUserService;
@@ -24,23 +25,20 @@ import java.util.UUID;
 public class AdminUserServiceImpl implements AdminUserService {
 
     private final AccountRepository accountRepository;
+    private final AccountMapper accountMapper;
 
     @Override
     public Page<UserResponse> getAllUsers(Pageable pageable) {
-        log.info("[DEBUG] getAllUsers - filtering by USER role only");
         Page<Account> accounts = accountRepository.findByRoleAndDeletedAtIsNull(
-            com.tugnw.aistudy.domain.enums.AccountRole.USER, pageable);
-        log.info("[DEBUG] Found {} USER accounts", accounts.getTotalElements());
-        accounts.forEach(a -> log.info("[DEBUG] User: id={}, username={}, deletedAt={}", 
-            a.getId(), a.getUsername(), a.getDeletedAt()));
-        return accounts.map(this::toUserResponse);
+            AccountRole.USER, pageable);
+        return accounts.map(accountMapper::toUserResponse);
     }
 
     @Override
     public UserResponse getUserById(UUID id) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
-        return toUserResponse(account);
+        return accountMapper.toUserResponse(account);
     }
 
     @Override
@@ -51,7 +49,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         account.setStatus(AccountStatus.INACTIVE);
         account.setUpdatedAt(Instant.now());
         Account saved = accountRepository.save(account);
-        return toUserResponse(saved);
+        return accountMapper.toUserResponse(saved);
     }
 
     @Override
@@ -62,7 +60,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         account.setStatus(AccountStatus.ACTIVE);
         account.setUpdatedAt(Instant.now());
         Account saved = accountRepository.save(account);
-        return toUserResponse(saved);
+        return accountMapper.toUserResponse(saved);
     }
 
     @Override
@@ -74,7 +72,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         account.setStatus(AccountStatus.SOFT_deleted);
         account.setUpdatedAt(Instant.now());
         Account saved = accountRepository.save(account);
-        return toUserResponse(saved);
+        return accountMapper.toUserResponse(saved);
     }
 
     @Override
@@ -82,14 +80,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     public UserResponse restoreUser(UUID id) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
-        if (account.getDeletedAt() == null && account.getStatus() != AccountStatus.SOFT_deleted) {
+        if (account.getDeletedAt() == null && account.getStatus() != AccountStatus.SOFT_deleted)
             throw new ResourceNotFoundException("User is not marked as SOFT_deleted");
-        }
         account.setDeletedAt(null);
         account.setStatus(AccountStatus.ACTIVE);
         account.setUpdatedAt(Instant.now());
         Account saved = accountRepository.save(account);
-        return toUserResponse(saved);
+        return accountMapper.toUserResponse(saved);
     }
 
     @Override
@@ -107,26 +104,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         }
         account.setUpdatedAt(Instant.now());
         Account saved = accountRepository.save(account);
-        return toUserResponse(saved);
+        return accountMapper.toUserResponse(saved);
     }
 
-    private UserResponse toUserResponse(Account account) {
-        return UserResponse.builder()
-                .id(account.getId().toString())
-                .username(account.getUsername())
-                .email(account.getEmail())
-                .fullName(account.getFullName())
-                .avatarUrl(account.getAvatarUrl())
-                .role(account.getRole())
-                .status(account.getStatus())
-                .authProvider(account.getAuthProvider())
-                .providerId(account.getProviderId())
-                .lastLoginAt(account.getLastLoginAt())
-                .createdAt(account.getCreatedAt())
-                .updatedAt(account.getUpdatedAt())
-                .deletedAt(account.getDeletedAt())
-                .build();
-    }
 
     @Override
     @Transactional
@@ -134,19 +114,17 @@ public class AdminUserServiceImpl implements AdminUserService {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
-        if (account.getRole() == AccountRole.ADMIN) {
+        if (account.getRole() == AccountRole.ADMIN)
             throw new IllegalArgumentException("Cannot delete admin accounts.");
-        }
 
         accountRepository.delete(account);
-        log.info("[ADMIN] Hard deleted user: {} ({})", account.getUsername(), id);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<UserResponse> getSoftDeletedAccounts() {
         return accountRepository.findByDeletedAtIsNotNull().stream()
-                .map(this::toUserResponse)
+                .map(accountMapper::toUserResponse)
                 .toList();
     }
 }

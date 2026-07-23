@@ -11,9 +11,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DashboardStatsResponse {
     private Long totalUsers;
-    private Double totalUsersTrend;
+    private Long usersLastWeek;
+    private Long usersPrevWeek;
     private Long totalDocs;
-    private Double totalDocsTrend;
+    private Long docsLastWeek;
+    private Long docsPrevWeek;
     private Long totalDownloads;
-    private Double totalDownloadsTrend;
+    private Long downloadsLastWeek;
+    private Long downloadsPrevWeek;
 }
