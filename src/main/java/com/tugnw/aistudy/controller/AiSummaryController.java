@@ -4,6 +4,7 @@ import com.tugnw.aistudy.domain.dto.ai.SummaryRequest;
 import com.tugnw.aistudy.domain.dto.ai.SummaryResponse;
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.entity.Document;
+import com.tugnw.aistudy.service.CurrentUserService;
 import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,62 +31,39 @@ public class AiSummaryController {
 
     private final KnowledgePreparationService knowledgePreparationService;
     private final DocumentService documentService;
+    private final CurrentUserService currentUserService;
 
     @PostMapping("/summary")
     @Operation(summary = "Generate or regenerate AI summary", description = "Generate summary for a document. force=true regenerates and overwrites cache.")
-    public ResponseEntity<ApiResponse<SummaryResponse>> generateSummary(
-            @Valid @RequestBody SummaryRequest request,
-            Authentication authentication) throws Exception {
+    public ApiResponse<SummaryResponse> generateSummary(
+            @Valid @RequestBody SummaryRequest request) throws Exception {
 
-        UUID requesterId = getCurrentUserId(authentication);
+        Document document = documentService.getAccessibleDocument(request.getDocumentId(), currentUserService.getCurrentUserId(), true);
 
-        Document document = documentService.getAccessibleDocument(request.getDocumentId(), requesterId, true);
+        String mergedMarkdown = knowledgePreparationService.prepareKnowledge(document, request.isForce());
 
-        String mergedMarkdown = knowledgePreparationService.prepareKnowledge(List.of(document), request.isForce());
-
-        return ResponseEntity.ok(ApiResponse.success(
+        return ApiResponse.success(
                 "AI Summary generated successfully",
                 new SummaryResponse(mergedMarkdown)
-        ));
+        );
     }
 
     @GetMapping("/summary/{documentId}")
     @Operation(summary = "Get cached summary", description = "Returns cached AI summary without regenerating. Returns empty if none exists.")
-    public ResponseEntity<ApiResponse<SummaryResponse>> getCachedSummary(
-            @PathVariable UUID documentId,
-            Authentication authentication) {
+    public ApiResponse<SummaryResponse> getCachedSummary(
+            @PathVariable UUID documentId) {
 
-        UUID requesterId = getCurrentUserId(authentication);
+        Document document = documentService.getAccessibleDocument(documentId, currentUserService.getCurrentUserId(), true);
 
-        Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
-
-        if (document.getSummary() == null || document.getSummary().trim().isEmpty()) {
-            return ResponseEntity.ok(ApiResponse.success(
+        if (document.getSummary() == null || document.getSummary().trim().isEmpty())
+            return ApiResponse.success(
                     "No summary available. Use POST to generate one.",
                     new SummaryResponse("")
-            ));
-        }
+            );
 
-        return ResponseEntity.ok(ApiResponse.success(
+        return ApiResponse.success(
                 "Cached summary retrieved",
                 new SummaryResponse(document.getSummary())
-        ));
-    }
-
-    private boolean isAdmin() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    }
-
-    private UUID getCurrentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new RuntimeException("User chưa đăng nhập");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
-            return userDetails.getAccount().getId();
-        }
-        throw new RuntimeException("Không thể xác định user");
+        );
     }
 }

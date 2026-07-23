@@ -29,5 +29,5 @@ public interface KnowledgePreparationService {
      * @return Merged markdown string of all document summaries
      * @throws Exception if processing fails
      */
-    String prepareKnowledge(List<Document> documents, boolean force) throws Exception;
+    String prepareKnowledge(Document documents, boolean force) throws Exception;
 }

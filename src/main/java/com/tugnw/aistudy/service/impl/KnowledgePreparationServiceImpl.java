@@ -2,6 +2,7 @@ package com.tugnw.aistudy.service.impl;
 
 import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.repository.DocumentRepository;
+import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.RagService;
@@ -39,29 +40,26 @@ public class KnowledgePreparationServiceImpl implements KnowledgePreparationServ
     private final ConcurrentHashMap<UUID, ReentrantLock> summaryLocks = new ConcurrentHashMap<>();
 
     @Override
-    public String prepareKnowledge(List<Document> documents, boolean force) throws Exception {
+    public String prepareKnowledge(Document doc, boolean force) throws Exception {
         StringBuilder merged = new StringBuilder();
 
-        for (Document doc : documents) {
-            String summary = getOrGenerateSummary(doc, force);
-            merged.append("--- ").append(doc.getTitle()).append(" ---\n")
-                  .append(summary).append("\n\n");
-        }
+        String summary = getOrGenerateSummary(doc, force);
+        merged.append("--- ").append(doc.getTitle()).append(" ---\n")
+                .append(summary).append("\n\n");
 
         return merged.toString().trim();
     }
 
+    // ============ HELPER METHODS ============
+
     private String getOrGenerateSummary(Document doc, boolean force) throws Exception {
         // Fast path: already cached on this entity instance
-        if (!force && doc.getSummary() != null && !doc.getSummary().trim().isEmpty()) {
+        if (!force && doc.getSummary() != null && !doc.getSummary().trim().isEmpty())
             return doc.getSummary();
-        }
-
-        UUID docId = doc.getId();
 
         // Double-check from DB (another thread may have committed since this instance loaded)
         if (!force) {
-            Document fromDb = documentRepository.findById(docId).orElse(doc);
+            Document fromDb = documentRepository.findById(doc.getId()).orElse(doc);
             if (fromDb.getSummary() != null && !fromDb.getSummary().trim().isEmpty()) {
                 doc.setSummary(fromDb.getSummary());
                 return fromDb.getSummary();
@@ -71,13 +69,13 @@ public class KnowledgePreparationServiceImpl implements KnowledgePreparationServ
         // Application-level per-document mutex.
         // Only one thread enters the critical section per document ID.
         // No DB lock held — DB connections are free for other transactions.
-        ReentrantLock lock = summaryLocks.computeIfAbsent(docId, k -> new ReentrantLock());
+        ReentrantLock lock = summaryLocks.computeIfAbsent(doc.getId(), k -> new ReentrantLock());
         lock.lock();
         try {
             // Double-check after acquiring lock: Thread B (which was waiting) now sees
             // Thread A's committed summary if A already generated and saved it.
             if (!force) {
-                Document current = documentRepository.findById(docId).orElse(doc);
+                Document current = documentRepository.findById(doc.getId()).orElse(doc);
                 if (current.getSummary() != null && !current.getSummary().trim().isEmpty()) {
                     doc.setSummary(current.getSummary());
                     return current.getSummary();
@@ -85,25 +83,24 @@ public class KnowledgePreparationServiceImpl implements KnowledgePreparationServ
             }
 
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.getPrincipal() instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
+            if (auth != null && auth.getPrincipal() instanceof CustomUserDetails userDetails) {
                 UUID requesterId = userDetails.getAccount().getId();
-                if (!quotaService.checkQuota(requesterId, "summary")) {
+                if (!quotaService.checkQuota(requesterId, "summary"))
                     throw new RuntimeException("Bạn đã đạt giới hạn số lượng tóm tắt AI cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
-                }
             }
 
-            log.info("[SUMMARY] Generating summary for document {}", docId);
-            String rawText = ragService.extractTextFromDocument(docId, doc.getOwnerId());
+            log.info("[SUMMARY] Generating summary for document {}", doc.getId());
+            String rawText = ragService.extractTextFromDocument(doc.getId(), doc.getOwnerId());
             String prompt = String.format(SUMMARY_PROMPT, rawText);
             String markdownSummary = ragService.generateContent(prompt);
 
             doc.setSummary(markdownSummary);
             documentRepository.save(doc);
 
-            log.info("[SUMMARY] Summary generation succeeded for document {}", docId);
+            log.info("[SUMMARY] Summary generation succeeded for document {}", doc.getId());
             return markdownSummary;
         } catch (Throwable e) {
-            log.error("[SUMMARY] Summary generation failed for document {}: {}", docId, e.getMessage(), e);
+            log.error("[SUMMARY] Summary generation failed for document {}: {}", doc.getId(), e.getMessage(), e);
             if (e instanceof Exception) {
                 throw (Exception) e;
             }
@@ -111,7 +108,7 @@ public class KnowledgePreparationServiceImpl implements KnowledgePreparationServ
         } finally {
             lock.unlock();
             if (!lock.hasQueuedThreads()) {
-                summaryLocks.remove(docId, lock);
+                summaryLocks.remove(doc.getId(), lock);
             }
         }
     }
