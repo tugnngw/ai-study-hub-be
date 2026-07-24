@@ -8,7 +8,9 @@ import com.tugnw.aistudy.domain.dto.plan.PlanResponse;
 import com.tugnw.aistudy.domain.dto.plan.UpdatePlanRequest;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.Subscription;
+import com.tugnw.aistudy.domain.enums.Plan;
 import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
+import com.tugnw.aistudy.domain.mapper.PaymentPlanMapper;
 import com.tugnw.aistudy.repository.PaymentPlanRepository;
 import com.tugnw.aistudy.repository.SubscriptionRepository;
 import com.tugnw.aistudy.service.AdminPlanService;
@@ -30,37 +32,20 @@ public class AdminPlanServiceImpl implements AdminPlanService {
     private final PaymentPlanRepository paymentPlanRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final ObjectMapper objectMapper;
+    private final PaymentPlanMapper paymentPlanMapper;
 
-    private PlanResponse mapToPlanResponse(PaymentPlan plan) {
-        List<String> features = null;
-        if (plan.getFeatures() != null) {
-            try {
-                features = objectMapper.readValue(plan.getFeatures(), new TypeReference<List<String>>() {});
-            } catch (JsonProcessingException e) {
-                log.warn("Failed to parse features JSON for plan {}: {}", plan.getId(), e.getMessage());
-            }
+    private List<String> deserializeFeatures(String featuresJson) {
+        if (featuresJson == null)
+            return null;
+        try {
+            return objectMapper.readValue(featuresJson, new TypeReference<List<String>>() {});
+        } catch (JsonProcessingException e) {
+            return null;
         }
-        long activeCount = subscriptionRepository.countByPlan_IdAndStatus(plan.getId(), SubscriptionStatus.ACTIVE);
-        return PlanResponse.builder()
-                .id(plan.getId())
-                .name(plan.getName())
-                .tagline(plan.getTagline())
-                .description(plan.getDescription())
-                .price(plan.getPrice())
-                .durationDays(plan.getDurationDays())
-                .storageGb(plan.getStorageGb())
-                .aiQuestions(plan.getAiQuestions())
-                .features(features)
-                .isPopular(plan.getIsPopular())
-                .displayOrder(plan.getDisplayOrder())
-                .isActive(plan.getIsActive())
-                .activeSubscriptionCount(activeCount)
-                .flashcardLimit(plan.getFlashcardLimit())
-                .questionLimit(plan.getQuestionLimit())
-                .summaryLimit(plan.getSummaryLimit())
-                .chatLimit(plan.getChatLimit())
-                .tier(plan.getTier())
-                .build();
+    }
+
+    private long countActiveSubscriptions(UUID planId) {
+        return subscriptionRepository.countByPlan_IdAndStatus(planId, SubscriptionStatus.ACTIVE);
     }
 
     private String serializeFeatures(List<String> features) {
@@ -68,7 +53,6 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         try {
             return objectMapper.writeValueAsString(features);
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize features: {}", e.getMessage());
             return null;
         }
     }
@@ -76,19 +60,23 @@ public class AdminPlanServiceImpl implements AdminPlanService {
     @Override
     public List<PlanResponse> getAllPlans() {
         return paymentPlanRepository.findAll().stream()
-                .map(this::mapToPlanResponse)
+                .map(plan -> {
+                    PlanResponse response = paymentPlanMapper.toResponse(plan);
+                    response.setFeatures(deserializeFeatures(plan.getFeatures()));
+                    response.setActiveSubscriptionCount(countActiveSubscriptions(plan.getId()));
+                    return response;
+                })
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     public PlanResponse createPlan(CreatePlanRequest request) {
-        if (paymentPlanRepository.existsByName(request.getName())) {
+        if (paymentPlanRepository.existsByName(request.getName()))
             throw new IllegalArgumentException("Plan name already exists: " + request.getName());
-        }
-        if (request.getTier() != null && paymentPlanRepository.existsByTier(request.getTier())) {
+        if (request.getTier() != null && paymentPlanRepository.existsByTier(request.getTier()))
             throw new IllegalArgumentException("Tier already in use by another plan: " + request.getTier());
-        }
+
         PaymentPlan plan = PaymentPlan.builder()
                 .name(request.getName())
                 .tagline(request.getTagline())
@@ -108,8 +96,10 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .isActive(true)
                 .build();
         PaymentPlan saved = paymentPlanRepository.save(plan);
-        log.info("Created new plan: {}", saved.getName());
-        return mapToPlanResponse(saved);
+        PlanResponse response = paymentPlanMapper.toResponse(saved);
+        response.setFeatures(deserializeFeatures(saved.getFeatures()));
+        response.setActiveSubscriptionCount(countActiveSubscriptions(saved.getId()));
+        return response;
     }
 
     @Override
@@ -118,12 +108,11 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         PaymentPlan plan = paymentPlanRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
 
-        boolean isFree = "Free".equalsIgnoreCase(plan.getName());
+        boolean isFree = Plan.FREE.name().equalsIgnoreCase(plan.getName());
         long activeCount = isFree ? 0 : subscriptionRepository.countByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
 
         if (!isFree && activeCount > 0) {
-            log.info("Plan {} has {} active subscriptions, creating new version.", plan.getName(), activeCount);
-            
+
             plan.setIsActive(false);
             paymentPlanRepository.save(plan);
             paymentPlanRepository.flush();
@@ -148,16 +137,17 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                     .tier(request.getTier() != null ? request.getTier() : plan.getTier())
                     .isActive(true)
                     .build();
-            
+
             PaymentPlan saved = paymentPlanRepository.save(newPlan);
-            log.info("Created new version: {} (old plan {} kept for {} existing users)", saved.getName(), plan.getName(), activeCount);
-            return buildPlanResponse(saved, 0L);
+            PlanResponse response = paymentPlanMapper.toResponse(saved);
+            response.setFeatures(deserializeFeatures(saved.getFeatures()));
+            response.setActiveSubscriptionCount(0L);
+            return response;
         }
 
         if (request.getName() != null && !request.getName().equals(plan.getName())) {
-            if (paymentPlanRepository.existsByName(request.getName())) {
+            if (paymentPlanRepository.existsByName(request.getName()))
                 throw new IllegalArgumentException("Plan name already exists: " + request.getName());
-            }
             plan.setName(request.getName());
         }
         if (request.getTagline() != null) plan.setTagline(request.getTagline());
@@ -175,32 +165,17 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (request.getChatLimit() != null) plan.setChatLimit(request.getChatLimit());
         if (request.getTier() != null) {
             Optional<PaymentPlan> existingTier = paymentPlanRepository.findByTier(request.getTier());
-            if (existingTier.isPresent() && !existingTier.get().getId().equals(plan.getId())) {
+            if (existingTier.isPresent() && !existingTier.get().getId().equals(plan.getId()))
                 throw new IllegalArgumentException("Tier already in use by plan: " + existingTier.get().getName());
-            }
             plan.setTier(request.getTier());
         }
         if (request.getIsActive() != null) plan.setIsActive(request.getIsActive());
 
         PaymentPlan saved = paymentPlanRepository.save(plan);
-        log.info("Updated plan: {}", saved.getName());
-
-        if (isFree) {
-            List<Subscription> freeSubs = subscriptionRepository.findAllByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
-            for (Subscription sub : freeSubs) {
-                sub.setStorageGbGranted(saved.getStorageGb());
-                sub.setAiQuestionsGranted(saved.getAiQuestions());
-                sub.setFlashcardLimitGranted(saved.getFlashcardLimit());
-                sub.setQuestionLimitGranted(saved.getQuestionLimit());
-                sub.setSummaryLimitGranted(saved.getSummaryLimit());
-                sub.setChatLimitGranted(saved.getChatLimit());
-                sub.setTierGranted(saved.getTier());
-            }
-            subscriptionRepository.saveAll(freeSubs);
-            log.info("Synced {} active free subscriptions with updated plan values", freeSubs.size());
-        }
-
-        return mapToPlanResponse(saved);
+        PlanResponse response = paymentPlanMapper.toResponse(saved);
+        response.setFeatures(deserializeFeatures(saved.getFeatures()));
+        response.setActiveSubscriptionCount(countActiveSubscriptions(saved.getId()));
+        return response;
     }
 
     @Override
@@ -208,14 +183,8 @@ public class AdminPlanServiceImpl implements AdminPlanService {
     public void hidePlan(UUID id) {
         PaymentPlan plan = paymentPlanRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
-
-        long activeCount = subscriptionRepository.countByPlan_IdAndStatus(id, SubscriptionStatus.ACTIVE);
-        if (activeCount > 0) {
-            log.warn("Hiding plan {} with {} active subscriptions", plan.getName(), activeCount);
-        }
         plan.setIsActive(false);
         paymentPlanRepository.save(plan);
-        log.info("Hidden plan: {}", plan.getName());
     }
 
     @Override
@@ -225,7 +194,6 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
         plan.setIsActive(true);
         paymentPlanRepository.save(plan);
-        log.info("Restored plan: {}", plan.getName());
     }
 
     @Override
@@ -233,29 +201,35 @@ public class AdminPlanServiceImpl implements AdminPlanService {
     public PlanResponse setPopular(UUID id) {
         PaymentPlan plan = paymentPlanRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
-        
+
         // Unmark other popular plans
         List<PaymentPlan> allPlans = paymentPlanRepository.findAll();
         for (PaymentPlan otherPlan : allPlans) {
             if (otherPlan.getIsPopular() && !otherPlan.getId().equals(id)) {
                 otherPlan.setIsPopular(false);
                 paymentPlanRepository.save(otherPlan);
-                log.info("Unmarked plan {} as popular", otherPlan.getName());
             }
         }
-        
+
         // Mark this plan as popular
         plan.setIsPopular(true);
         PaymentPlan saved = paymentPlanRepository.save(plan);
-        log.info("Marked plan {} as popular", saved.getName());
-        
-        return mapToPlanResponse(saved);
+
+        PlanResponse response = paymentPlanMapper.toResponse(saved);
+        response.setFeatures(deserializeFeatures(saved.getFeatures()));
+        response.setActiveSubscriptionCount(countActiveSubscriptions(saved.getId()));
+        return response;
     }
 
     @Override
     public PlanResponse getPlanById(UUID id) {
         return paymentPlanRepository.findById(id)
-                .map(this::mapToPlanResponse)
+                .map(plan -> {
+                    PlanResponse response = paymentPlanMapper.toResponse(plan);
+                    response.setFeatures(deserializeFeatures(plan.getFeatures()));
+                    response.setActiveSubscriptionCount(countActiveSubscriptions(plan.getId()));
+                    return response;
+                })
                 .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + id));
     }
 
@@ -267,36 +241,5 @@ public class AdminPlanServiceImpl implements AdminPlanService {
             version++;
         }
         return newName;
-    }
-
-    private PlanResponse buildPlanResponse(PaymentPlan plan, Long activeCount) {
-        List<String> features = null;
-        if (plan.getFeatures() != null) {
-            try {
-                features = objectMapper.readValue(plan.getFeatures(), new TypeReference<List<String>>() {});
-            } catch (JsonProcessingException e) {
-                log.warn("Failed to parse features JSON: {}", e.getMessage());
-            }
-        }
-        return PlanResponse.builder()
-                .id(plan.getId())
-                .name(plan.getName())
-                .tagline(plan.getTagline())
-                .description(plan.getDescription())
-                .price(plan.getPrice())
-                .durationDays(plan.getDurationDays())
-                .storageGb(plan.getStorageGb())
-                .aiQuestions(plan.getAiQuestions())
-                .features(features)
-                .isPopular(plan.getIsPopular())
-                .displayOrder(plan.getDisplayOrder())
-                .isActive(plan.getIsActive())
-                .activeSubscriptionCount(activeCount)
-                .flashcardLimit(plan.getFlashcardLimit())
-                .questionLimit(plan.getQuestionLimit())
-                .summaryLimit(plan.getSummaryLimit())
-                .chatLimit(plan.getChatLimit())
-                .tier(plan.getTier())
-                .build();
     }
 }

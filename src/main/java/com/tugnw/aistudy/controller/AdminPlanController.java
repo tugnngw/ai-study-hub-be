@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.plan.CreatePlanRequest;
 import com.tugnw.aistudy.domain.dto.plan.PlanResponse;
 import com.tugnw.aistudy.domain.dto.plan.UpdatePlanRequest;
@@ -7,7 +8,6 @@ import com.tugnw.aistudy.service.AdminPlanService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,39 +24,39 @@ public class AdminPlanController {
     private final AdminPlanService adminPlanService;
 
     @GetMapping
-    public ResponseEntity<List<PlanResponse>> getAllPlans() {
-        return ResponseEntity.ok(adminPlanService.getAllPlans());
+    public ApiResponse<List<PlanResponse>> getAllPlans() {
+        return ApiResponse.success(adminPlanService.getAllPlans());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PlanResponse> getPlanById(@PathVariable UUID id) {
-        return ResponseEntity.ok(adminPlanService.getPlanById(id));
+    public ApiResponse<PlanResponse> getPlanById(@PathVariable UUID id) {
+        return ApiResponse.success(adminPlanService.getPlanById(id));
     }
 
     @PostMapping
-    public ResponseEntity<PlanResponse> createPlan(@Valid @RequestBody CreatePlanRequest request) {
-        return ResponseEntity.ok(adminPlanService.createPlan(request));
+    public ApiResponse<PlanResponse> createPlan(@Valid @RequestBody CreatePlanRequest request) {
+        return ApiResponse.success(adminPlanService.createPlan(request));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<PlanResponse> updatePlan(@PathVariable UUID id, @Valid @RequestBody UpdatePlanRequest request) {
-        return ResponseEntity.ok(adminPlanService.updatePlan(id, request));
+    public ApiResponse<PlanResponse> updatePlan(@PathVariable UUID id, @Valid @RequestBody UpdatePlanRequest request) {
+        return ApiResponse.success(adminPlanService.updatePlan(id, request));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> hidePlan(@PathVariable UUID id) {
+    public ApiResponse<Void> hidePlan(@PathVariable UUID id) {
         adminPlanService.hidePlan(id);
-        return ResponseEntity.noContent().build();
+        return ApiResponse.success(null);
     }
 
     @PatchMapping("/{id}/restore")
-    public ResponseEntity<Void> restorePlan(@PathVariable UUID id) {
+    public ApiResponse<Void> restorePlan(@PathVariable UUID id) {
         adminPlanService.restorePlan(id);
-        return ResponseEntity.noContent().build();
+        return ApiResponse.success(null);
     }
 
     @PatchMapping("/{id}/popular")
-    public ResponseEntity<PlanResponse> setPopular(@PathVariable UUID id) {
-        return ResponseEntity.ok(adminPlanService.setPopular(id));
+    public ApiResponse<PlanResponse> setPopular(@PathVariable UUID id) {
+        return ApiResponse.success(adminPlanService.setPopular(id));
     }
 }
