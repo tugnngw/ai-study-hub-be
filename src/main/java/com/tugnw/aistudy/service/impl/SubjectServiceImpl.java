@@ -57,9 +57,8 @@ public class SubjectServiceImpl implements SubjectService {
         Subject subject = subjectRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Subject not found"));
 
-        if (Boolean.TRUE.equals(subject.getDefaultSubject())) {
+        if (Boolean.TRUE.equals(subject.getDefaultSubject()))
             throw new RuntimeException("Cannot delete the default subject");
-        }
 
         subjectRepository.deleteById(id);
     }
