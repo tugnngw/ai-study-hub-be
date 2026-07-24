@@ -29,15 +29,9 @@ public class RagStatusServiceImpl implements RagStatusService {
     public void markProcessingFailed(UUID documentId) {
         Document doc = documentRepository.findByIdAndDeletedAtIsNull(documentId)
                 .orElse(null);
-        if (doc == null) {
-            log.warn("[MARK_FAILED] document {} not found", documentId);
-            return;
-        }
+        if (doc == null) return;
+
         doc.setAiStatus(AiProcessingStatus.FAILED);
         documentRepository.save(doc);
-        Document reloaded = documentRepository.findById(documentId).orElse(null);
-        log.info("[MARK_FAILED] documentId={} aiStatus={} reloadedAiStatus={}",
-                documentId, doc.getAiStatus(),
-                reloaded != null ? reloaded.getAiStatus() : "null");
     }
 }

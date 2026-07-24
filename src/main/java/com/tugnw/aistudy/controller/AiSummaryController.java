@@ -39,10 +39,7 @@ public class AiSummaryController {
 
         String mergedMarkdown = knowledgePreparationService.prepareKnowledge(document, request.isForce());
 
-        return ApiResponse.success(
-                "AI Summary generated successfully",
-                new SummaryResponse(mergedMarkdown)
-        );
+        return ApiResponse.success("AI Summary generated successfully", new SummaryResponse(mergedMarkdown));
     }
 
     @GetMapping("/summary/{documentId}")
@@ -55,14 +52,7 @@ public class AiSummaryController {
                 ((CustomUserDetails) authentication.getPrincipal()).getAccount().getId(), true);
 
         if (document.getSummary() == null || document.getSummary().trim().isEmpty())
-            return ApiResponse.success(
-                    "No summary available. Use POST to generate one.",
-                    new SummaryResponse("")
-            );
-
-        return ApiResponse.success(
-                "Cached summary retrieved",
-                new SummaryResponse(document.getSummary())
-        );
+            return ApiResponse.success("No summary available. Use POST to generate one.", new SummaryResponse(""));
+        return ApiResponse.success("Cached summary retrieved", new SummaryResponse(document.getSummary()));
     }
 }

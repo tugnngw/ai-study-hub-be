@@ -76,12 +76,6 @@ public class RagServiceImpl implements RagService {
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_BACKOFF_MS = 1000;
 
-    private boolean isAdmin() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null && auth.getAuthorities().stream()
-            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    }
-
     // ==========================================
     // GIAI ĐOẠN 1: TẢI FILE & TRÍCH XUẤT VĂN BẢN
     // ==========================================
@@ -92,12 +86,10 @@ public class RagServiceImpl implements RagService {
         Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
 
         String fileUrl = document.getCloudinaryUrl();
-        if (fileUrl == null || fileUrl.isBlank()) {
+        if (fileUrl == null || fileUrl.isBlank())
             throw new RuntimeException("Tài liệu chưa có URL lưu trữ trên Cloudinary.");
-        }
 
         fileUrl = fileUrl.replace("http://", "https://");
-        log.info("[EXTRACT] Downloading from Cloudinary: {}", fileUrl);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fileUrl))
@@ -107,16 +99,13 @@ public class RagServiceImpl implements RagService {
                 .build();
 
         HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        log.info("[EXTRACT] Cloudinary status: {}", response.statusCode());
 
-        if (response.statusCode() != 200) {
+        if (response.statusCode() != 200)
             throw new RuntimeException("Cloudinary trả về mã lỗi: " + response.statusCode());
-        }
 
         try (InputStream inputStream = response.body()) {
             String extractedText = tika.parseToString(inputStream);
             extractedText = extractedText.replaceAll("(?m)^[ \t]*\r?\n", "");
-            log.info("[EXTRACT] Tika trích xuất {} ký tự", extractedText.length());
             return extractedText;
         }
     }
@@ -126,64 +115,46 @@ public class RagServiceImpl implements RagService {
     // ==========================================
     @Override
     public void processAndSaveDocumentPipeline(UUID documentId, UUID requesterId) throws Exception {
-        log.info("[STEP0] ENTER pipeline documentId={} thread={}", documentId, Thread.currentThread().getName());
         Instant start = Instant.now();
 
         Document doc = documentService.getAccessibleDocument(documentId, requesterId, true);
 
         long chunkCount = chunkRepository.countByDocumentId(documentId);
-        if (chunkCount > 0 && doc.getAiStatus() == AiProcessingStatus.COMPLETED) {
-            log.info("[STEP0] Skip guard — already processed documentId={}", documentId);
-            return;
-        }
+        if (chunkCount > 0 && doc.getAiStatus() == AiProcessingStatus.COMPLETED) return;
 
         doc.setAiStatus(AiProcessingStatus.PROCESSING);
         documentRepository.save(doc);
-        log.info("[STEP2] PROCESSING saved documentId={} (status={})", documentId, doc.getStatus());
 
         try {
             String rawText = extractTextFromDocument(documentId, requesterId);
-            log.info("[STEP3] extractTextFromDocument finished documentId={} length={}",
-                    documentId, rawText != null ? rawText.length() : 0);
-            if (rawText == null || rawText.isBlank()) {
+            if (rawText == null || rawText.isBlank())
                 throw new RuntimeException("Không thể trích xuất nội dung từ tài liệu.");
-            }
 
             List<String> textChunks = recursiveChunking(rawText);
-            log.info("[STEP4] recursiveChunking finished documentId={} chunkCount={}", documentId, textChunks.size());
 
-            log.info("[STEP5] embedAllChunks started documentId={}", documentId);
-            List<ChunkData> chunkDataList = embedAllChunks(documentId, textChunks);
-            log.info("[STEP6] embedAllChunks finished documentId={} vectorCount={}", documentId, chunkDataList.size());
+            List<ChunkData> chunkDataList = embedAllChunks(textChunks);
 
             saveChunksBatch(documentId, chunkDataList);
-            log.info("[STEP7] saveChunksBatch finished documentId={}", documentId);
 
             doc.setAiStatus(AiProcessingStatus.COMPLETED);
             documentRepository.save(doc);
-            log.info("[STEP8] COMPLETED saved documentId={} status={} aiStatus={}",
-                    documentId, doc.getStatus(), doc.getAiStatus());
 
             Duration elapsed = Duration.between(start, Instant.now());
-            log.info("[STEP8] Pipeline completed documentId={} elapsedMs={}", documentId, elapsed.toMillis());
         } catch (Throwable e) {
-            log.error("[CATCH] ENTER documentId={} class={} message={}", documentId,
-                    e.getClass().getSimpleName(), e.getMessage(), e);
             ragStatusService.markProcessingFailed(documentId);
-            if (e instanceof Exception) {
+            if (e instanceof Exception)
                 throw (Exception) e;
-            }
+
             throw new RuntimeException("Pipeline failed", e);
         }
     }
 
     /** Embed all chunks, optionally parallel. Returns list paired with index. */
-    private List<ChunkData> embedAllChunks(UUID documentId, List<String> textChunks) {
+    private List<ChunkData> embedAllChunks(List<String> textChunks) {
         // ponytail: sequential embedding to avoid Gemini rate limits.
         // Parallel with ExecutorService if rate limit allows.
         List<ChunkData> results = new ArrayList<>(textChunks.size());
         for (int i = 0; i < textChunks.size(); i++) {
-            log.debug("[PIPELINE] Embedding chunk {}/{}", i + 1, textChunks.size());
             String vectorStr = getEmbeddingWithRetry(textChunks.get(i));
             results.add(new ChunkData(i, textChunks.get(i), vectorStr));
         }
@@ -200,10 +171,14 @@ public class RagServiceImpl implements RagService {
                 }
             } catch (Exception e) {
                 lastEx = e;
-                log.warn("[RETRY] Embedding attempt {}/{} thất bại: {}", attempt + 1, MAX_RETRIES, e.getMessage());
-                if (attempt < MAX_RETRIES - 1) {
-                    try { Thread.sleep(RETRY_BACKOFF_MS * (attempt + 1)); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
-                }
+                if (attempt < MAX_RETRIES - 1)
+                    try {
+                        Thread.sleep(RETRY_BACKOFF_MS * (attempt + 1));
+                    }
+                catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt(); break;
+                    }
+
             }
         }
         throw new RuntimeException("Embedding thất bại sau " + MAX_RETRIES + " lần thử", lastEx);
@@ -248,11 +223,9 @@ public class RagServiceImpl implements RagService {
         try {
             Document document = documentService.getAccessibleDocument(documentId, requesterId, false);
             String aiStatus = document.getAiStatus() != null ? document.getAiStatus().name() : "NOT_STARTED";
-            log.info("[STATUS {}] returning aiStatus={} (document.status={})",
-                    documentId, aiStatus, document.getStatus());
+
             return aiStatus;
         } catch (Exception e) {
-            log.warn("[STATUS {}] Access denied or not found", documentId);
             return "not_found";
         }
     }
@@ -344,23 +317,21 @@ public class RagServiceImpl implements RagService {
     public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) {
         UUID docId = chatRequest.getDocumentId();
         // Verify document ownership and approval status
-        Document document = documentService.getAccessibleDocument(docId, requesterId, true);
-        log.info("[CHAT] Document {}: {}", docId, truncate(chatRequest.getQuestion(), 80));
 
         // Embed question
         List<Double> queryVector = getEmbeddingFromGemini(chatRequest.getQuestion());
-        if (queryVector.isEmpty()) {
+        if (queryVector.isEmpty())
             throw new RuntimeException("Không thể tạo vector cho câu hỏi.");
-        }
+
         String queryVectorString = queryVector.toString().replace(" ", "");
 
         // Vector search — only this document's chunks
         List<DocumentChunk> relevantChunks = chunkRepository.findTopChunksByDocumentAndVector(
                 docId, queryVectorString);
 
-        if (relevantChunks.isEmpty()) {
+        if (relevantChunks.isEmpty())
             throw new RuntimeException("Không tìm thấy nội dung trong tài liệu. Vui lòng xử lý AI lại.");
-        }
+
 
         // Build context
         StringBuilder contextBuilder = new StringBuilder();
@@ -370,8 +341,6 @@ public class RagServiceImpl implements RagService {
             contextBuilder.append(chunk.getContent()).append("\n\n");
             referencedDocIds.add(chunk.getDocumentId());
         }
-
-        log.info("[CHAT] Tìm thấy {} chunk(s)", relevantChunks.size());
 
         // Generate answer (expensive AI call — done before quota check to avoid wasted quota)
         String prompt = buildChatPrompt(contextBuilder.toString(), chatRequest.getQuestion());
@@ -391,17 +360,17 @@ public class RagServiceImpl implements RagService {
     private UUID saveChatHistory(RagChatRequest req, UUID accountId, String aiAnswer, Set<UUID> referencedDocs) {
         return transactionTemplate.execute(status -> {
             // Check quota inside transaction — rollback on failure prevents counting
-            if (!quotaService.checkQuota(accountId, "chat")) {
+            if (!quotaService.checkQuota(accountId, "chat"))
                 throw new RuntimeException("Bạn đã đạt giới hạn số lượng tin nhắn AI cho gói hiện tại.");
-            }
+
 
             ChatSession session;
 
             if (req.getSessionId() != null) {
                 session = chatSessionRepository.findById(req.getSessionId()).orElse(null);
-                if (session == null) {
+                if (session == null)
                     session = createSession(accountId, req.getDocumentId());
-                }
+
             } else {
                 session = createSession(accountId, req.getDocumentId());
             }
