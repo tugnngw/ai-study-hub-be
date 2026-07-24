@@ -121,7 +121,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .amount(finalAmount) // Lưu đúng số tiền thực tế user phải trả
                 .status(PaymentStatus.PENDING)
                 .description("Buy plan " + plan.getName() + (finalAmount < plan.getPrice() ? " (Upgraded)" : ""))
-                .expiredAt(java.time.Instant.now().plus(5, ChronoUnit.MINUTES))
+                .expiredAt(java.time.Instant.now().plus(3, ChronoUnit.MINUTES))
                 .build();
 
         txRepo.save(tx);
@@ -181,6 +181,8 @@ public class PaymentServiceImpl implements PaymentService {
             // Handle by status
             switch (newStatus) {
                 case PAID:
+                    updateUserQuota(savedTx);
+                    subscriptionService.createSubscription(tx.getAccountId(), tx.getPlan(), savedTx);
                     break;
                 case CANCELLED:
                     break;

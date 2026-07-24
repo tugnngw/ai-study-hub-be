@@ -54,17 +54,6 @@ public class PayOSClient {
 
     private static final String PAYOS_API_URL = "https://api-merchant.payos.vn/v2/payment-requests";
 
-    @jakarta.annotation.PostConstruct
-    public void init() {
-        log.info("=== PAYOS CONFIGURATION ===");
-        log.info("Client ID: {}", clientId);
-        log.info("API Key: {}", apiKey != null ? "***" + apiKey.substring(Math.max(0, apiKey.length() - 4)) : "null");
-        log.info("Checksum Key: {}", checksumKey != null ? "***" + checksumKey.substring(Math.max(0, checksumKey.length() - 4)) : "null");
-        log.info("Return URL: {}", returnUrl);
-        log.info("Cancel URL: {}", cancelUrl);
-        log.info("============================");
-    }
-
     /**
      * Remove accents from Vietnamese text
      */
@@ -107,9 +96,7 @@ public class PayOSClient {
                 safeOrderCode += 100000;
             }
 
-            log.info("Original orderCode: {}, Safe orderCode: {}", orderCode, safeOrderCode);
-
-            // ✅ Clean description: no accent, no space, max 25 chars
+            // Clean description: no accent, no space, max 25 chars
             String description = cleanDescription("Thanh toan goi " + planName);
             if (description.isEmpty()) {
                 description = "Payment_" + safeOrderCode;
@@ -144,9 +131,6 @@ public class PayOSClient {
             );
             requestBody.put("items", items);
 
-            log.info("=== CREATING PAYMENT LINK ===");
-            log.info("Request body: {}", objectMapper.writeValueAsString(requestBody));
-
             // Headers
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -163,50 +147,41 @@ public class PayOSClient {
                     Map.class
             );
 
-            log.info("Response status: {}", response.getStatusCode());
-            log.info("Response body: {}", response.getBody());
-
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
                 String code = (String) responseBody.get("code");
 
                 if (!"00".equals(code)) {
                     String desc = (String) responseBody.get("desc");
-                    log.error("PayOS API error: code={}, desc={}", code, desc);
                     throw new RuntimeException("PayOS error: " + desc);
                 }
 
                 Map<String, Object> responseData = (Map<String, Object>) responseBody.get("data");
                 if (responseData == null) {
-                    log.error("PayOS response data is null: {}", responseBody);
                     throw new RuntimeException("PayOS returned empty data");
                 }
 
                 String checkoutUrl = (String) responseData.get("checkoutUrl");
                 if (checkoutUrl == null || checkoutUrl.isEmpty()) {
-                    log.error("Checkout URL is null or empty: {}", responseData);
                     throw new RuntimeException("PayOS did not return checkout URL");
                 }
 
-                log.info("✅ Created payOS payment link: {}", checkoutUrl);
-                return new CheckoutResult(checkoutUrl, null);
+                String qrCode = (String) responseData.get("qrCode");
+
+                return new CheckoutResult(checkoutUrl, qrCode);
             } else {
-                log.error("PayOS API error: status={}, body={}", response.getStatusCode(), response.getBody());
                 throw new RuntimeException("Failed to create payment link: " + response.getStatusCode());
             }
 
         } catch (Exception e) {
-            log.error("Error creating payOS payment link", e);
             throw new RuntimeException("Failed to create payment link: " + e.getMessage(), e);
         }
     }
 
     public WebhookPayload parseWebhookPayload(String payload) {
         try {
-            log.info("Parsing webhook payload");
             return objectMapper.readValue(payload, WebhookPayload.class);
         } catch (Exception e) {
-            log.error("Failed to parse webhook payload", e);
             throw new RuntimeException("Failed to parse webhook payload", e);
         }
     }
@@ -214,7 +189,6 @@ public class PayOSClient {
     public boolean verifySignature(String payload, String signature) {
         try {
             if (payload == null || payload.isEmpty() || signature == null || signature.isEmpty()) {
-                log.error("Payload or signature is null/empty");
                 return false;
             }
 
@@ -222,7 +196,6 @@ public class PayOSClient {
             var root = objectMapper.readTree(payload);
             JsonNode dataNode = root.get("data");
             if (dataNode == null) {
-                log.error("No 'data' field in webhook payload");
                 return false;
             }
 
@@ -240,17 +213,12 @@ public class PayOSClient {
             }
             String signData = sb.toString();
 
-            log.info("Sign data: {}", signData);
             String calculated = hmacSha256Hex(signData, checksumKey);
-            log.info("Calculated signature: {}", calculated);
-            log.info("Received signature: {}", signature);
 
             boolean isValid = calculated.equalsIgnoreCase(signature);
-            log.info("Signature valid: {}", isValid);
 
             return isValid;
         } catch (Exception e) {
-            log.error("Failed to verify signature", e);
             return false;
         }
     }
@@ -265,7 +233,6 @@ public class PayOSClient {
             }
             return payload;
         } catch (Exception e) {
-            log.warn("Could not remove signature from payload: {}", e.getMessage());
             return payload;
         }
     }

@@ -1,7 +1,9 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.quiz.QuizResponse;
 import com.tugnw.aistudy.domain.dto.quiz.GenerateQuizRequest;
+import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.QuizService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,41 +28,31 @@ public class QuizController {
 
     private final QuizService quizService;
 
+    private UUID userId(Authentication a) { return ((CustomUserDetails) a.getPrincipal()).getAccount().getId(); }
+
+
     @PostMapping("/generate")
     @Operation(summary = "Generate quiz", description = "Generate or retrieve a quiz for a document. Use force=true to regenerate.")
-    public ResponseEntity<QuizResponse> generateQuiz(
+    public ApiResponse<QuizResponse> generateQuiz(
             @Valid @RequestBody GenerateQuizRequest request,
             Authentication authentication) throws Exception {
-        UUID requesterId = getCurrentUserId(authentication);
         QuizResponse response = quizService.generateQuiz(
                 request.getDocumentId(),
-                requesterId,
+                userId(authentication),
                 request
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ApiResponse.success(response);
     }
 
     @GetMapping("/{documentId}")
     @Operation(summary = "Get quizzes by document")
-    public ResponseEntity<List<QuizResponse>> getQuizByDocument(
+    public ApiResponse<List<QuizResponse>> getQuizByDocument(
             @PathVariable UUID documentId,
             Authentication authentication) {
-        UUID requesterId = getCurrentUserId(authentication);
         List<QuizResponse> responses = quizService.getQuizByDocument(
                 documentId,
-                requesterId
+                userId(authentication)
         );
-        return ResponseEntity.ok(responses);
-    }
-
-    private UUID getCurrentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new RuntimeException("User chưa đăng nhập");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails userDetails) {
-            return userDetails.getAccount().getId();
-        }
-        throw new RuntimeException("Không thể xác định user");
+        return ApiResponse.success(responses);
     }
 }

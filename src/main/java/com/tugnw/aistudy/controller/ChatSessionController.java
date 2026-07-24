@@ -2,6 +2,7 @@ package com.tugnw.aistudy.controller;
 
 import com.tugnw.aistudy.domain.dto.chat.ChatMessageResponse;
 import com.tugnw.aistudy.domain.dto.chat.ChatSessionResponse;
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.entity.ChatMessage;
 import com.tugnw.aistudy.domain.entity.ChatSession;
 import com.tugnw.aistudy.repository.ChatMessageRepository;
@@ -26,16 +27,16 @@ public class ChatSessionController {
 
     private final ChatSessionRepository chatSessionRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private UUID userId(Authentication a) { return ((CustomUserDetails) a.getPrincipal()).getAccount().getId(); }
 
     @GetMapping
     @Operation(summary = "List chat sessions for a document (newest first)")
-    public ResponseEntity<List<ChatSessionResponse>> listSessions(
+    public ApiResponse<List<ChatSessionResponse>> listSessions(
             @RequestParam UUID documentId,
             Authentication authentication) {
-        UUID userId = getCurrentUserId(authentication);
 
         List<ChatSession> sessions = chatSessionRepository
-                .findByAccountIdAndDocumentIdOrderByUpdatedAtDesc(userId, documentId);
+                .findByAccountIdAndDocumentIdOrderByUpdatedAtDesc(userId(authentication), documentId);
 
         List<ChatSessionResponse> responses = sessions.stream()
                 .map(s -> {
@@ -51,19 +52,18 @@ public class ChatSessionController {
                 })
                 .toList();
 
-        return ResponseEntity.ok(responses);
+        return ApiResponse.success(responses);
     }
 
     @GetMapping("/{sessionId}")
     @Operation(summary = "Get session with all messages")
-    public ResponseEntity<ChatSessionResponse> getSession(
+    public ApiResponse<ChatSessionResponse> getSession(
             @PathVariable UUID sessionId,
             Authentication authentication) {
-        UUID userId = getCurrentUserId(authentication);
         ChatSession session = chatSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        if (!session.getAccountId().equals(userId)) {
+        if (!session.getAccountId().equals(userId(authentication))) {
             throw new AccessDeniedException("No permission");
         }
 
@@ -78,7 +78,7 @@ public class ChatSessionController {
                         .build())
                 .toList();
 
-        return ResponseEntity.ok(ChatSessionResponse.builder()
+        return ApiResponse.success(ChatSessionResponse.builder()
                 .id(session.getId())
                 .documentId(session.getDocumentId())
                 .title(session.getTitle())
@@ -91,29 +91,17 @@ public class ChatSessionController {
 
     @DeleteMapping("/{sessionId}")
     @Operation(summary = "Delete a chat session")
-    public ResponseEntity<Void> deleteSession(
+    public ApiResponse<Void> deleteSession(
             @PathVariable UUID sessionId,
             Authentication authentication) {
-        UUID userId = getCurrentUserId(authentication);
         ChatSession session = chatSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
-        if (!session.getAccountId().equals(userId)) {
+        if (!session.getAccountId().equals(userId(authentication))) {
             throw new AccessDeniedException("No permission");
         }
 
         chatSessionRepository.delete(session);
-        return ResponseEntity.noContent().build();
-    }
-
-    private UUID getCurrentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new RuntimeException("User chưa đăng nhập");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof CustomUserDetails userDetails) {
-            return userDetails.getAccount().getId();
-        }
-        throw new RuntimeException("Không thể xác định user");
+        return ApiResponse.success(null);
     }
 }
