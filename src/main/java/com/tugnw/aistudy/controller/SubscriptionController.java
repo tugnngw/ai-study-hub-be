@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.subscription.SubscriptionResponse;
 import com.tugnw.aistudy.domain.dto.subscription.UpgradePreviewResponse;
 import com.tugnw.aistudy.domain.dto.payment.PaymentResponse;
@@ -8,7 +9,6 @@ import com.tugnw.aistudy.service.PaymentService;
 import com.tugnw.aistudy.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,39 +24,29 @@ public class SubscriptionController {
     private final SubscriptionService subscriptionService;
     private final PaymentService paymentService;
 
+    private UUID userId(Authentication a) {return ((CustomUserDetails) a.getPrincipal()).getAccount().getId(); }
+
     @GetMapping("/my")
-    public ResponseEntity<?> getMySubscription(Authentication authentication) {
-        UUID userId = extractUserId(authentication);
-        return ResponseEntity.ok(subscriptionService.getActiveSubscription(userId).orElse(null));
+    public ApiResponse<?> getMySubscription(Authentication authentication) {
+        return ApiResponse.success(subscriptionService.getActiveSubscription(userId(authentication)).orElse(null));
     }
 
     @GetMapping("/history")
-    public ResponseEntity<List<SubscriptionResponse>> getSubscriptionHistory(Authentication authentication) {
-        UUID userId = extractUserId(authentication);
-        return ResponseEntity.ok(subscriptionService.getSubscriptionHistory(userId));
+    public ApiResponse<List<SubscriptionResponse>> getSubscriptionHistory(Authentication authentication) {
+        return ApiResponse.success(subscriptionService.getSubscriptionHistory(userId(authentication)));
     }
 
     @GetMapping("/upgrade-preview")
-    public ResponseEntity<UpgradePreviewResponse> getUpgradePreview(
+    public ApiResponse<UpgradePreviewResponse> getUpgradePreview(
             @RequestParam UUID newPlanId,
             Authentication authentication) {
-        UUID userId = extractUserId(authentication);
-        return ResponseEntity.ok(subscriptionService.calculateUpgradePreview(userId, newPlanId));
+        return ApiResponse.success(subscriptionService.calculateUpgradePreview(userId(authentication), newPlanId));
     }
 
     @PostMapping("/upgrade")
-    public ResponseEntity<PaymentResponse> upgradeSubscription(
+    public ApiResponse<PaymentResponse> upgradeSubscription(
             @RequestParam UUID newPlanId,
             Authentication authentication) {
-        UUID userId = extractUserId(authentication);
-        return ResponseEntity.ok(paymentService.createPaymentLink(userId, newPlanId));
-    }
-
-    private UUID extractUserId(Authentication authentication) {
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof CustomUserDetails) {
-            return ((CustomUserDetails) principal).getAccount().getId();
-        }
-        return UUID.fromString(principal.toString());
+        return ApiResponse.success(paymentService.createPaymentLink(userId(authentication), newPlanId));
     }
 }

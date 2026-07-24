@@ -17,9 +17,6 @@ public interface SubscriptionService {
 
     UpgradePreviewResponse calculateUpgradePreview(UUID accountId, UUID newPlanId);
 
-    Subscription upgradeSubscription(UUID accountId, UUID newPlanId, PaymentTransaction tx);
-
     List<SubscriptionResponse> getSubscriptionHistory(UUID accountId);
 
-    void expireSubscriptions();
 }
