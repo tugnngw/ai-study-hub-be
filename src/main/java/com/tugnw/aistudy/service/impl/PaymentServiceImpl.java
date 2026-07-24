@@ -10,6 +10,7 @@ import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.PaymentTransaction;
 import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.enums.PaymentStatus;
+import com.tugnw.aistudy.domain.enums.Plan;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.PaymentPlanRepository;
 import com.tugnw.aistudy.repository.PaymentTransactionRepository;
@@ -83,7 +84,7 @@ public class PaymentServiceImpl implements PaymentService {
             if (activeSub.getEndDate() != null && activeSub.getEndDate().isAfter(now)) {
                 // Tính số ngày còn lại
                 long remainingMillis = activeSub.getEndDate().toEpochMilli() - now.toEpochMilli();
-                int remainingDays = (int) Math.ceil((double) remainingMillis / 86_400_000);
+                int remainingDays = (int) Math.ceil((double) remainingMillis / 86_400_000); // 86_400_000 = milliseconds per day
                 
                 if (remainingDays > 0) {
                     int currentDuration = currentPlan.getDurationDays() != null && currentPlan.getDurationDays() > 0 
@@ -94,15 +95,12 @@ public class PaymentServiceImpl implements PaymentService {
                     
                     // Tính số tiền phải trả = Giá gói mới - Giá trị còn lại
                     finalAmount = Math.max(0, plan.getPrice() - remainingValue);
-                    
-                    log.info("Proration calculated for user {}: currentPlan={}, remainingDays={}, remainingValue={}, targetPlan={}, finalAmount={}",
-                            userId, currentPlan.getName(), remainingDays, remainingValue, plan.getName(), finalAmount);
                 }
             }
         }
         // ===== KẾT THÚC: TÍNH TOÁN BÙ TRỪ =====
 
-        // ⚠️ orderCode MUST be <= 2,147,483,647 (PayOS requirement)
+        // orderCode MUST be <= 2,147,483,647 (PayOS requirement)
         // Use AtomicLong to ensure unique, monotonically increasing order codes
         long orderCode = orderCodeSeq.incrementAndGet();
         if (orderCode > 2_000_000_000L) {
@@ -113,7 +111,7 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Generated orderCode: {}", orderCode);
 
         // Tạo link thanh toán với giá tiền ĐÃ ĐƯỢC BÙ TRỪ
-        String checkoutUrl = payOSClient.createCheckoutUrl(
+        var payOSResult = payOSClient.createCheckoutUrl(
                 finalAmount, userId.toString(), orderCode, plan.getName());
 
         PaymentTransaction tx = PaymentTransaction.builder()
@@ -123,37 +121,29 @@ public class PaymentServiceImpl implements PaymentService {
                 .amount(finalAmount) // Lưu đúng số tiền thực tế user phải trả
                 .status(PaymentStatus.PENDING)
                 .description("Buy plan " + plan.getName() + (finalAmount < plan.getPrice() ? " (Upgraded)" : ""))
-                .expiredAt(java.time.Instant.now().plus(3, ChronoUnit.MINUTES))
+                .expiredAt(java.time.Instant.now().plus(5, ChronoUnit.MINUTES))
                 .build();
 
         txRepo.save(tx);
-        log.info("Created payment link for user: {}, orderCode: {}, amount: {}", userId, orderCode, finalAmount);
 
-        return new PaymentResponse(checkoutUrl, tx.getPayosOrderCode(), finalAmount);
+        return new PaymentResponse(payOSResult.getCheckoutUrl(), tx.getPayosOrderCode(), finalAmount, tx.getExpiredAt(), payOSResult.getQrCode());
     }
 
     @Override
     @Transactional
     public void handleWebhook(String payload, String signature) {
-        log.info("╔══════════════════════════════════════════════════════════════");
-        log.info("║          WEBHOOK RECEIVED FROM PAYOS                         ║");
-        log.info("╚══════════════════════════════════════════════════════════════");
-        log.info("📅 TIMESTAMP: {}", java.time.Instant.now());
+
 
         try {
             // 1. CRYPTOGRAPHIC SIGNATURE VERIFICATION (before any business logic)
             if (!payOSClient.verifySignature(payload, signature)) {
-                log.error("❌ WEBHOOK SIGNATURE VERIFICATION FAILED — rejecting");
                 throw new IllegalArgumentException("Invalid webhook signature");
             }
-            log.info("✅ WEBHOOK SIGNATURE VERIFIED");
 
             // 2. Parse payload
             JsonNode jsonNode = objectMapper.readTree(payload);
-            if (jsonNode == null || !jsonNode.has("data")) {
-                log.error("❌ INVALID WEBHOOK: no 'data' field in payload");
+            if (jsonNode == null || !jsonNode.has("data"))
                 throw new IllegalArgumentException("Invalid webhook data");
-            }
 
             JsonNode dataNode = jsonNode.get("data");
             Long orderCode = dataNode.has("orderCode") ? dataNode.get("orderCode").asLong() : null;
@@ -161,99 +151,53 @@ public class PaymentServiceImpl implements PaymentService {
             String transactionId = dataNode.has("transactionId") ? dataNode.get("transactionId").asText() : null;
             Long webhookAmount = dataNode.has("amount") ? dataNode.get("amount").asLong() : null;
 
-            log.info("╠ orderCode={} statusCode={}", orderCode, statusCode);
-
-            if (orderCode == null) {
-                log.error("Order code is null in webhook payload");
+            if (orderCode == null)
                 throw new IllegalArgumentException("Order code is required");
-            }
 
             // 3. Find existing transaction — reject unknown order codes
             PaymentTransaction tx = txRepo.findByPayosOrderCode(orderCode)
                     .orElseThrow(() -> {
-                        log.error("❌ No transaction found for orderCode={} — rejecting", orderCode);
                         return new IllegalArgumentException("Transaction not found: " + orderCode);
                     });
 
-            log.info("Found transaction: id={}, status={}, amount={}",
-                    tx.getId(), tx.getStatus(), tx.getAmount());
-
             // 4. Cross-validate amount against stored transaction
             if (webhookAmount != null && !webhookAmount.equals(tx.getAmount())) {
-                log.error("❌ Amount mismatch for orderCode={}: webhook says {}, stored transaction says {}",
-                        orderCode, webhookAmount, tx.getAmount());
                 throw new IllegalArgumentException("Amount mismatch in webhook");
             }
 
             // 5. Idempotency check — skip if already processed
-            if (tx.getStatus() == PaymentStatus.PAID) {
-                log.warn("Transaction {} already paid, skipping", orderCode);
-                return;
-            }
+            if (tx.getStatus() == PaymentStatus.PAID) return;
 
             // 6. Map status
             PaymentStatus newStatus = mapPayOSStatus(statusCode);
-            log.info("Status mapping: '{}' → '{}'", statusCode, newStatus);
 
             // 6. Update transaction
             tx.setStatus(newStatus);
-            if (transactionId != null) {
+            if (transactionId != null)
                 tx.setTransactionId(transactionId);
-            }
+
             PaymentTransaction savedTx = txRepo.save(tx);
-            log.info("💾 TRANSACTION SAVED TO DATABASE:");
-            log.info("   - ID: {}", savedTx.getId());
-            log.info("   - OrderCode: {}", savedTx.getPayosOrderCode());
-            log.info("   - Status: {}", savedTx.getStatus());
-            log.info("   - AccountId: {}", savedTx.getAccountId());
 
             // Handle by status
             switch (newStatus) {
                 case PAID:
-                    log.info("╔══════════════════════════════════════════════════════════════");
-                    log.info("║       ✅ PAYMENT SUCCESSFUL - UPGRADING USER PLAN             ║");
-                    log.info("╚══════════════════════════════════════════════════════════════");
-                    updateUserQuota(tx);
-                    subscriptionService.createSubscription(tx.getAccountId(), tx.getPlan(), tx);
-                    log.info("╔══════════════════════════════════════════════════════════════");
-                    log.info("║       ✅ USER PLAN UPGRADE COMPLETED                          ║");
-                    log.info("╚══════════════════════════════════════════════════════════════");
                     break;
                 case CANCELLED:
-                    log.info("⚠️ Transaction CANCELLED: {}", orderCode);
                     break;
                 case FAILED:
-                    log.info("❌ Transaction FAILED: {}", orderCode);
                     break;
                 case EXPIRED:
-                    log.info("⏰ Transaction EXPIRED: {}", orderCode);
                     break;
                 default:
-                    log.warn("⚠️ Unhandled status {} for transaction {}", newStatus, orderCode);
             }
 
-            log.info("╔══════════════════════════════════════════════════════════════");
-            log.info("║          WEBHOOK PROCESSING COMPLETED SUCCESSFULLY           ║");
-            log.info("╚══════════════════════════════════════════════════════════════");
-
         } catch (Exception e) {
-            log.error("╔══════════════════════════════════════════════════════════════");
-            log.error("║       ❌ WEBHOOK PROCESSING FAILED                            ║");
-            log.error("╚══════════════════════════════════════════════════════════════");
-            log.error("Error type: {}", e.getClass().getSimpleName());
-            log.error("Error message: {}", e.getMessage());
-            log.error("Stack trace:", e);
             throw new RuntimeException("Failed to process webhook: " + e.getMessage(), e);
         }
     }
 
     private PaymentStatus mapPayOSStatus(String statusCode) {
-        log.info("🔄 mapPayOSStatus() called with: '{}'", statusCode);
-        
-        if (statusCode == null) {
-            log.warn("⚠️ Status code is NULL, returning PENDING");
-            return PaymentStatus.PENDING;
-        }
+        if (statusCode == null) return PaymentStatus.PENDING;
 
         String normalized = statusCode.toLowerCase().trim();
         PaymentStatus result;
@@ -262,67 +206,43 @@ public class PaymentServiceImpl implements PaymentService {
             case "00":
             case "success":
                 result = PaymentStatus.PAID;
-                log.info("✅ Status '{}' mapped to PAID", statusCode);
                 break;
             case "01":
             case "failed":
                 result = PaymentStatus.FAILED;
-                log.info("❌ Status '{}' mapped to FAILED", statusCode);
                 break;
             case "02":
             case "cancelled":
                 result = PaymentStatus.CANCELLED;
-                log.info("⚠️ Status '{}' mapped to CANCELLED", statusCode);
                 break;
             case "03":
             case "expired":
                 result = PaymentStatus.EXPIRED;
-                log.info("⏰ Status '{}' mapped to EXPIRED", statusCode);
                 break;
             default:
-                log.warn("⚠️ Unknown status code: '{}', defaulting to PENDING", statusCode);
                 result = PaymentStatus.PENDING;
         }
-        
         return result;
     }
 
     @Transactional
     protected void updateUserQuota(PaymentTransaction tx) {
-        log.info("╔══════════════════════════════════════════════════════════════");
-        log.info("║              updateUserQuota() CALLED                         ║");
-        log.info("╚══════════════════════════════════════════════════════════════");
-        log.info("   Transaction ID: {}", tx.getId());
-        log.info("   Account ID: {}", tx.getAccountId());
-        log.info("   PaymentPlan: {}", tx.getPlan() != null ? tx.getPlan().getName() : "NULL");
-        
         try {
             Account account = accountRepo.findById(tx.getAccountId())
                     .orElseThrow(() -> new IllegalArgumentException("Account not found: " + tx.getAccountId()));
-            
-            log.info("📋 ACCOUNT BEFORE UPDATE:");
-            log.info("   - ID: {}", account.getId());
-            log.info("   - Email: {}", account.getEmail());
-            log.info("   - Current Plan: {}", account.getPlan());
 
             PaymentPlan plan = tx.getPlan();
-            if (plan == null) {
-                log.error("❌ PLAN IS NULL - Cannot upgrade user");
+            if (plan == null)
                 throw new IllegalArgumentException("Payment plan is null");
-            }
-            
-            log.info("📋 PAYMENT PLAN INFO:");
-            log.info("   - Plan ID: {}", plan.getId());
-            log.info("   - Plan Name: {}", plan.getName());
-            log.info("   - Plan Price: {} VND", plan.getPrice());
 
-            com.tugnw.aistudy.domain.enums.Plan newPlan = mapPaymentPlanToAccountPlan(plan.getName());
-            log.info("🔄 MAPPING: '{}' → '{}'", plan.getName(), newPlan);
+
+            Plan newPlan = mapPaymentPlanToAccountPlan(plan.getName());
 
             account.setPlan(newPlan);
-            if (plan.getStorageGb() != null) {
+
+            if (plan.getStorageGb() != null)
                 account.setStorageGb(plan.getStorageGb());
-            }
+
             Account savedAccount = accountRepo.save(account);
 
             // Log upgrade activity
@@ -333,47 +253,31 @@ public class PaymentServiceImpl implements PaymentService {
                     "Upgraded to " + newPlan + " plan",
                     "Plan: " + plan.getName() + ", Amount: " + tx.getAmount() + " VND"
             );
-            
-            log.info("╔══════════════════════════════════════════════════════════════");
-            log.info("║              ✅ ACCOUNT UPDATED SUCCESSFULLY                  ║");
-            log.info("╠══════════════════════════════════════════════════════════════╣");
-            log.info("║ Account ID    : {}                                     ", savedAccount.getId());
-            log.info("║ Email         : {}                                     ", savedAccount.getEmail());
-            log.info("║ NEW PLAN      : {}                                     ", savedAccount.getPlan());
-            log.info("║ STORAGE       : {} GB                                  ", savedAccount.getStorageGb());
-            log.info("║ Updated At    : {}                                     ", savedAccount.getUpdatedAt());
-            log.info("╚══════════════════════════════════════════════════════════════");
 
-        } catch (OptimisticLockingFailureException e) {
-            log.error("❌ Race condition during plan upgrade for user {}", tx.getAccountId());
-            throw e;
+        } catch (OptimisticLockingFailureException e) {throw e;
         } catch (Exception e) {
-            log.error("❌ Failed to update user plan for transaction {}", tx.getId());
-            log.error("   Error: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to update user plan", e);
         }
     }
 
-    private com.tugnw.aistudy.domain.enums.Plan mapPaymentPlanToAccountPlan(String planName) {
-        if (planName == null) {
-            return com.tugnw.aistudy.domain.enums.Plan.FREE;
-        }
+    private Plan mapPaymentPlanToAccountPlan(String planName) {
+        if (planName == null)
+            return Plan.FREE;
         
         String normalized = planName.trim().toUpperCase();
         
         if (normalized.contains("BASIC")) {
-            return com.tugnw.aistudy.domain.enums.Plan.BASIC;
+            return Plan.BASIC;
         } else if (normalized.contains("PRO")) {
-            return com.tugnw.aistudy.domain.enums.Plan.PRO;
+            return Plan.PRO;
         } else if (normalized.contains("PREMIUM")) {
-            return com.tugnw.aistudy.domain.enums.Plan.PREMIUM;
+            return Plan.PREMIUM;
         }
         
         try {
-            return com.tugnw.aistudy.domain.enums.Plan.valueOf(normalized);
+            return Plan.valueOf(normalized);
         } catch (IllegalArgumentException e) {
-            log.warn("Could not map plan name '{}' to enum, defaulting to FREE", planName);
-            return com.tugnw.aistudy.domain.enums.Plan.FREE;
+            return Plan.FREE;
         }
     }
 
@@ -383,6 +287,46 @@ public class PaymentServiceImpl implements PaymentService {
         return transactions.stream()
                 .map(this::convertToUserResponse)
                 .toList();
+    }
+
+    @Override
+    public Page<AdminTransactionResponse> getAllTransactions(Pageable pageable) {
+        Page<PaymentTransaction> transactions = txRepo.findAllByOrderByCreatedAtDesc(pageable);
+        return transactions.map(this::convertToAdminResponse);
+    }
+
+    @Override
+    public Page<AdminTransactionResponse> getTransactionsByStatus(PaymentStatus status, Pageable pageable) {
+        Page<PaymentTransaction> transactions = txRepo.findByStatusOrderByCreatedAtDesc(status, pageable);
+        return transactions.map(this::convertToAdminResponse);
+    }
+
+    @Override
+    public Optional<PaymentTransaction> getTransactionByOrderCode(Long orderCode) {
+        return txRepo.findByPayosOrderCode(orderCode);
+    }
+
+    @Override
+    @Transactional
+    public void verifyAndProcessPayment(Long orderCode) {
+
+        PaymentTransaction tx = txRepo.findByPayosOrderCode(orderCode)
+                .orElseThrow(() -> new IllegalArgumentException("Transaction not found for orderCode: " + orderCode));
+
+        if (tx.getStatus() == PaymentStatus.PAID) return;
+
+        tx.setStatus(PaymentStatus.PAID);
+        tx.setTransactionId("MANUAL_" + System.currentTimeMillis());
+        txRepo.save(tx);
+
+        updateUserQuota(tx);
+        subscriptionService.createSubscription(tx.getAccountId(), tx.getPlan(), tx);
+    }
+
+    @Override
+    public Page<AdminTransactionResponse> getTransactionsByAccountId(UUID accountId, Pageable pageable) {
+        Page<PaymentTransaction> transactions = txRepo.findByAccountIdOrderByCreatedAtDesc(accountId, pageable);
+        return transactions.map(this::convertToAdminResponse);
     }
 
     private PaymentTransactionResponse convertToUserResponse(PaymentTransaction tx) {
@@ -401,22 +345,10 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
     }
 
-    @Override
-    public Page<AdminTransactionResponse> getAllTransactions(Pageable pageable) {
-        Page<PaymentTransaction> transactions = txRepo.findAllByOrderByCreatedAtDesc(pageable);
-        return transactions.map(this::convertToAdminResponse);
-    }
-
-    @Override
-    public Page<AdminTransactionResponse> getTransactionsByStatus(PaymentStatus status, Pageable pageable) {
-        Page<PaymentTransaction> transactions = txRepo.findByStatusOrderByCreatedAtDesc(status, pageable);
-        return transactions.map(this::convertToAdminResponse);
-    }
-
     private AdminTransactionResponse convertToAdminResponse(PaymentTransaction tx) {
         Account account = accountRepo.findById(tx.getAccountId())
                 .orElse(null);
-        
+
         return AdminTransactionResponse.builder()
                 .id(tx.getId().toString())
                 .accountId(tx.getAccountId())
@@ -432,49 +364,5 @@ public class PaymentServiceImpl implements PaymentService {
                 .createdAt(tx.getCreatedAt())
                 .updatedAt(tx.getUpdatedAt())
                 .build();
-    }
-
-    @Override
-    public Optional<PaymentTransaction> getTransactionByOrderCode(Long orderCode) {
-        return txRepo.findByPayosOrderCode(orderCode);
-    }
-
-    @Override
-    @Transactional
-    public void verifyAndProcessPayment(Long orderCode) {
-        log.info("╔══════════════════════════════════════════════════════════════");
-        log.info("║       MANUAL PAYMENT VERIFICATION TRIGGERED                   ║");
-        log.info("╚══════════════════════════════════════════════════════════════");
-        log.info("OrderCode: {}", orderCode);
-
-        PaymentTransaction tx = txRepo.findByPayosOrderCode(orderCode)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found for orderCode: " + orderCode));
-
-        log.info("Found transaction: id={}, status={}, amount={}, accountId={}",
-                tx.getId(), tx.getStatus(), tx.getAmount(), tx.getAccountId());
-
-        if (tx.getStatus() == PaymentStatus.PAID) {
-            log.warn("Transaction {} already paid, skipping", orderCode);
-            return;
-        }
-
-        tx.setStatus(PaymentStatus.PAID);
-        tx.setTransactionId("MANUAL_" + System.currentTimeMillis());
-        txRepo.save(tx);
-        
-        log.info("✅ Transaction {} status updated to PAID", orderCode);
-
-        updateUserQuota(tx);
-        subscriptionService.createSubscription(tx.getAccountId(), tx.getPlan(), tx);
-
-        log.info("╔══════════════════════════════════════════════════════════════");
-        log.info("║       MANUAL VERIFICATION COMPLETED                           ║");
-        log.info("╚══════════════════════════════════════════════════════════════");
-    }
-
-    @Override
-    public Page<AdminTransactionResponse> getTransactionsByAccountId(UUID accountId, Pageable pageable) {
-        Page<PaymentTransaction> transactions = txRepo.findByAccountIdOrderByCreatedAtDesc(accountId, pageable);
-        return transactions.map(this::convertToAdminResponse);
     }
 }

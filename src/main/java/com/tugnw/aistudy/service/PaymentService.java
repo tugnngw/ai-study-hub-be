@@ -15,12 +15,20 @@ import java.util.UUID;
 
 public interface PaymentService {
     List<PaymentPlan> listActivePlans();
+
     PaymentResponse createPaymentLink(UUID userId, UUID planId);
+
     Optional<PaymentTransaction> getTransactionByOrderCode(Long orderCode);
+
     void handleWebhook(String payload, String signature);
+
     List<PaymentTransactionResponse> getUserTransactions(UUID userId);
+
     Page<AdminTransactionResponse> getAllTransactions(Pageable pageable);
+
     Page<AdminTransactionResponse> getTransactionsByStatus(PaymentStatus status, Pageable pageable);
+
     Page<AdminTransactionResponse> getTransactionsByAccountId(UUID accountId, Pageable pageable);
+
     void verifyAndProcessPayment(Long orderCode);
 }

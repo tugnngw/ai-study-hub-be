@@ -2,6 +2,7 @@ package com.tugnw.aistudy.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.payment.CreatePaymentRequest;
 import com.tugnw.aistudy.domain.dto.payment.PaymentResponse;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
@@ -11,7 +12,6 @@ import com.tugnw.aistudy.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,77 +30,76 @@ public class PaymentController {
     private final ObjectMapper objectMapper;
 
     @GetMapping("/plans")
-    public ResponseEntity<List<PaymentPlan>> getActivePlans() {
-        return ResponseEntity.ok(paymentService.listActivePlans());
+    public ApiResponse<List<PaymentPlan>> getActivePlans() {
+        return ApiResponse.success(paymentService.listActivePlans());
     }
 
     @PostMapping("/create")
-    public ResponseEntity<PaymentResponse> createPaymentLink(
+    public ApiResponse<PaymentResponse> createPaymentLink(
             @RequestBody CreatePaymentRequest request,
             Authentication authentication) {
         // Trích xuất UUID userId an toàn từ CustomUserDetails hoặc Authentication
         Object principal = authentication.getPrincipal();
         UUID userId;
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails) {
-            userId = ((com.tugnw.aistudy.security.CustomUserDetails) principal).getAccount().getId();
+        if (principal instanceof CustomUserDetails) {
+            userId = ((CustomUserDetails) principal).getAccount().getId();
         } else {
             userId = UUID.fromString(principal.toString());
         }
-        return ResponseEntity.ok(paymentService.createPaymentLink(userId, request.getPlanId()));
+        return ApiResponse.success(paymentService.createPaymentLink(userId, request.getPlanId()));
     }
 
     @GetMapping("/status/{orderCode}")
-    public ResponseEntity<?> getPaymentStatus(@PathVariable Long orderCode) {
+    public ApiResponse<?> getPaymentStatus(@PathVariable Long orderCode) {
         return paymentService.getTransactionByOrderCode(orderCode)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .map(ApiResponse::success)
+                .orElse(ApiResponse.success(null));
     }
 
     @PostMapping("/verify/{orderCode}")
-    public ResponseEntity<?> verifyPayment(@PathVariable Long orderCode) {
+    public ApiResponse<?> verifyPayment(@PathVariable Long orderCode) {
         log.info("Manual payment verification for orderCode: {}", orderCode);
         paymentService.verifyAndProcessPayment(orderCode);
-        return ResponseEntity.ok().body("Payment verified successfully");
+        return  ApiResponse.success("Payment verified successfully", null);
     }
 
     //  Webhook endpoint (Priority 1)
     @PostMapping("/webhook")
-    public ResponseEntity<?> handleWebhook(@RequestBody String payload) {
+    public ApiResponse<?> handleWebhook(@RequestBody String payload) {
         try {
             // Extract signature from JSON body (PayOS sends it inside the payload, not as header)
             JsonNode root = objectMapper.readTree(payload);
             String signature = root.has("signature") ? root.get("signature").asText() : null;
             paymentService.handleWebhook(payload, signature);
-            return ResponseEntity.ok().build();
+            return ApiResponse.success("Webhook handling success", null);
         } catch (Exception e) {
-            log.error("Webhook handling failed", e);
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ApiResponse.error(e.getMessage());
         }
     }
 
     @GetMapping("/my-transactions")
-    public ResponseEntity<?> getMyTransactions(Authentication authentication) {
+    public ApiResponse<?> getMyTransactions(Authentication authentication) {
         Object principal = authentication.getPrincipal();
         UUID userId;
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails) {
-            userId = ((com.tugnw.aistudy.security.CustomUserDetails) principal).getAccount().getId();
+        if (principal instanceof CustomUserDetails) {
+            userId = ((CustomUserDetails) principal).getAccount().getId();
         } else {
             userId = UUID.fromString(principal.toString());
         }
-        return ResponseEntity.ok(paymentService.getUserTransactions(userId));
+        return ApiResponse.success(paymentService.getUserTransactions(userId));
     }
 
     @GetMapping("/my-subscription")
-    public ResponseEntity<?> getMySubscription(Authentication authentication) {
+    public ApiResponse<?> getMySubscription(Authentication authentication) {
         Object principal = authentication.getPrincipal();
         UUID userId;
-        if (principal instanceof com.tugnw.aistudy.security.CustomUserDetails) {
-            userId = ((com.tugnw.aistudy.security.CustomUserDetails) principal).getAccount().getId();
-        } else {
+        if (principal instanceof CustomUserDetails) {
+            userId = ((CustomUserDetails) principal).getAccount().getId();
+        }else {
             userId = UUID.fromString(principal.toString());
         }
         return subscriptionService.getActiveSubscription(userId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.noContent().build());
+                .map(ApiResponse::success)
+                .orElse(ApiResponse.success(null));
     }
 }
