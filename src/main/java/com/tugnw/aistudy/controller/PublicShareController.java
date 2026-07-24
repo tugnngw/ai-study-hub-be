@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
 import com.tugnw.aistudy.service.ShareService;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,7 @@ public class PublicShareController {
     private final ShareService shareService;
 
     @GetMapping("/shared/{shareToken}")
-    public ResponseEntity<ShareResponse> getSharedByToken(@PathVariable String shareToken) {
-        return ResponseEntity.ok(shareService.getShareByToken(shareToken));
+    public ApiResponse<ShareResponse> getSharedByToken(@PathVariable String shareToken) {
+        return ApiResponse.success(shareService.getShareByToken(shareToken));
     }
 }

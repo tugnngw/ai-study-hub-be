@@ -8,6 +8,7 @@ import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.domain.entity.Folder;
 import com.tugnw.aistudy.domain.entity.Share;
 
+import com.tugnw.aistudy.domain.enums.DocumentStatus;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.FolderRepository;
@@ -46,12 +47,10 @@ public class ShareServiceImpl implements ShareService {
 
     private Account findTargetUser(ShareRequest request) {
         Account targetUser = null;
-        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+        if (request.getEmail() != null && !request.getEmail().isBlank())
             targetUser = accountRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(request.getEmail()).orElse(null);
-        }
-        if (targetUser == null && request.getUsername() != null && !request.getUsername().isBlank()) {
+        if (targetUser == null && request.getUsername() != null && !request.getUsername().isBlank())
             targetUser = accountRepository.findByUsernameIgnoreCaseAndDeletedAtIsNull(request.getUsername());
-        }
         return targetUser;
     }
 
@@ -160,7 +159,7 @@ public class ShareServiceImpl implements ShareService {
                 .filter(share -> {
                     if (share.getDocument() != null) {
                         String status = share.getDocument().getStatus();
-                        return "READY".equalsIgnoreCase(status);
+                        return DocumentStatus.READY.name().equalsIgnoreCase(status);
                     }
                     if (share.getFolder() != null) {
                         return true;
@@ -203,7 +202,7 @@ public class ShareServiceImpl implements ShareService {
             sourceDocs = List.of(share.getDocument());
         } else if (share.getFolder() != null) {
             sourceDocs = documentRepository
-                    .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(share.getFolder().getId(), "READY");
+                    .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(share.getFolder().getId(), DocumentStatus.READY.name());
         } else {
             throw new IllegalArgumentException("Shared item not found");
         }
@@ -267,7 +266,7 @@ public class ShareServiceImpl implements ShareService {
                 .title(title)
                 .description(description != null ? description : source.getDescription())
                 .summary(source.getSummary())
-                .status("ready")
+                .status(DocumentStatus.READY.name())
                 .cloudinaryUrl(source.getCloudinaryUrl())
                 .publicId(source.getPublicId())
                 .mimeType(source.getMimeType())
@@ -316,12 +315,6 @@ public class ShareServiceImpl implements ShareService {
     @Transactional(readOnly = true)
     public String getShareLink(UUID folderId) {
         return frontendUrl + "/shared/" + folderId;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Share getShareEntity(UUID shareId) {
-        return shareRepository.findById(shareId).orElseThrow(() -> new IllegalArgumentException("Share not found"));
     }
 
     @Override
@@ -390,16 +383,13 @@ public class ShareServiceImpl implements ShareService {
     public ShareResponse getShareByToken(String shareToken) {
         Share share = shareRepository.findByShareToken(shareToken)
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
-        if (share.getRevoked()) {
+        if (share.getRevoked())
             throw new IllegalArgumentException("This share has been revoked");
-        }
-        if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(Instant.now())) {
+        if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(Instant.now()))
             throw new IllegalArgumentException("This share has expired");
-        }
         // Only READY documents are accessible via public share
-        if (share.getDocument() != null && !"READY".equalsIgnoreCase(share.getDocument().getStatus())) {
+        if (share.getDocument() != null && !DocumentStatus.READY.name().equalsIgnoreCase(share.getDocument().getStatus()))
             throw new IllegalArgumentException("Tài liệu chưa được phê duyệt.");
-        }
         return mapToResponse(share);
     }
 
@@ -416,13 +406,11 @@ public class ShareServiceImpl implements ShareService {
     public String getDownloadUrlByToken(String shareToken) {
         Share share = shareRepository.findByShareToken(shareToken)
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
-        if (share.getRevoked()) {
+        if (share.getRevoked())
             throw new IllegalArgumentException("This share has been revoked");
-        }
         if (share.getDocument() != null) {
-            if (!"READY".equalsIgnoreCase(share.getDocument().getStatus())) {
+            if (!DocumentStatus.READY.name().equalsIgnoreCase(share.getDocument().getStatus()))
                 throw new IllegalArgumentException("Tài liệu chưa được phê duyệt.");
-            }
             return share.getDocument().getCloudinaryUrl();
         }
         throw new IllegalArgumentException("No downloadable file for this share");

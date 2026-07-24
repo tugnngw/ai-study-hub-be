@@ -16,7 +16,6 @@ public interface ShareService {
     void removeShareByToken(String shareToken, UUID ownerId);
     SaveToFolderResponse saveToMyFolder(UUID shareId, UUID folderId, String title, String description, UUID requesterId);
     String getShareLink(UUID folderId);
-    Share getShareEntity(UUID shareId);
     ShareResponse getShareInfo(UUID id, String type, UUID ownerId);
     ShareResponse getShareByToken(String shareToken);
     String getShareLinkByToken(String shareToken);
