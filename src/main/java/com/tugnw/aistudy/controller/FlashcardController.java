@@ -4,14 +4,12 @@ import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.FlashcardGenerateResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.FlashcardResponse;
 import com.tugnw.aistudy.domain.dto.flashcard.GenerateFlashcardsRequest;
-import com.tugnw.aistudy.service.CurrentUserService;
+import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.FlashcardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -28,26 +26,24 @@ import java.util.UUID;
 public class FlashcardController {
 
     private final FlashcardService flashcardService;
-    private final CurrentUserService currentUserService;
+
+    private UUID userId(Authentication a) { return ((CustomUserDetails) a.getPrincipal()).getAccount().getId(); }
 
     @PostMapping("/generate")
     @Operation(summary = "Generate flashcards", description = "Generate or retrieve flashcards for a document. Use force=true to regenerate.")
     public ApiResponse<FlashcardGenerateResponse> generateFlashcards(
-            @Valid @RequestBody GenerateFlashcardsRequest request) throws Exception {
+            @Valid @RequestBody GenerateFlashcardsRequest request, Authentication authentication) throws Exception {
         FlashcardGenerateResponse response = flashcardService.generateFlashcards(
-                request.getDocumentId(),
-                currentUserService.getCurrentUserId(),
-                request);
+                request.getDocumentId(), userId(authentication), request);
         return ApiResponse.success("Flashcards generated successfully", response);
     }
 
     @GetMapping("/{documentId}")
     @Operation(summary = "Get flashcards by document")
     public ApiResponse<List<FlashcardResponse>> getFlashcardsByDocument(
-            @PathVariable UUID documentId) {
+            @PathVariable UUID documentId, Authentication authentication) {
         List<FlashcardResponse> responses = flashcardService.getFlashcardsByDocument(
-                documentId,
-                currentUserService.getCurrentUserId());
+                documentId, userId(authentication));
         return ApiResponse.success(responses);
     }
 }

@@ -4,21 +4,17 @@ import com.tugnw.aistudy.domain.dto.ai.SummaryRequest;
 import com.tugnw.aistudy.domain.dto.ai.SummaryResponse;
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.entity.Document;
-import com.tugnw.aistudy.service.CurrentUserService;
+import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.DocumentService;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -31,14 +27,15 @@ public class AiSummaryController {
 
     private final KnowledgePreparationService knowledgePreparationService;
     private final DocumentService documentService;
-    private final CurrentUserService currentUserService;
 
     @PostMapping("/summary")
     @Operation(summary = "Generate or regenerate AI summary", description = "Generate summary for a document. force=true regenerates and overwrites cache.")
     public ApiResponse<SummaryResponse> generateSummary(
-            @Valid @RequestBody SummaryRequest request) throws Exception {
+            @Valid @RequestBody SummaryRequest request,
+            Authentication authentication) throws Exception {
 
-        Document document = documentService.getAccessibleDocument(request.getDocumentId(), currentUserService.getCurrentUserId(), true);
+        Document document = documentService.getAccessibleDocument(request.getDocumentId(),
+                ((CustomUserDetails) authentication.getPrincipal()).getAccount().getId(), true);
 
         String mergedMarkdown = knowledgePreparationService.prepareKnowledge(document, request.isForce());
 
@@ -51,9 +48,11 @@ public class AiSummaryController {
     @GetMapping("/summary/{documentId}")
     @Operation(summary = "Get cached summary", description = "Returns cached AI summary without regenerating. Returns empty if none exists.")
     public ApiResponse<SummaryResponse> getCachedSummary(
-            @PathVariable UUID documentId) {
+            @PathVariable UUID documentId,
+            Authentication authentication) {
 
-        Document document = documentService.getAccessibleDocument(documentId, currentUserService.getCurrentUserId(), true);
+        Document document = documentService.getAccessibleDocument(documentId,
+                ((CustomUserDetails) authentication.getPrincipal()).getAccount().getId(), true);
 
         if (document.getSummary() == null || document.getSummary().trim().isEmpty())
             return ApiResponse.success(

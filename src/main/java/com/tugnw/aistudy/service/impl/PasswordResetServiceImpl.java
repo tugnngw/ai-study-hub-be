@@ -40,17 +40,10 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     @Transactional
     public void requestReset(String email) {
         Optional<Account> opt = accountRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(email);
-        if (opt.isEmpty()) {
-            log.info("Password-reset requested for unknown email (suppressed)");
-            return;
-        }
+        if (opt.isEmpty()) return;
 
         Account account = opt.get();
-
-        if (!account.isEmailVerified() || account.getEmail() == null) {
-            log.info("Password-reset skipped for unverified account {}", account.getId());
-            return;
-        }
+        if (!account.isEmailVerified() || account.getEmail() == null) return;
 
         doSendOtp(account);
     }
@@ -82,17 +75,14 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 .orElseThrow(() -> new InvalidTokenException("Invalid verification code"));
 
         // Ensure token belongs to this account
-        if (!token.getAccount().getId().equals(account.getId())) {
+        if (!token.getAccount().getId().equals(account.getId()))
             throw new InvalidTokenException("Invalid verification code");
-        }
 
-        if (token.isExpired()) {
+        if (token.isExpired())
             throw new TokenExpiredException("Verification code has expired. Please request a new one.");
-        }
 
-        if (token.isUsed()) {
+        if (token.isUsed())
             throw new TokenAlreadyUsedException("This verification code has already been used.");
-        }
 
         // Update password
         account.setPasswordHash(passwordEncoder.encode(newPassword));
@@ -100,8 +90,6 @@ public class PasswordResetServiceImpl implements PasswordResetService {
 
         // Consume this token and remove all PASSWORD_RESET tokens for the account
         accountTokenRepository.deleteByAccountAndType(account, AccountTokenType.PASSWORD_RESET);
-
-        log.info("Password reset successfully for account {}", account.getId());
     }
 
     private AccountToken validateToken(Account account, String otp) {
@@ -112,17 +100,14 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 .findByTokenAndTypeWithReadLock(otp, AccountTokenType.PASSWORD_RESET)
                 .orElseThrow(() -> new InvalidTokenException("Invalid verification code"));
 
-        if (!token.getAccount().getId().equals(account.getId())) {
+        if (!token.getAccount().getId().equals(account.getId()))
             throw new InvalidTokenException("Invalid verification code");
-        }
 
-        if (token.isExpired()) {
+        if (token.isExpired())
             throw new TokenExpiredException("Verification code has expired. Please request a new one.");
-        }
 
-        if (token.isUsed()) {
+        if (token.isUsed())
             throw new TokenAlreadyUsedException("This verification code has already been used.");
-        }
 
         return token;
     }
@@ -139,10 +124,8 @@ public class PasswordResetServiceImpl implements PasswordResetService {
             if (Instant.now().isBefore(cooldownEnd)) {
                 long secondsLeft = java.time.Duration.between(Instant.now(), cooldownEnd).toSeconds();
                 throw new IllegalArgumentException(
-                    "Vui lòng đợi " + Math.max(1, secondsLeft) + " giây trước khi yêu cầu gửi lại mã OTP."
-                );
+                    "Vui lòng đợi " + Math.max(1, secondsLeft) + " giây trước khi yêu cầu gửi lại mã OTP.");
             }
-            log.info("Reusing existing PASSWORD_RESET token for account {}", account.getId());
             emailService.sendPasswordResetEmail(account.getEmail(), account.getFullName(), vt.getToken());
             return;
         }
@@ -159,7 +142,6 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 .build();
         accountTokenRepository.save(token);
 
-        log.info("Generated new PASSWORD_RESET OTP for account {}", account.getId());
         emailService.sendPasswordResetEmail(account.getEmail(), account.getFullName(), otp);
     }
 
