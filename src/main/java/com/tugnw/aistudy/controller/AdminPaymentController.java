@@ -28,29 +28,26 @@ public class AdminPaymentController {
 
     @GetMapping
     @Operation(summary = "Get all payment transactions with pagination")
-    public ResponseEntity<ApiResponse<Page<AdminTransactionResponse>>> getAllTransactions(Pageable pageable) {
-        log.debug("[ADMIN_ACTION] Getting all payment transactions, page: {}, size: {}", pageable.getPageNumber(), pageable.getPageSize());
+    public ApiResponse<Page<AdminTransactionResponse>> getAllTransactions(Pageable pageable) {
         Page<AdminTransactionResponse> transactions = paymentService.getAllTransactions(pageable);
-        return ResponseEntity.ok(ApiResponse.success(transactions));
+        return ApiResponse.success(transactions);
     }
 
     @GetMapping("/status/{status}")
     @Operation(summary = "Get payment transactions by status")
-    public ResponseEntity<ApiResponse<Page<AdminTransactionResponse>>> getTransactionsByStatus(
+    public ApiResponse<Page<AdminTransactionResponse>> getTransactionsByStatus(
             @PathVariable PaymentStatus status,
             Pageable pageable) {
-        log.debug("[ADMIN_ACTION] Getting transactions with status: {}", status);
         Page<AdminTransactionResponse> transactions = paymentService.getTransactionsByStatus(status, pageable);
-        return ResponseEntity.ok(ApiResponse.success(transactions));
+        return ApiResponse.success(transactions);
     }
 
     @GetMapping("/user/{accountId}")
     @Operation(summary = "Get payment transactions by user account ID")
-    public ResponseEntity<ApiResponse<Page<AdminTransactionResponse>>> getTransactionsByUser(
+    public ApiResponse<Page<AdminTransactionResponse>> getTransactionsByUser(
             @PathVariable UUID accountId,
             Pageable pageable) {
-        log.debug("[ADMIN_ACTION] Getting transactions for user: {}", accountId);
         Page<AdminTransactionResponse> transactions = paymentService.getTransactionsByAccountId(accountId, pageable);
-        return ResponseEntity.ok(ApiResponse.success(transactions));
+        return ApiResponse.success(transactions);
     }
 }

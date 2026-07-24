@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tugnw.aistudy.domain.dto.payment.WebhookPayload;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -41,6 +43,13 @@ public class PayOSClient {
     private String cancelUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    @Data
+    @AllArgsConstructor
+    public static class CheckoutResult {
+        private String checkoutUrl;
+        private String qrCode;
+    }
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String PAYOS_API_URL = "https://api-merchant.payos.vn/v2/payment-requests";
@@ -85,7 +94,7 @@ public class PayOSClient {
         return cleaned;
     }
 
-    public String createCheckoutUrl(long amount, String userId, Long orderCode, String planName) {
+    public CheckoutResult createCheckoutUrl(long amount, String userId, Long orderCode, String planName) {
         try {
             // ⚠️ orderCode must be <= 2,147,483,647
             int safeOrderCode;
@@ -180,7 +189,7 @@ public class PayOSClient {
                 }
 
                 log.info("✅ Created payOS payment link: {}", checkoutUrl);
-                return checkoutUrl;
+                return new CheckoutResult(checkoutUrl, null);
             } else {
                 log.error("PayOS API error: status={}, body={}", response.getStatusCode(), response.getBody());
                 throw new RuntimeException("Failed to create payment link: " + response.getStatusCode());
