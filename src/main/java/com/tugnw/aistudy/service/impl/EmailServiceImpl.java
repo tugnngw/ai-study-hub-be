@@ -33,10 +33,8 @@ public class EmailServiceImpl implements EmailService {
     @Override
     @Async
     public void sendVerificationEmail(String to, String username, String token) {
-        if (!mailEnabled || mailSender == null) {
-            log.info("[MAIL DISABLED] Would send verification email to={}", to);
-            return;
-        }
+        if (!mailEnabled || mailSender == null) return;
+
 
         String verifyUrl = frontendUrl + "/verify-email?token=" + token;
 
@@ -51,7 +49,6 @@ public class EmailServiceImpl implements EmailService {
 
             helper.setText(html, true);
             mailSender.send(message);
-            log.info("Verification email queued for delivery to: {}", to);
         } catch (MessagingException | UnsupportedEncodingException e) {
             log.error("Failed to send verification email to: {}", to, e);
         }
@@ -60,10 +57,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     @Async
     public void sendPasswordResetEmail(String to, String username, String otp) {
-        if (!mailEnabled || mailSender == null) {
-            log.info("[MAIL DISABLED] Would send password-reset email to={}", to);
-            return;
-        }
+        if (!mailEnabled || mailSender == null) return;
 
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -76,7 +70,6 @@ public class EmailServiceImpl implements EmailService {
 
             helper.setText(html, true);
             mailSender.send(message);
-            log.info("Password-reset email queued for delivery to: {}", to);
         } catch (MessagingException | UnsupportedEncodingException e) {
             log.error("Failed to send password-reset email to: {}", to, e);
         }
