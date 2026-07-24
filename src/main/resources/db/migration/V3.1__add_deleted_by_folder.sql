@@ -1,0 +1,1 @@
+ALTER TABLE document ADD COLUMN deleted_by_folder BOOLEAN NOT NULL DEFAULT FALSE;

@@ -119,7 +119,13 @@ public class FolderServiceImpl implements FolderService {
         if (!isAdmin() && !folder.getOwnerId().equals(ownerId))
             throw new AccessDeniedException("You do not have permission to delete this folder");
 
-        folder.setDeletedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+
+        // Soft delete all documents in this folder
+        documentRepository.softDeleteByFolderId(folder.getId(), now);
+
+        // Soft delete the folder itself
+        folder.setDeletedAt(now);
         folderRepository.save(folder);
     }
 
@@ -140,6 +146,10 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("Folder is not in trash");
         if (!isAdmin() && !folder.getOwnerId().equals(requesterId))
             throw new AccessDeniedException("You do not have permission to restore this folder");
+
+        // Restore documents that were deleted along with this folder
+        documentRepository.restoreByFolderId(folder.getId());
+
         folder.setDeletedAt(null);
         folderRepository.save(folder);
     }
