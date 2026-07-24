@@ -5,6 +5,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -35,7 +36,11 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     List<Document> findByStatusAndDeletedAtIsNull(String status);
 
     List<Document> findByDeletedAtIsNotNull();
-    List<Document> findByOwnerIdAndDeletedAtIsNotNullOrderByCreatedAtDesc(UUID ownerId);
+
+    @Query("SELECT d FROM Document d WHERE d.ownerId = :ownerId AND d.deletedByFolder = false AND d.deletedAt IS NOT NULL ORDER BY d.createdAt DESC")
+    List<Document> findByOwnerIdAndDeletedAtIsNotNullOrderByCreatedAtDesc(@Param("ownerId") UUID ownerId);
+
+    @Query("SELECT d FROM Document d WHERE d.deletedByFolder = false AND d.deletedAt IS NOT NULL ORDER BY d.createdAt DESC")
     List<Document> findByDeletedAtIsNotNullOrderByCreatedAtDesc();
 
     List<Document> findAllByDeletedAtIsNull();
@@ -61,4 +66,13 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     long sumQuizGenerationsByOwnerId(@Param("ownerId") UUID ownerId);
 
     long countByCreatedAtAfter(LocalDateTime date);
+
+    @Modifying
+    @Query("UPDATE Document d SET d.deletedAt = :now, d.deletedByFolder = true WHERE d.folderId = :folderId AND d.deletedAt IS NULL")
+    int softDeleteByFolderId(@Param("folderId") UUID folderId, @Param("now") LocalDateTime now);
+
+    @Modifying
+    @Query("UPDATE Document d SET d.deletedAt = null, d.deletedByFolder = false WHERE d.folderId = :folderId AND d.deletedByFolder = true")
+    int restoreByFolderId(@Param("folderId") UUID folderId);
+
 }

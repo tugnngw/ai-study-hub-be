@@ -73,6 +73,10 @@ public class Document {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "deleted_by_folder", nullable = false)
+    @Builder.Default
+    private Boolean deletedByFolder = false;
+
     @Column(name = "reject_reason", columnDefinition = "TEXT")
     private String rejectReason;
 

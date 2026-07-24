@@ -6,6 +6,7 @@ import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.enums.DocumentStatus;
 import com.tugnw.aistudy.domain.mapper.DocumentMapper;
 import com.tugnw.aistudy.repository.DocumentRepository;
+import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.AdminDocumentService;
@@ -24,6 +25,7 @@ import java.util.UUID;
 public class AdminDocumentServiceImpl implements AdminDocumentService {
 
     private final DocumentRepository documentRepository;
+    private final FolderRepository folderRepository;
     private final ActivityLogService activityLogService;
     private final ShareRepository shareRepository;
     private final DocumentMapper documentMapper;
@@ -64,6 +66,15 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
 
         if (document.getDeletedAt() == null)
             throw new RuntimeException("Document is not in trash");
+
+        if (Boolean.TRUE.equals(document.getDeletedByFolder()))
+            throw new RuntimeException("Document was deleted via folder deletion. Restore the parent folder first.");
+
+        // Check parent folder is not deleted
+        if (document.getFolderId() != null) {
+            folderRepository.findByIdAndDeletedAtIsNull(document.getFolderId())
+                    .orElseThrow(() -> new RuntimeException("Parent folder is deleted. Restore the parent folder first."));
+        }
 
         document.setDeletedAt(null);
         documentRepository.save(document);

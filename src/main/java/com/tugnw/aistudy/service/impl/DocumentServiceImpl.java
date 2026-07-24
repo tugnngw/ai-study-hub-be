@@ -62,7 +62,7 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         // Check storage quota from active subscription or free plan
-        QuotaService.QuotaDetails quota = quotaService.getQuotaDetails(ownerId);
+        var quota = quotaService.getQuotaDetails(ownerId);
         Double storageLimitGb = quota.getStorageGb();
         if (storageLimitGb != null) {
             long storageLimitBytes = (long) (storageLimitGb * 1024L * 1024L * 1024L);
@@ -141,19 +141,15 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional(readOnly = true)
     public List<DocumentResponse> getDocumentsByFolder(UUID ownerId, UUID folderId) {
-        List<Document> documents = documentRepository
-                .findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId);
+        // Verify folder exists and user has access — single check instead of per-document
+        var folder = folderRepository.findByIdAndDeletedAtIsNull(folderId)
+                .orElseThrow(() -> new RuntimeException("Folder not found"));
+        if (!isAdmin() && !folder.getOwnerId().equals(ownerId))
+            throw new AccessDeniedException("You do not have permission to access this folder");
 
-        // Only return documents the user has access to
-        return documents.stream()
-                .filter(d -> {
-                    try {
-                        getAccessibleDocument(d.getId(), ownerId, false);
-                        return true;
-                    } catch (Exception e) {
-                        return false;
-                    }
-                })
+        return documentRepository
+                .findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId)
+                .stream()
                 .map(documentMapper::toResponse)
                 .map(this::sanitizeForListing)
                 .toList();
@@ -195,6 +191,7 @@ public class DocumentServiceImpl implements DocumentService {
             throw new AccessDeniedException("You do not have permission to delete this document");
 
         document.setDeletedAt(LocalDateTime.now());
+        document.setDeletedByFolder(false);
         documentRepository.save(document);
     }
 
@@ -240,6 +237,14 @@ public class DocumentServiceImpl implements DocumentService {
 
         if (document.getDeletedAt() == null)
             throw new RuntimeException("Document is not in trash");
+
+        if (Boolean.TRUE.equals(document.getDeletedByFolder()))
+            throw new RuntimeException("Document was deleted via folder deletion. Restore the parent folder first.");
+
+        // Check parent folder is not deleted
+        if (document.getFolderId() != null)
+            folderRepository.findByIdAndDeletedAtIsNull(document.getFolderId())
+                    .orElseThrow(() -> new RuntimeException("Parent folder is deleted. Restore the parent folder first."));
 
         if (!isAdmin() && !document.getOwnerId().equals(requesterId))
             throw new AccessDeniedException("You do not have permission to restore this document");
