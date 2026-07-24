@@ -59,9 +59,8 @@ public class SemesterServiceImpl implements SemesterService {
     @Override
     @Transactional
     public void deleteSemester(UUID id) {
-        if (!semesterRepository.existsById(id)) {
+        if (!semesterRepository.existsById(id))
             throw new RuntimeException("Semester not found");
-        }
         semesterRepository.deleteById(id);
     }
 
