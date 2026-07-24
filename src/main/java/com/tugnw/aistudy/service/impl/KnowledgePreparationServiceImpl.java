@@ -1,6 +1,7 @@
 package com.tugnw.aistudy.service.impl;
 
 import com.tugnw.aistudy.domain.entity.Document;
+import com.tugnw.aistudy.domain.enums.FeatureType;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.KnowledgePreparationService;
@@ -84,12 +85,10 @@ public class KnowledgePreparationServiceImpl implements KnowledgePreparationServ
 
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getPrincipal() instanceof CustomUserDetails userDetails) {
-                UUID requesterId = userDetails.getAccount().getId();
-                if (!quotaService.checkQuota(requesterId, "summary"))
+                if (!quotaService.checkQuota(userDetails.getAccount().getId(), FeatureType.SUMMARY.name()))
                     throw new RuntimeException("Bạn đã đạt giới hạn số lượng tóm tắt AI cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
             }
 
-            log.info("[SUMMARY] Generating summary for document {}", doc.getId());
             String rawText = ragService.extractTextFromDocument(doc.getId(), doc.getOwnerId());
             String prompt = String.format(SUMMARY_PROMPT, rawText);
             String markdownSummary = ragService.generateContent(prompt);
@@ -97,19 +96,14 @@ public class KnowledgePreparationServiceImpl implements KnowledgePreparationServ
             doc.setSummary(markdownSummary);
             documentRepository.save(doc);
 
-            log.info("[SUMMARY] Summary generation succeeded for document {}", doc.getId());
             return markdownSummary;
         } catch (Throwable e) {
-            log.error("[SUMMARY] Summary generation failed for document {}: {}", doc.getId(), e.getMessage(), e);
-            if (e instanceof Exception) {
-                throw (Exception) e;
-            }
+            if (e instanceof Exception) throw (Exception) e;
             throw new RuntimeException("Summary generation failed", e);
         } finally {
             lock.unlock();
-            if (!lock.hasQueuedThreads()) {
+            if (!lock.hasQueuedThreads())
                 summaryLocks.remove(doc.getId(), lock);
-            }
         }
     }
 }

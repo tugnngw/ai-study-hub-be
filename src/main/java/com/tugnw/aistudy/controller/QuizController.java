@@ -9,8 +9,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -36,11 +34,7 @@ public class QuizController {
     public ApiResponse<QuizResponse> generateQuiz(
             @Valid @RequestBody GenerateQuizRequest request,
             Authentication authentication) throws Exception {
-        QuizResponse response = quizService.generateQuiz(
-                request.getDocumentId(),
-                userId(authentication),
-                request
-        );
+        QuizResponse response = quizService.generateQuiz(request.getDocumentId(), userId(authentication), request);
         return ApiResponse.success(response);
     }
 
@@ -49,10 +43,7 @@ public class QuizController {
     public ApiResponse<List<QuizResponse>> getQuizByDocument(
             @PathVariable UUID documentId,
             Authentication authentication) {
-        List<QuizResponse> responses = quizService.getQuizByDocument(
-                documentId,
-                userId(authentication)
-        );
+        List<QuizResponse> responses = quizService.getQuizByDocument(documentId, userId(authentication));
         return ApiResponse.success(responses);
     }
 }

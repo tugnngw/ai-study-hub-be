@@ -62,17 +62,13 @@ public class QuizServiceImpl implements QuizService {
         Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
 
         // Check quota trước khi gọi AI
-        if (!quotaService.checkQuota(requesterId, "question")) {
+        if (!quotaService.checkQuota(requesterId, "question"))
             throw new RuntimeException("Bạn đã đạt giới hạn số lần tạo câu hỏi cho gói hiện tại. Vui lòng nâng cấp gói để tiếp tục sử dụng.");
-        }
 
         String documentText = ragService.extractTextFromDocument(document.getId(), requesterId);
 
-        if (documentText == null || documentText.isBlank()) {
+        if (documentText == null || documentText.isBlank())
             throw new RuntimeException("Unable to extract text from document.");
-        }
-
-        log.info("[LOG - QUIZ] Extracted text length: " + documentText.length());
 
         // Bước 1: Gọi AI trước — chưa persist gì cả
         UUID quizId = UUID.randomUUID();
@@ -85,14 +81,11 @@ public class QuizServiceImpl implements QuizService {
 
         // Bước 3: 0 câu hợp lệ hoặc quá ít → throw, giữ nguyên quiz cũ
         int requested = request.getNumberOfQuestions();
-        if (valid.isEmpty()) {
-            log.error("[LOG - QUIZ] All {} parsed questions failed validation.", rawCount);
+        if (valid.isEmpty())
             throw new RuntimeException("AI không tạo được câu hỏi hợp lệ từ tài liệu này. Vui lòng thử lại.");
-        }
-        if ((double) savedCount / requested < 0.3) {
-            log.error("[LOG - QUIZ] Only {}/{} questions valid, below 30% threshold.", savedCount, requested);
+
+        if ((double) savedCount / requested < 0.3)
             throw new RuntimeException("Chất lượng câu hỏi tạo ra quá thấp (" + savedCount + "/" + requested + " hợp lệ). Vui lòng thử lại.");
-        }
 
         // Bước 4: Xóa quiz cũ — dùng JPQL bulk delete tránh optimistic lock
         List<UUID> oldQuizIds = quizRepository.findIdsByDocumentId(documentId);
@@ -102,7 +95,6 @@ public class QuizServiceImpl implements QuizService {
             entityManager.flush();
             // Xóa persistence context để tránh stale state
             entityManager.clear();
-            log.info("[LOG - QUIZ] Deleted {} existing quizzes.", oldQuizIds.size());
         }
 
         // Bước 5: Save quiz mới — không set ID, để Hibernate tự gen
@@ -127,7 +119,6 @@ public class QuizServiceImpl implements QuizService {
         documentRepository.save(document);
 
         String message = buildResultMessage(savedCount, requested, rawCount);
-        log.info("[LOG - QUIZ] {}", message);
 
         List<QuestionResponse> questionResponses = quizMapper.toQuestionResponseList(valid);
         return QuizResponse.builder()
@@ -141,9 +132,6 @@ public class QuizServiceImpl implements QuizService {
 
     @Override
     public List<QuizResponse> getQuizByDocument(UUID documentId, UUID requesterId) {
-        log.info("[LOG - QUIZ] Fetching quizzes for document: " + documentId);
-
-        Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
 
         List<Quiz> quizzes = quizRepository.findByDocumentIdOrderByCreatedAtDesc(documentId);
         List<QuizResponse> responses = new ArrayList<>();
@@ -176,7 +164,6 @@ public class QuizServiceImpl implements QuizService {
         );
 
         String aiResponse = ragService.generateContent(prompt);
-        log.info("[LOG - QUIZ] Gemini response received, parsing questions...");
 
         return parseQuestionsFromResponse(aiResponse, quizId);
     }
@@ -223,7 +210,6 @@ public class QuizServiceImpl implements QuizService {
                 }
             }
         } catch (Exception e) {
-            log.error("[LOG - QUIZ ERROR] Failed to parse questions: " + e.getMessage());
             throw new RuntimeException("Failed to parse AI-generated questions.", e);
         }
         return questions;
@@ -274,15 +260,15 @@ public class QuizServiceImpl implements QuizService {
     }
 
     private String buildResultMessage(int saved, int requested, int raw) {
-        if (saved == requested) {
+        if (saved == requested)
             return "Đã tạo thành công " + saved + " câu hỏi.";
-        }
-        if (saved < 1) {
+
+        if (saved < 1)
             return "Không tạo được câu hỏi nào. Vui lòng thử lại.";
-        }
-        if (saved == raw) {
+
+        if (saved == raw)
             return "Yêu cầu " + requested + " câu hỏi, AI tạo được " + raw + ". Đã lưu " + saved + " câu hỏi.";
-        }
+
         return "Đã tạo " + saved + "/" + requested + " câu hỏi. "
                 + (raw - saved) + " câu bị lỗi format hoặc trùng lặp đã được bỏ qua.";
     }
@@ -291,9 +277,4 @@ public class QuizServiceImpl implements QuizService {
         return s.length() <= max ? s : s.substring(0, max) + "...";
     }
 
-    private boolean isAdmin() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    }
 }
