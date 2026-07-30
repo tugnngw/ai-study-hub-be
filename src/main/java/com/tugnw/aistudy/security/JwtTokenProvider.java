@@ -1,10 +1,8 @@
 package com.tugnw.aistudy.security;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -12,7 +10,9 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 
 import java.security.Key;
+import java.util.Base64;
 import java.util.Date;
+import java.util.stream.Collectors;
 
 import static org.apache.commons.compress.harmony.pack200.PackingUtils.log;
 
@@ -32,7 +32,7 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        this.key = Keys.hmacShaKeyFor(java.util.Base64.getDecoder().decode(jwtSecret)); // Ensure proper key initialization
+        this.key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(jwtSecret)); // Ensure proper key initialization
     }
 
     public String generateToken(Authentication authentication) {
@@ -42,7 +42,7 @@ public class JwtTokenProvider {
 
         String token = Jwts.builder()
                 .setSubject(userDetails.getUsername())
-                .claim("role", userDetails.getAuthorities().stream().map(grantedAuthority -> grantedAuthority.getAuthority()).collect(java.util.stream.Collectors.joining(",")))
+                .claim("role", userDetails.getAuthorities().stream().map(grantedAuthority -> grantedAuthority.getAuthority()).collect(Collectors.joining(",")))
                 .setIssuedAt(new Date())
                 .setExpiration(expiryDate)
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -87,13 +87,13 @@ public class JwtTokenProvider {
                     .parseSignedClaims(token);
 
             return true;
-        } catch (io.jsonwebtoken.security.SignatureException e) {
+        } catch (SignatureException e) {
             log("DEBUG JWT: Invalid signature - " + e.getMessage());
             return false;
-        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+        } catch (ExpiredJwtException e) {
             log("DEBUG JWT: Token expired - " + e.getMessage());
             return false;
-        } catch (io.jsonwebtoken.MalformedJwtException e) {
+        } catch (MalformedJwtException e) {
             log("DEBUG JWT: Malformed token - " + e.getMessage());
             return false;
         } catch (JwtException | IllegalArgumentException e) {

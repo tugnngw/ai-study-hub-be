@@ -57,8 +57,6 @@ public class QuizServiceImpl implements QuizService {
     @Override
     @Transactional
     public QuizResponse generateQuiz(UUID documentId, UUID requesterId, GenerateQuizRequest request) throws Exception {
-        log.info("[LOG - QUIZ] Starting quiz generation for document: " + documentId);
-
         Document document = documentService.getAccessibleDocument(documentId, requesterId, true);
 
         // Check quota trước khi gọi AI

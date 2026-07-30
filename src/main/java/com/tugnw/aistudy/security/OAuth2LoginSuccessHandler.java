@@ -1,10 +1,11 @@
 package com.tugnw.aistudy.security;
 
 import com.tugnw.aistudy.domain.entity.Account;
+import com.tugnw.aistudy.domain.enums.AccountRole;
+import com.tugnw.aistudy.domain.enums.AccountStatus;
 import com.tugnw.aistudy.domain.enums.AuthProvider;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.repository.AccountRepository;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -105,8 +106,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                         .passwordHash(UUID.randomUUID().toString())
                         .passwordHash(UUID.randomUUID().toString()) // Password hash is not necessary for OAuth accounts
                         // Set default role and status if creating a new user
-                        .role(com.tugnw.aistudy.domain.enums.AccountRole.USER) // Assuming default role is USER
-                        .status(com.tugnw.aistudy.domain.enums.AccountStatus.ACTIVE) // Assuming default status is ACTIVE
+                        .role(AccountRole.USER) // Assuming default role is USER
+                        .status(AccountStatus.ACTIVE) // Assuming default status is ACTIVE
                         .build()));
     }
 

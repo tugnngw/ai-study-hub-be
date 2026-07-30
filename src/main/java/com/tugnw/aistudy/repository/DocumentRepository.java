@@ -75,4 +75,6 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     @Query("UPDATE Document d SET d.deletedAt = null, d.deletedByFolder = false WHERE d.folderId = :folderId AND d.deletedByFolder = true")
     int restoreByFolderId(@Param("folderId") UUID folderId);
 
+
+    long countByPublicId(String publicId);
 }

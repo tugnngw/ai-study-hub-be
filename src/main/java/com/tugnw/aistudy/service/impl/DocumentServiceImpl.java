@@ -196,6 +196,7 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
+    @Transactional
     public void permanentDeleteDocument(UUID id, UUID requesterId) {
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + id));
@@ -208,18 +209,28 @@ public class DocumentServiceImpl implements DocumentService {
         if (!isOwner && !isAdmin())
             throw new AccessDeniedException("You do not have permission to permanently delete this document");
 
-        // 2) Delete external resources BEFORE removing the DB row.
-        //    If Cloudinary fails, exception propagates, DB untouched.
-        if (document.getPublicId() != null)
-            cloudinaryService.delete(document.getPublicId());
-
-        // 3) Clean up AI resources owned by RagService.
+        // 2) Remove chat history
         chatSessionRepository.deleteByDocumentId(id);
 
-        // 4) DB delete — all child tables with ON DELETE CASCADE
-        //    (document_chunk, flashcard, quiz, share, report, bookmark, study_report) are cleaned automatically.
+        // 3) Keep publicId before deleting entity
+        String publicId = document.getPublicId();
+
+        // 4) Delete document (child tables are removed by ON DELETE CASCADE)
         documentRepository.delete(document);
-        log.info("Permanently deleted document {} by user {}", id, requesterId);
+        documentRepository.flush();
+
+        // No Cloudinary file
+        if (publicId == null || publicId.isBlank()) return;
+
+        // Still referenced by other documents -> don't delete Cloudinary
+        if (documentRepository.countByPublicId(publicId) > 0) return;
+
+        // 5) Last reference -> delete Cloudinary file
+        try {
+            cloudinaryService.delete(publicId);
+        } catch (Exception e) {
+            throw e;
+        }
     }
 
     @Override
