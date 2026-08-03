@@ -84,11 +84,6 @@ public class Account implements UserDetails {
     private Long version = 0L;
 
     @Builder.Default
-    @Enumerated(EnumType.STRING)
-    @Column(name = "plan", nullable = false)
-    private com.tugnw.aistudy.domain.enums.Plan plan = com.tugnw.aistudy.domain.enums.Plan.FREE;
-
-    @Builder.Default
     @Column(name = "storage_gb", nullable = false)
     private Double storageGb = 1.0D;
 

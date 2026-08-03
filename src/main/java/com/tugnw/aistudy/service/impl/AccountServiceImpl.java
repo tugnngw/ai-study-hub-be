@@ -7,6 +7,7 @@ import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.service.AccountService;
+import com.tugnw.aistudy.service.QuotaService;
 import com.tugnw.aistudy.service.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,11 +26,16 @@ public class AccountServiceImpl implements AccountService {
     private final AccountRepository accountRepository;
     private final VerificationService verificationService;
     private final AccountMapper accountMapper;
+    private final QuotaService quotaService;
 
     @Override
     public AccountMeResponse getMe(Authentication authentication) {
         Account account = loadAccount(authentication);
-        return accountMapper.toAccountMeResponse(account);
+        AccountMeResponse response = accountMapper.toAccountMeResponse(account);
+
+        // Dynamically get plan name from active subscription
+        response.setPlan(quotaService.getQuotaDetails(account.getId()).getPlanName());
+        return response;
     }
 
     @Override
@@ -68,7 +74,9 @@ public class AccountServiceImpl implements AccountService {
         }
 
         accountRepository.save(account);
-        return accountMapper.toAccountMeResponse(account);
+        AccountMeResponse response = accountMapper.toAccountMeResponse(account);
+        response.setPlan(quotaService.getQuotaDetails(account.getId()).getPlanName());
+        return response;
     }
 
     // ============ HELPER METHODS ============

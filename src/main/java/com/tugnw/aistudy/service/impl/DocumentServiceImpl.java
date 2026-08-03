@@ -81,12 +81,10 @@ public class DocumentServiceImpl implements DocumentService {
             String contentType = file.getContentType();
             boolean allowedType = contentType != null && (
                 contentType.equals("application/pdf") ||
-                contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
-                contentType.equals("text/plain") ||
-                contentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                contentType.equals("text/plain")
             );
             if (!allowedType)
-                throw new RuntimeException("Invalid file type. Only PDF, DOCX, TXT, PPTX are allowed");
+                throw new RuntimeException("Invalid file type. Only PDF, TXT are allowed");
 
             // Upload file to Cloudinary
             var uploadResult = cloudinaryService.upload(file);

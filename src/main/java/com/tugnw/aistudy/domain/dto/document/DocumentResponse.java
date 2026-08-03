@@ -43,6 +43,24 @@ public class DocumentResponse {
     @Schema(description = "File size in bytes", example = "204800")
     private Long fileSize;
 
+    @Schema(description = "Formatted file size", example = "2.5 MB")
+    public String getFormattedFileSize() {
+        if (fileSize == null || fileSize <= 0) {
+            return "0 B";
+        }
+        double bytes = fileSize;
+        String[] units = {"B", "KB", "MB", "GB"};
+        int unitIndex = 0;
+        while (bytes >= 1024 && unitIndex < units.length - 1) {
+            bytes /= 1024;
+            unitIndex++;
+        }
+        if (unitIndex == 0) {
+            return String.format("%.0f %s", bytes, units[unitIndex]);
+        }
+        return String.format("%.1f %s", bytes, units[unitIndex]);
+    }
+
     @Schema(description = "Cloudinary URL")
     private String cloudinaryUrl;
 

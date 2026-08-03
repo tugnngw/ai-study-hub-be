@@ -86,8 +86,20 @@ public class QuotaServiceImpl implements QuotaService {
         ActivePlan ap = resolvePlan(accountId);
         if (ap == null) return QuotaDetails.noSubscription();
         QuotaDetails d = ap.subscription != null
-                ? quotaDetailsMapper.toQuotaDetails(ap.subscription)//5
-                : quotaDetailsMapper.toQuotaDetails(ap.plan);//5
+                ? quotaDetailsMapper.toQuotaDetails(ap.subscription)
+                : quotaDetailsMapper.toQuotaDetails(ap.plan);
+        d.setStorageUsedBytes(documentRepository.sumFileSizeByOwnerId(accountId));
+        
+        // Calculate storage metrics
+        long totalBytes = (long) (d.getStorageGb() * 1024 * 1024 * 1024);
+        long freeBytes = Math.max(0, totalBytes - d.getStorageUsedBytes());
+        d.setStorageTotalBytes(totalBytes);
+        d.setStorageFreeBytes(freeBytes);
+        d.setStorageUsagePercent(totalBytes > 0 ? (double) d.getStorageUsedBytes() * 100 / totalBytes : 0);
+        d.setFormattedStorageUsed(formatBytes(d.getStorageUsedBytes()));
+        d.setFormattedStorageTotal(formatBytes(totalBytes));
+        d.setFormattedStorageFree(formatBytes(freeBytes));
+
         for (FeatureType ft : FeatureType.values()) {
             switch (ft) {
                 case FLASHCARD -> d.setFlashcardRemaining(getRemainingQuota(accountId, ft.key()));
@@ -97,5 +109,17 @@ public class QuotaServiceImpl implements QuotaService {
             }
         }
         return d;
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes <= 0) return "0 B";
+        double b = bytes;
+        String[] units = {"B", "KB", "MB", "GB"};
+        int unitIndex = 0;
+        while (b >= 1024 && unitIndex < units.length - 1) {
+            b /= 1024;
+            unitIndex++;
+        }
+        return unitIndex == 0 ? String.format("%.0f %s", b, units[unitIndex]) : String.format("%.1f %s", b, units[unitIndex]);
     }
 }

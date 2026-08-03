@@ -2,6 +2,7 @@ package com.tugnw.aistudy.controller;
 
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentResponse;
+import com.tugnw.aistudy.domain.dto.document.UploadConfigResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentUploadRequest;
 import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
 import com.tugnw.aistudy.domain.dto.share.ShareResponse;
@@ -33,6 +34,15 @@ public class DocumentController {
     private final ShareService shareService;
 
     private UUID userId(Authentication a) { return ((CustomUserDetails) a.getPrincipal()).getAccount().getId(); }
+
+    @GetMapping("/upload-config")
+    @Operation(summary = "Get upload constraints (allowed extensions, max size)")
+    public ApiResponse<UploadConfigResponse> getUploadConfig() {
+        return ApiResponse.success(UploadConfigResponse.builder()
+                .allowedExtensions(List.of(".pdf", ".txt"))
+                .maxFileSize(50L * 1024 * 1024)
+                .build());
+    }
 
     @PostMapping(consumes = {"multipart/form-data"})
     @Operation(summary = "Upload documents to a folder")

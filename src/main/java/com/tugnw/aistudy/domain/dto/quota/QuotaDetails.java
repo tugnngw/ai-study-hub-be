@@ -14,6 +14,13 @@ import java.time.Instant;
 public class QuotaDetails {
     private String planName;
     private Double storageGb;
+    private Long storageUsedBytes;
+    private Long storageTotalBytes;
+    private Long storageFreeBytes;
+    private Double storageUsagePercent;
+    private String formattedStorageUsed;
+    private String formattedStorageTotal;
+    private String formattedStorageFree;
     private Integer aiQuestions;
     private Integer flashcardLimit;
     private Integer questionLimit;

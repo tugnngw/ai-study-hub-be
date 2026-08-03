@@ -22,7 +22,7 @@ public class PlanPublicController {
     @GetMapping
     public ApiResponse<List<PlanResponse>> getActivePlans() {
         List<PlanResponse> plans = adminPlanService.getAllPlans().stream()
-                .filter(p -> Boolean.TRUE.equals(p.getIsActive()) && !Plan.FREE.name().equalsIgnoreCase(p.getName()))
+                .filter(p -> Boolean.TRUE.equals(p.getIsActive()) && !"FREE".equalsIgnoreCase(p.getName()))
                 .collect(Collectors.toList());
         return ApiResponse.success(plans);
     }

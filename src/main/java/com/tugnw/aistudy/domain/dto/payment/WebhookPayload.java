@@ -21,7 +21,6 @@ public class WebhookPayload {
         private String transactionId;
         private String cancelReason;
         private String createdAt;
-        // Thêm các field mới nếu cần
         private String accountNumber;
         private String reference;
         private String transactionDateTime;

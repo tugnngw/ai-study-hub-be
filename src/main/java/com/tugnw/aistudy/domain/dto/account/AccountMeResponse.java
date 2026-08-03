@@ -2,7 +2,6 @@ package com.tugnw.aistudy.domain.dto.account;
 
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
-import com.tugnw.aistudy.domain.enums.Plan;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,7 +38,7 @@ public class AccountMeResponse {
     private AccountStatus status;
 
     @Schema(description = "Subscription plan", example = "FREE")
-    private Plan plan;
+    private String plan;
 
     @Schema(description = "Storage limit in GB", example = "1")
     private Double storageGb;

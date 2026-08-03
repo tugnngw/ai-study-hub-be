@@ -310,21 +310,17 @@ public class PaymentServiceImpl implements PaymentService {
             if (plan == null)
                 throw new IllegalArgumentException("Payment plan is null");
 
-            Plan newPlan = mapPaymentPlanToAccountPlan(plan.getName());
-            account.setPlan(newPlan);
+            account.setStorageGb(plan.getStorageGb());
 
-            if (plan.getStorageGb() != null)
-                account.setStorageGb(plan.getStorageGb());
+        Account savedAccount = accountRepo.save(account);
 
-            Account savedAccount = accountRepo.save(account);
-
-            activityLogService.logActivity(
-                    savedAccount.getId(),
-                    savedAccount.getUsername(),
-                    ActivityType.USER_UPGRADE,
-                    "Upgraded to " + newPlan + " plan",
-                    "Plan: " + plan.getName() + ", Amount: " + tx.getAmount() + " VND"
-            );
+        activityLogService.logActivity(
+                savedAccount.getId(),
+                savedAccount.getUsername(),
+                ActivityType.USER_UPGRADE,
+                "Upgraded to " + plan.getName() + " plan",
+                "Plan: " + plan.getName() + ", Amount: " + tx.getAmount() + " VND"
+        );
 
         } catch (OptimisticLockingFailureException e) {
             throw e;
@@ -333,34 +329,13 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
-    private Plan mapPaymentPlanToAccountPlan(String planName) {
-        if (planName == null)
-            return Plan.FREE;
-
-        String normalized = planName.trim().toUpperCase();
-
-        if (normalized.contains("BASIC")) {
-            return Plan.BASIC;
-        } else if (normalized.contains("PRO")) {
-            return Plan.PRO;
-        } else if (normalized.contains("PREMIUM")) {
-            return Plan.PREMIUM;
-        }
-
-        try {
-            return Plan.valueOf(normalized);
-        } catch (IllegalArgumentException e) {
-            return Plan.FREE;
-        }
-    }
-
-    @Override
-    public List<PaymentTransactionResponse> getUserTransactions(UUID userId) {
-        List<PaymentTransaction> transactions = txRepo.findByAccountIdOrderByCreatedAtDesc(userId);
-        return transactions.stream()
-                .map(this::convertToUserResponse)
-                .toList();
-    }
+@Override
+public List<PaymentTransactionResponse> getUserTransactions(UUID userId) {
+    List<PaymentTransaction> transactions = txRepo.findByAccountIdOrderByCreatedAtDesc(userId);
+    return transactions.stream()
+            .map(this::convertToUserResponse)
+            .toList();
+}
 
     @Override
     public Page<AdminTransactionResponse> getAllTransactions(Pageable pageable) {
