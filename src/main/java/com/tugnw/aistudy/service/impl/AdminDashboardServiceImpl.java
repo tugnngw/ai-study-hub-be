@@ -4,7 +4,9 @@ import com.tugnw.aistudy.domain.dto.admin.ActivityResponse;
 import com.tugnw.aistudy.domain.dto.admin.DashboardStatsResponse;
 import com.tugnw.aistudy.domain.entity.ActivityLog;
 import com.tugnw.aistudy.domain.enums.ActivityType;
+import com.tugnw.aistudy.domain.enums.PaymentStatus;
 import com.tugnw.aistudy.repository.AccountRepository;
+import com.tugnw.aistudy.repository.PaymentTransactionRepository;
 import com.tugnw.aistudy.repository.ActivityLogRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.service.AdminDashboardService;
@@ -28,6 +30,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final AccountRepository accountRepository;
     private final DocumentRepository documentRepository;
     private final ActivityLogRepository activityLogRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
 
     @Override
     public DashboardStatsResponse getDashboardStats() {
@@ -74,6 +77,20 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         return logs.stream()
                 .map(this::mapToActivityResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public com.tugnw.aistudy.domain.dto.payment.RevenueStatsResponse getRevenueStats() {
+        long totalPaid = paymentTransactionRepository.countByStatus(PaymentStatus.PAID);
+        long totalFailed = paymentTransactionRepository.countByStatus(PaymentStatus.FAILED);
+        Long totalRevenue = paymentTransactionRepository.sumAmountByStatus(PaymentStatus.PAID);
+        
+        return com.tugnw.aistudy.domain.dto.payment.RevenueStatsResponse.builder()
+                .totalRevenue(totalRevenue != null ? totalRevenue : 0)
+                .totalPaidTransactions(totalPaid)
+                .totalFailedTransactions(totalFailed)
+                .successRate(totalPaid + totalFailed > 0 ? (double) totalPaid * 100 / (totalPaid + totalFailed) : 0)
+                .build();
     }
 
     private ActivityResponse mapToActivityResponse(ActivityLog log) {

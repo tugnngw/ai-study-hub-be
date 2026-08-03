@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.payment.CreatePaymentRequest;
 import com.tugnw.aistudy.domain.dto.payment.PaymentResponse;
+import com.tugnw.aistudy.domain.dto.payment.PaymentStatusResponse;
+import com.tugnw.aistudy.domain.dto.subscription.UpgradePreviewResponse;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.PaymentService;
@@ -29,75 +31,78 @@ public class PaymentController {
     private final SubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
 
+    private UUID extractUserId(Authentication authentication) {
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof CustomUserDetails) {
+            return ((CustomUserDetails) principal).getAccount().getId();
+        }
+        return UUID.fromString(principal.toString());
+    }
+
+    // ✅ ĐÃ CÓ - Giữ nguyên
     @GetMapping("/plans")
     public ApiResponse<List<PaymentPlan>> getActivePlans() {
         return ApiResponse.success(paymentService.listActivePlans());
     }
 
+    // ✅ SỬA - KHÔNG nhận amount từ client
     @PostMapping("/create")
     public ApiResponse<PaymentResponse> createPaymentLink(
             @RequestBody CreatePaymentRequest request,
             Authentication authentication) {
-        // Trích xuất UUID userId an toàn từ CustomUserDetails hoặc Authentication
-        Object principal = authentication.getPrincipal();
-        UUID userId;
-        if (principal instanceof CustomUserDetails) {
-            userId = ((CustomUserDetails) principal).getAccount().getId();
-        } else {
-            userId = UUID.fromString(principal.toString());
-        }
+        UUID userId = extractUserId(authentication);
+        // Chỉ gửi planId, server tự tính amount
         return ApiResponse.success(paymentService.createPaymentLink(userId, request.getPlanId()));
     }
 
-    @GetMapping("/status/{orderCode}")
-    public ApiResponse<?> getPaymentStatus(@PathVariable Long orderCode) {
-        return paymentService.getTransactionByOrderCode(orderCode)
-                .map(ApiResponse::success)
-                .orElse(ApiResponse.success(null));
+    // 🆕 THÊM MỚI - Preview upgrade
+    @GetMapping("/upgrade-preview")
+    public ApiResponse<UpgradePreviewResponse> previewUpgrade(
+            @RequestParam UUID planId,
+            Authentication authentication) {
+        UUID userId = extractUserId(authentication);
+        return ApiResponse.success(paymentService.previewUpgrade(userId, planId));
     }
 
+    // ✅ SỬA - Trả về PaymentStatusResponse đầy đủ
+    @GetMapping("/status/{orderCode}")
+    public ApiResponse<PaymentStatusResponse> getPaymentStatus(@PathVariable Long orderCode) {
+        return ApiResponse.success(paymentService.getPaymentStatus(orderCode));
+    }
+
+    // ✅ ĐÃ CÓ - Giữ nguyên (verify thủ công)
     @PostMapping("/verify/{orderCode}")
     public ApiResponse<?> verifyPayment(@PathVariable Long orderCode) {
         log.info("Manual payment verification for orderCode: {}", orderCode);
         paymentService.verifyAndProcessPayment(orderCode);
-        return  ApiResponse.success("Payment verified successfully", null);
+        return ApiResponse.success("Payment verified successfully", null);
     }
 
-    //  Webhook endpoint (Priority 1)
+    // ✅ ĐÃ CÓ - Giữ nguyên (webhook)
     @PostMapping("/webhook")
     public ApiResponse<?> handleWebhook(@RequestBody String payload) {
         try {
-            // Extract signature from JSON body (PayOS sends it inside the payload, not as header)
             JsonNode root = objectMapper.readTree(payload);
             String signature = root.has("signature") ? root.get("signature").asText() : null;
             paymentService.handleWebhook(payload, signature);
             return ApiResponse.success("Webhook handling success", null);
         } catch (Exception e) {
+            log.error("Webhook error: {}", e.getMessage(), e);
             return ApiResponse.error(e.getMessage());
         }
     }
 
+    // ✅ ĐÃ CÓ - Giữ nguyên
     @GetMapping("/my-transactions")
     public ApiResponse<?> getMyTransactions(Authentication authentication) {
-        Object principal = authentication.getPrincipal();
-        UUID userId;
-        if (principal instanceof CustomUserDetails) {
-            userId = ((CustomUserDetails) principal).getAccount().getId();
-        } else {
-            userId = UUID.fromString(principal.toString());
-        }
+        UUID userId = extractUserId(authentication);
         return ApiResponse.success(paymentService.getUserTransactions(userId));
     }
 
+    // ✅ ĐÃ CÓ - Giữ nguyên
     @GetMapping("/my-subscription")
     public ApiResponse<?> getMySubscription(Authentication authentication) {
-        Object principal = authentication.getPrincipal();
-        UUID userId;
-        if (principal instanceof CustomUserDetails) {
-            userId = ((CustomUserDetails) principal).getAccount().getId();
-        }else {
-            userId = UUID.fromString(principal.toString());
-        }
+        UUID userId = extractUserId(authentication);
         return subscriptionService.getActiveSubscription(userId)
                 .map(ApiResponse::success)
                 .orElse(ApiResponse.success(null));

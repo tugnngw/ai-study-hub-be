@@ -28,4 +28,9 @@ public class AdminDashboardController {
         List<ActivityResponse> activities = adminDashboardService.getRecentActivities(limit);
         return ApiResponse.success("Recent activities", activities);
     }
+
+    @GetMapping("/revenue")
+    public ApiResponse<com.tugnw.aistudy.domain.dto.payment.RevenueStatsResponse> getRevenueStats() {
+        return ApiResponse.success("Revenue stats", adminDashboardService.getRevenueStats());
+    }
 }

@@ -8,4 +8,5 @@ import java.util.List;
 public interface AdminDashboardService {
     DashboardStatsResponse getDashboardStats();
     List<ActivityResponse> getRecentActivities(int limit);
+    com.tugnw.aistudy.domain.dto.payment.RevenueStatsResponse getRevenueStats();
 }

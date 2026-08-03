@@ -19,5 +19,9 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     Page<PaymentTransaction> findByAccountIdOrderByCreatedAtDesc(UUID accountId, Pageable pageable);
     Page<PaymentTransaction> findAllByOrderByCreatedAtDesc(Pageable pageable);
     Page<PaymentTransaction> findByStatusOrderByCreatedAtDesc(PaymentStatus status, Pageable pageable);
+    long countByStatus(PaymentStatus status);
+    
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(t.amount) FROM PaymentTransaction t WHERE t.status = :status")
+    Long sumAmountByStatus(PaymentStatus status);
 }
 
