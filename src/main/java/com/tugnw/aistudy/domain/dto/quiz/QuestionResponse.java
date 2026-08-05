@@ -33,6 +33,5 @@ public class QuestionResponse {
     @Schema(description = "Option D", example = "O(1)")
     private String optionD;
 
-    @Schema(description = "Correct answer (A/B/C/D)", example = "B")
-    private String correctAnswer;
+
 }

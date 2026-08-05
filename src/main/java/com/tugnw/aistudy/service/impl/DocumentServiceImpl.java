@@ -16,6 +16,7 @@ import com.tugnw.aistudy.repository.ShareRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.CloudinaryService;
 import com.tugnw.aistudy.service.DocumentService;
+import com.tugnw.aistudy.service.StorageQuotaService;
 import com.tugnw.aistudy.repository.ChatSessionRepository;
 
 import com.tugnw.aistudy.exception.ResourceNotFoundException;
@@ -46,8 +47,8 @@ public class DocumentServiceImpl implements DocumentService {
     private final CloudinaryService cloudinaryService;
     private final ActivityLogService activityLogService;
     private final AccountRepository accountRepository;
-    private final QuotaService quotaService;
     private final ChatSessionRepository chatSessionRepository;
+    private final StorageQuotaService storageQuotaService;
 
     @Override
     public List<DocumentResponse> uploadDocuments(UUID ownerId, DocumentUploadRequest request) {
@@ -61,19 +62,9 @@ public class DocumentServiceImpl implements DocumentService {
                 throw new RuntimeException("File size exceeds limit (50MB)");
         }
 
-        // Check storage quota from active subscription or free plan
-        var quota = quotaService.getQuotaDetails(ownerId);
-        Double storageLimitGb = quota.getStorageGb();
-        if (storageLimitGb != null) {
-            long storageLimitBytes = (long) (storageLimitGb * 1024L * 1024L * 1024L);
-            long usedBytes = documentRepository.sumFileSizeByOwnerId(ownerId);
-            if (usedBytes + totalIncoming > storageLimitBytes) {
-                throw new RuntimeException(
-                    "Bạn đã sử dụng hết dung lượng lưu trữ (" + formatBytes(usedBytes) + "/" + formatBytes(storageLimitBytes) + "). "
-                    + "Vui lòng nâng cấp gói Premium để có thêm không gian."
-                );
-            }
-        }
+        // Storage quota — reserve lock account + cộng used ngay (atomic theo account,
+        // rollback tự trả lại nếu upload sau đó thất bại).
+        storageQuotaService.reserveStorage(ownerId, totalIncoming);
 
         for (MultipartFile file : request.getFiles()) {
 
@@ -107,6 +98,8 @@ public class DocumentServiceImpl implements DocumentService {
             document.setStatus("COMPLETED");
 
             Document savedDocument = documentRepository.save(document);
+
+            // usedStorageBytes đã được cộng tại reserveStorage — không cộng lại ở đây.
 
             // Log upload activity
             Account owner = accountRepository.findById(ownerId).orElse(null);
@@ -212,6 +205,12 @@ public class DocumentServiceImpl implements DocumentService {
 
         // 3) Keep publicId before deleting entity
         String publicId = document.getPublicId();
+
+        // 3b) PERMANENT delete — giảm used_storage_bytes (không bao giờ âm).
+        //     Soft delete KHÔNG giảm, restore KHÔNG tăng. Chỉ event này được trừ.
+        if (document.getFileSize() != null) {
+            storageQuotaService.subtractUsedBytes(document.getOwnerId(), document.getFileSize());
+        }
 
         // 4) Delete document (child tables are removed by ON DELETE CASCADE)
         documentRepository.delete(document);
@@ -341,13 +340,6 @@ public class DocumentServiceImpl implements DocumentService {
         if (!DocumentStatus.READY.name().equalsIgnoreCase(resp.getStatus()))
             resp.setCloudinaryUrl(null);
         return resp;
-    }
-
-    private String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
-        if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
-        return String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
     }
 
     private boolean isAdmin() {

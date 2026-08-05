@@ -4,7 +4,6 @@ import com.tugnw.aistudy.domain.dto.payment.AdminTransactionResponse;
 import com.tugnw.aistudy.domain.dto.payment.PaymentResponse;
 import com.tugnw.aistudy.domain.dto.payment.PaymentStatusResponse;
 import com.tugnw.aistudy.domain.dto.payment.PaymentTransactionResponse;
-import com.tugnw.aistudy.domain.dto.subscription.UpgradePreviewResponse;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.PaymentTransaction;
 import com.tugnw.aistudy.domain.enums.PaymentStatus;
@@ -34,9 +33,5 @@ public interface PaymentService {
 
     void verifyAndProcessPayment(Long orderCode);
 
-    UpgradePreviewResponse previewUpgrade(UUID userId, UUID planId);
-
     PaymentStatusResponse getPaymentStatus(Long orderCode);
-
-    com.tugnw.aistudy.domain.dto.payment.RevenueStatsResponse getRevenueStats();
 }

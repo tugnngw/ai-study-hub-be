@@ -1,10 +1,8 @@
 package com.tugnw.aistudy.repository;
 
 import com.tugnw.aistudy.domain.entity.Document;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -28,10 +26,12 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     long countByFolderIdAndDeletedAtIsNull(UUID folderId);
 
-    Long countByOwnerIdAndDeletedAtIsNull(UUID ownerId);
+    /** Group-by count cho nhiều folder — 1 query thay N count (chống N+1). */
+    @Query("SELECT d.folderId, COUNT(d) FROM Document d " +
+           "WHERE d.folderId IN :folderIds AND d.deletedAt IS NULL GROUP BY d.folderId")
+    List<Object[]> countByFolderIdsGroupBy(@Param("folderIds") List<UUID> folderIds);
 
-    // Kiểm tra storage usage
-    boolean existsByOwnerIdAndChecksumAndDeletedAtIsNull(UUID ownerId, String checksum);
+    Long countByOwnerIdAndDeletedAtIsNull(UUID ownerId);
 
     List<Document> findByStatusAndDeletedAtIsNull(String status);
 
@@ -45,19 +45,19 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     List<Document> findAllByDeletedAtIsNull();
 
-    List<Document> findAllBy();
     @Query("SELECT COUNT(d) FROM Document d WHERE d.ownerId = :ownerId AND d.summary IS NOT NULL AND d.deletedAt IS NULL")
     long countByOwnerIdAndSummaryIsNotNull(@Param("ownerId") UUID ownerId);
 
     @Query("SELECT d.id FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
     List<UUID> findAllIdsByOwnerId(@Param("ownerId") UUID ownerId);
 
-    @Query("SELECT COALESCE(SUM(d.fileSize), 0) FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
-    long sumFileSizeByOwnerId(@Param("ownerId") UUID ownerId);
+    /** Tổng fileSize của mọi document trong folder — KHÔNG filter status/deletedAt
+     *  (permanent delete folder phải trừ toàn bộ, kể cả soft-deleted/BANNED/REJECT). */
+    @Query("SELECT COALESCE(SUM(d.fileSize), 0) FROM Document d WHERE d.folderId = :folderId")
+    long sumFileSizeByFolderId(@Param("folderId") UUID folderId);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT d FROM Document d WHERE d.id = :id")
-    Optional<Document> findByIdForUpdate(@Param("id") UUID id);
+    /** Mọi document trong folder (kể cả soft-deleted) — cho permanent delete folder. */
+    List<Document> findByFolderId(UUID folderId);
 
     @Query("SELECT COALESCE(SUM(d.flashcardGenerations), 0) FROM Document d WHERE d.ownerId = :ownerId AND d.deletedAt IS NULL")
     long sumFlashcardGenerationsByOwnerId(@Param("ownerId") UUID ownerId);

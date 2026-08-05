@@ -62,7 +62,7 @@ public class ReportServiceImpl implements ReportService {
             UUID docId = jdbcTemplate.queryForObject(docIdSql, UUID.class, reportId);
             
             if (docId != null) {
-                // Update document status to BANNED
+                // Update document status to BANNED — storage KHÔNG đổi (chỉ upload/permanent delete được đổi used)
                 String updateDocSql = "UPDATE document SET status = 'BANNED' WHERE id = ?";
                 jdbcTemplate.update(updateDocSql, docId);
             }
@@ -70,9 +70,9 @@ public class ReportServiceImpl implements ReportService {
             // If report is rejected/removed, revert document to READY (assuming it was REPORTED)
             String docIdSql = "SELECT document_id FROM report WHERE id = ?";
             UUID docId = jdbcTemplate.queryForObject(docIdSql, UUID.class, reportId);
-            
+
             if (docId != null) {
-                // Update document status to READY
+                // Update document status to READY — storage KHÔNG đổi
                 String updateDocSql = "UPDATE document SET status = 'READY' WHERE id = ?";
                 jdbcTemplate.update(updateDocSql, docId);
             }

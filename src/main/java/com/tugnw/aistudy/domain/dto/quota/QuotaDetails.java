@@ -13,14 +13,6 @@ import java.time.Instant;
 @AllArgsConstructor
 public class QuotaDetails {
     private String planName;
-    private Double storageGb;
-    private Long storageUsedBytes;
-    private Long storageTotalBytes;
-    private Long storageFreeBytes;
-    private Double storageUsagePercent;
-    private String formattedStorageUsed;
-    private String formattedStorageTotal;
-    private String formattedStorageFree;
     private Integer aiQuestions;
     private Integer flashcardLimit;
     private Integer questionLimit;
@@ -32,6 +24,12 @@ public class QuotaDetails {
     private Integer chatRemaining;
     private Instant subscriptionEndDate;
     private String status;
+
+    // Storage — backend tính, frontend chỉ hiển thị
+    private Long storageUsedBytes;
+    private Long storageLimitBytes;
+    private Long storageRemainingBytes;
+    private Boolean overQuota;
 
     public static QuotaDetails noSubscription() {
         return QuotaDetails.builder().status("NO_SUBSCRIPTION").build();

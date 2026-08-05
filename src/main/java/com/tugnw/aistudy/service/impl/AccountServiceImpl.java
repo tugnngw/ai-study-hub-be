@@ -7,7 +7,7 @@ import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.service.AccountService;
-import com.tugnw.aistudy.service.QuotaService;
+import com.tugnw.aistudy.service.SubscriptionService;
 import com.tugnw.aistudy.service.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,16 +26,18 @@ public class AccountServiceImpl implements AccountService {
     private final AccountRepository accountRepository;
     private final VerificationService verificationService;
     private final AccountMapper accountMapper;
-    private final QuotaService quotaService;
+    private final SubscriptionService subscriptionService;
 
     @Override
+    @Transactional
     public AccountMeResponse getMe(Authentication authentication) {
         Account account = loadAccount(authentication);
-        AccountMeResponse response = accountMapper.toAccountMeResponse(account);
-
-        // Dynamically get plan name from active subscription
-        response.setPlan(quotaService.getQuotaDetails(account.getId()).getPlanName());
-        return response;
+        // Lazy-heal: chỉ chạy khi account legacy (không có ACTIVE subscription).
+        // Không gọi mỗi request — GET /me không có side-effect khi đã hợp lệ.
+        if (!subscriptionService.hasActiveSubscription(account.getId())) {
+            subscriptionService.ensureActiveSubscription(account.getId());
+        }
+        return accountMapper.toAccountMeResponse(account);
     }
 
     @Override
@@ -74,9 +76,7 @@ public class AccountServiceImpl implements AccountService {
         }
 
         accountRepository.save(account);
-        AccountMeResponse response = accountMapper.toAccountMeResponse(account);
-        response.setPlan(quotaService.getQuotaDetails(account.getId()).getPlanName());
-        return response;
+        return accountMapper.toAccountMeResponse(account);
     }
 
     // ============ HELPER METHODS ============

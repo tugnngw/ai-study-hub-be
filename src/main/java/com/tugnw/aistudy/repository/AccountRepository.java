@@ -6,7 +6,11 @@ import com.tugnw.aistudy.domain.enums.AccountStatus;
 import com.tugnw.aistudy.domain.enums.AuthProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,7 +24,6 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
     Optional<Account> findByAuthProviderAndProviderIdAndDeletedAtIsNull(AuthProvider authProvider, String providerId);
     Optional<Account> findByEmailIgnoreCaseAndDeletedAtIsNull(String email);
-    Optional<Account> findByVerificationToken(String verificationToken);
     boolean existsByUsernameIgnoreCaseAndDeletedAtIsNull(String username);
     boolean existsByEmailIgnoreCaseAndDeletedAtIsNull(String email);
     
@@ -29,4 +32,9 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     Page<Account> findByStatusAndDeletedAtIsNull(AccountStatus status, Pageable pageable);
 
     long countByCreatedAtAfter(Instant date);
+
+    /** Lock Account ngay từ SELECT — serialize mọi reserve/update trên cùng account. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Account a WHERE a.id = :id")
+    Optional<Account> findAccountForUpdate(@Param("id") UUID id);
 }

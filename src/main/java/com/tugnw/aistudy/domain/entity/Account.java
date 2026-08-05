@@ -84,8 +84,15 @@ public class Account implements UserDetails {
     private Long version = 0L;
 
     @Builder.Default
-    @Column(name = "storage_gb", nullable = false)
-    private Double storageGb = 1.0D;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan", nullable = false)
+    private com.tugnw.aistudy.domain.enums.Plan plan = com.tugnw.aistudy.domain.enums.Plan.FREE;
+
+    // Dung lượng ĐÃ SỬ DỤNG (bytes) — limit không nằm ở đây, limit nằm ở
+    // Subscription.maxStorageGb. Mọi phép cộng/trừ đều qua StorageQuotaService.
+    @Builder.Default
+    @Column(name = "used_storage_bytes", nullable = false)
+    private Long usedStorageBytes = 0L;
 
     @Builder.Default
     @Column(name = "email_verified", nullable = false)

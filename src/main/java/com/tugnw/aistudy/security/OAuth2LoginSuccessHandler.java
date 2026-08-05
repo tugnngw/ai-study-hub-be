@@ -6,6 +6,7 @@ import com.tugnw.aistudy.domain.enums.AccountStatus;
 import com.tugnw.aistudy.domain.enums.AuthProvider;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.repository.AccountRepository;
+import com.tugnw.aistudy.service.SubscriptionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private final AccountRepository accountRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final SubscriptionService subscriptionService;
 
     @Value("${app.frontend-url}")
     private String frontendUrl;
@@ -45,6 +47,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         Account account = findOrCreateGoogleAccount(principal);
         account.setLastLoginAt(Instant.now());
         accountRepository.save(account);
+
+        // Invariant: user Google luôn có FREE subscription (mới tạo hoặc đã tồn tại).
+        subscriptionService.ensureActiveSubscription(account.getId());
 
         // Generate JWT access token and refresh token
         Authentication auth = new UsernamePasswordAuthenticationToken(

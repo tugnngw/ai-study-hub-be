@@ -17,7 +17,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class Subscription {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -50,6 +50,11 @@ public class Subscription {
 
     @Column(name = "storage_gb_granted", nullable = false)
     private Double storageGbGranted = 1.0;
+
+    // Quyền lợi storage thực tế — snapshot lúc tạo subscription, KHÔNG đọc
+    // từ PaymentPlan khi check quota (plan có thể bị sửa sau).
+    @Column(name = "max_storage_gb", nullable = false)
+    private Double maxStorageGb = 1.0;
 
     @Column(name = "ai_questions_granted", nullable = false)
     private Integer aiQuestionsGranted = 2;

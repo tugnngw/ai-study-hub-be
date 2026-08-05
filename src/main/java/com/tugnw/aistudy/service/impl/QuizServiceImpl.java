@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tugnw.aistudy.domain.dto.quiz.QuestionResponse;
 import com.tugnw.aistudy.domain.dto.quiz.QuizResponse;
 import com.tugnw.aistudy.domain.dto.quiz.GenerateQuizRequest;
+import com.tugnw.aistudy.domain.dto.quiz.QuizSubmitRequest;
+import com.tugnw.aistudy.domain.dto.quiz.QuizSubmitResponse;
 import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.domain.entity.Quiz;
 import com.tugnw.aistudy.domain.entity.Question;
@@ -30,7 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -125,6 +129,39 @@ public class QuizServiceImpl implements QuizService {
                 .generatedByAi(quiz.getGeneratedByAi())
                 .createdAt(quiz.getCreatedAt())
                 .questions(questionResponses)
+                .build();
+    }
+
+    /**
+     * Chấm điểm quiz — backend là nơi duy nhất so sánh đáp án (chống FE tự tính).
+     * Không lưu attempt, không thêm history — chỉ tính kết quả.
+     */
+    @Override
+    public QuizSubmitResponse submitQuiz(UUID quizId, QuizSubmitRequest request) {
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new RuntimeException("Quiz not found"));
+
+        List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(quiz.getId());
+        Map<UUID, Question> byId = questions.stream()
+                .collect(Collectors.toMap(Question::getId, q -> q));
+
+        int correctCount = 0;
+        for (QuizSubmitRequest.Answer answer : request.getAnswers()) {
+            Question question = byId.get(UUID.fromString(answer.getQuestionId()));
+            if (question == null) continue; // question không thuộc quiz — bỏ qua
+            if (answer.getSelectedAnswer() != null
+                    && answer.getSelectedAnswer().trim().equalsIgnoreCase(question.getCorrectAnswer())) {
+                correctCount++;
+            }
+        }
+
+        int total = questions.size();
+        int percentage = total == 0 ? 0 : Math.round(correctCount * 100f / total);
+
+        return QuizSubmitResponse.builder()
+                .correctCount(correctCount)
+                .totalQuestions(total)
+                .percentage(percentage)
                 .build();
     }
 
