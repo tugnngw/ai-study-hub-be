@@ -137,9 +137,13 @@ public class QuizServiceImpl implements QuizService {
      * Không lưu attempt, không thêm history — chỉ tính kết quả.
      */
     @Override
-    public QuizSubmitResponse submitQuiz(UUID quizId, QuizSubmitRequest request) {
+    public QuizSubmitResponse submitQuiz(UUID quizId, QuizSubmitRequest request, UUID requesterId) {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new RuntimeException("Quiz not found"));
+
+        // SECURITY: chỉ user có quyền truy cập document mới được submit quiz.
+        // Reuse access-control hiện có (giống Flashcard/RAG/Summary).
+        documentService.getAccessibleDocument(quiz.getDocumentId(), requesterId, true);
 
         List<Question> questions = questionRepository.findByQuizIdOrderByCreatedAtAsc(quiz.getId());
         Map<UUID, Question> byId = questions.stream()
@@ -167,6 +171,9 @@ public class QuizServiceImpl implements QuizService {
 
     @Override
     public List<QuizResponse> getQuizByDocument(UUID documentId, UUID requesterId) {
+        // SECURITY: chỉ user có quyền truy cập document mới lấy được quiz.
+        // Reuse access-control hiện có (giống Flashcard/RAG/Summary).
+        documentService.getAccessibleDocument(documentId, requesterId, true);
 
         List<Quiz> quizzes = quizRepository.findByDocumentIdOrderByCreatedAtDesc(documentId);
         List<QuizResponse> responses = new ArrayList<>();

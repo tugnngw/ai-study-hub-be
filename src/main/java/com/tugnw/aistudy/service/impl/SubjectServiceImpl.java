@@ -30,6 +30,14 @@ public class SubjectServiceImpl implements SubjectService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<SubjectResponse> getAllSubjects() {
+        return subjectRepository.findAllByOrderByNameAsc().stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public SubjectResponse getSubjectById(UUID id) {
         Subject subject = subjectRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Subject not found"));

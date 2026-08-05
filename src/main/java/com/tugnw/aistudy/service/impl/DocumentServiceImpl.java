@@ -118,6 +118,12 @@ public class DocumentServiceImpl implements DocumentService {
         return responses;
     }
 
+/** BANNED vẫn hiện metadata trong listing (owner cần thấy để xóa + appeal tương lai).
+     *  Mọi action (view/download/AI/share/edit) bị chặn ở getAccessibleDocument/updateDocument. */
+    private static boolean isBanned(Document doc) {
+        return DocumentStatus.BANNED.name().equalsIgnoreCase(doc.getStatus());
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<DocumentResponse> getDocumentsByOwner(UUID ownerId) {
@@ -141,6 +147,9 @@ public class DocumentServiceImpl implements DocumentService {
         return documentRepository
                 .findByFolderIdAndDeletedAtIsNullOrderByCreatedAtDesc(folderId)
                 .stream()
+                // Business: folder KHÔNG hiển thị document BANNED (chúng ẩn khỏi folder;
+                // owner vẫn thấy chúng ở My Documents đầy đủ qua getDocumentsByOwner).
+                .filter(d -> !isBanned(d))
                 .map(documentMapper::toResponse)
                 .map(this::sanitizeForListing)
                 .toList();
@@ -151,8 +160,11 @@ public class DocumentServiceImpl implements DocumentService {
     public DocumentResponse getDocumentById(UUID id, UUID ownerId) {
         Document document = getAccessibleDocument(id, ownerId, false);
         DocumentResponse resp = documentMapper.toResponse(document);
-        // Strip file URL for non-READY docs — only strip for non-owners and non-admins.
-        if (!DocumentStatus.READY.name().equalsIgnoreCase(resp.getStatus()) && !isAdmin() && !document.getOwnerId().equals(ownerId))
+        // BANNED — không trả cloudinaryUrl cho ai ngoài admin (owner chỉ thấy metadata).
+        if (isBanned(document) && !isAdmin())
+            resp.setCloudinaryUrl(null);
+        // Strip file URL cho non-READY — chỉ strip cho non-owner và non-admin.
+        else if (!DocumentStatus.READY.name().equalsIgnoreCase(resp.getStatus()) && !isAdmin() && !document.getOwnerId().equals(ownerId))
             resp.setCloudinaryUrl(null);
         return resp;
     }
@@ -164,6 +176,10 @@ public class DocumentServiceImpl implements DocumentService {
 
         if (!isAdmin() && !document.getOwnerId().equals(ownerId))
             throw new AccessDeniedException("You do not have permission to update this document");
+
+        // Business rule: BANNED — owner không được edit (chỉ xóa permanent + appeal tương lai).
+        if (isBanned(document))
+            throw new AccessDeniedException("Tài liệu đã bị cấm. Không thể chỉnh sửa.");
 
         if (request.getTitle() != null) document.setTitle(request.getTitle());
         if (request.getDescription() != null) document.setDescription(request.getDescription());
@@ -286,8 +302,14 @@ public class DocumentServiceImpl implements DocumentService {
         // Admin always bypasses status checks
         if (isAdmin()) return document;
 
-        // Owner always bypasses status checks for view/manage operations
+        // Owner: view metadata (aiRequired=false) cho phép mọi status, kể cả BANNED —
+        // owner cần thấy trạng thái để xóa/appeal. Viewer content vẫn bị chặn
+        // (cloudinaryUrl strip ở sanitizeForListing).
         if (document.getOwnerId().equals(requesterId) && !aiRequired) return document;
+
+        // BANNED — chặn mọi action: download, AI, share, viewer nội dung.
+        if (DocumentStatus.BANNED.name().equalsIgnoreCase(document.getStatus()))
+            throw new AccessDeniedException("Tài liệu đã bị cấm.");
 
         // Owner: AI operations require READY status
         if (document.getOwnerId().equals(requesterId)) {
@@ -326,7 +348,10 @@ public class DocumentServiceImpl implements DocumentService {
             throw new AccessDeniedException("You do not have permission to access this shared folder");
 
         List<Document> documents = documentRepository
-                .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(folderId, DocumentStatus.READY.name());
+                .findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(folderId, DocumentStatus.READY.name())
+                .stream()
+                .filter(d -> !isBanned(d))
+                .toList();
 
         return documents.stream()
                 .map(documentMapper::toResponse)
@@ -335,7 +360,8 @@ public class DocumentServiceImpl implements DocumentService {
 
     // ============ HELPER METHODS ============
 
-    /** Strip file URL from non-READY docs so listing doesn't leak content. */
+    /** Strip file URL từ listing — non-READY (COMPLETED/REJECT/REPORTED/BANNED) không lộ content.
+     *  Đặc biệt BANNED: owner chỉ thấy metadata, admin vẫn có URL (qua endpoint riêng). */
     private DocumentResponse sanitizeForListing(DocumentResponse resp) {
         if (!DocumentStatus.READY.name().equalsIgnoreCase(resp.getStatus()))
             resp.setCloudinaryUrl(null);

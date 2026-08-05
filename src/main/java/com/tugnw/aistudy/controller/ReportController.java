@@ -33,10 +33,23 @@ public class ReportController {
         return ApiResponse.success("Report submitted", null);
     }
 
+    @PostMapping("/appeal")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<Void> submitAppeal(
+            @RequestBody ReportRequest request,
+            Authentication authentication) {
+        reportService.submitAppeal(request, userId(authentication));
+        return ApiResponse.success("Appeal submitted", null);
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Page<ReportResponse>> getReports(Pageable pageable) {
-        Page<ReportResponse> reports = reportAdminService.getReports(pageable);
+    public ApiResponse<Page<ReportResponse>> getReports(
+            @RequestParam(required = false) String type,
+            Pageable pageable) {
+        Page<ReportResponse> reports = type != null && !type.isBlank()
+            ? reportAdminService.getReportsByType(type.toUpperCase(), pageable)
+            : reportAdminService.getReports(pageable);
         return ApiResponse.success("Reports retrieved", reports);
     }
 
@@ -62,7 +75,13 @@ public class ReportController {
             @PathVariable UUID id,
             @RequestBody com.tugnw.aistudy.domain.dto.report.ReportDecisionRequest decision,
             Authentication authentication) {
-        reportService.handleReportDecision(id, decision, userId(authentication));
+        // Routing theo report.type — KHÔNG phải business. Service tách 2 nghiệp vụ riêng.
+        String type = reportService.findReportType(id);
+        if ("APPEAL".equals(type)) {
+            reportService.handleAppealDecision(id, decision, userId(authentication));
+        } else {
+            reportService.handleReportDecision(id, decision, userId(authentication));
+        }
         return ApiResponse.success("Report decision processed", null);
     }
 }

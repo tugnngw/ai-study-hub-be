@@ -18,6 +18,7 @@ public class ReportResponse {
     private String documentTitle;
     private UUID reporterId;
     private String reporterUsername;
+    private String type;
     private String reason;
     private String status;
     private String adminComment;

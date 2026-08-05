@@ -28,6 +28,7 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         .documentTitle(rs.getString("document_title"))
         .reporterId(rs.getString("reporter_id") != null ? UUID.fromString(rs.getString("reporter_id")) : null)
         .reporterUsername(rs.getString("reporter_username"))
+        .type(rs.getString("type"))
         .reason(rs.getString("reason"))
         .status(rs.getString("status"))
         .adminComment(rs.getString("admin_comment"))
@@ -41,7 +42,7 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         String countSql = "SELECT COUNT(*) FROM report";
         Integer total = jdbcTemplate.queryForObject(countSql, Integer.class);
 
-        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.type, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
                 "FROM report r " +
                 "LEFT JOIN account a ON r.reporter_id = a.id " +
                 "LEFT JOIN document d ON r.document_id = d.id " +
@@ -62,7 +63,7 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         String countSql = "SELECT COUNT(*) FROM report WHERE reporter_id = ?";
         Integer total = jdbcTemplate.queryForObject(countSql, Integer.class, reporterId);
 
-        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.type, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
                 "FROM report r " +
                 "LEFT JOIN account a ON r.reporter_id = a.id " +
                 "LEFT JOIN document d ON r.document_id = d.id " +
@@ -83,8 +84,8 @@ public class ReportAdminServiceImpl implements ReportAdminService {
     public Page<ReportResponse> getAllReports(Pageable pageable) {
         String countSql = "SELECT COUNT(*) FROM report";
         Integer total = jdbcTemplate.queryForObject(countSql, Integer.class);
-        
-        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
+
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.type, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
                 "FROM report r " +
                 "LEFT JOIN account a ON r.reporter_id = a.id " +
                 "LEFT JOIN document d ON r.document_id = d.id " +
@@ -94,6 +95,28 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         List<ReportResponse> reports = jdbcTemplate.query(
             dataSql,
             new Object[]{pageable.getPageSize(), pageable.getOffset()},
+            rowMapper
+        );
+
+        return new PageImpl<>(reports, pageable, total != null ? total : 0);
+    }
+
+    @Override
+    public Page<ReportResponse> getReportsByType(String type, Pageable pageable) {
+        String countSql = "SELECT COUNT(*) FROM report WHERE type = ?";
+        Integer total = jdbcTemplate.queryForObject(countSql, Integer.class, type);
+
+        String dataSql = "SELECT r.id, r.document_id, d.title as document_title, r.reporter_id, a.username as reporter_username, r.type, r.reason, r.status, r.admin_comment, d.cloudinary_url, d.mime_type, r.created_at " +
+                "FROM report r " +
+                "LEFT JOIN account a ON r.reporter_id = a.id " +
+                "LEFT JOIN document d ON r.document_id = d.id " +
+                "WHERE r.type = ? " +
+                "ORDER BY r.created_at DESC " +
+                "LIMIT ? OFFSET ?";
+
+        List<ReportResponse> reports = jdbcTemplate.query(
+            dataSql,
+            new Object[]{type, pageable.getPageSize(), pageable.getOffset()},
             rowMapper
         );
 

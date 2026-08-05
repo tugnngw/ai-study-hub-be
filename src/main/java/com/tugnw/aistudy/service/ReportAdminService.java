@@ -10,4 +10,5 @@ public interface ReportAdminService {
     Page<ReportResponse> getReports(Pageable pageable);
     Page<ReportResponse> getReportsByReporter(UUID reporterId, Pageable pageable);
     Page<ReportResponse> getAllReports(Pageable pageable);
+    Page<ReportResponse> getReportsByType(String type, Pageable pageable);
 }

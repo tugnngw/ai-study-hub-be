@@ -37,6 +37,10 @@ public class FolderResponse {
     @Schema(description = "Number of documents in this folder", example = "3")
     private int documentCount;
 
+    /** Tổng fileSize (bytes) của document hiển thị trong folder — không tính BANNED. */
+    @Schema(description = "Total file size (bytes) of visible documents in this folder")
+    private Long folderSizeBytes;
+
     @Schema(description = "Soft-delete timestamp")
     private LocalDateTime deletedAt;
 }

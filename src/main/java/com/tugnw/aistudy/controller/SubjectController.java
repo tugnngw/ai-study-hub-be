@@ -21,6 +21,12 @@ public class SubjectController {
 
     private final SubjectService subjectService;
 
+    @GetMapping
+    @Operation(summary = "List all subjects")
+    public ApiResponse<List<SubjectResponse>> getAllSubjects() {
+        return ApiResponse.success(subjectService.getAllSubjects());
+    }
+
     @GetMapping("/semester/{semesterId}")
     @Operation(summary = "List subjects by semester")
     public ApiResponse<List<SubjectResponse>> getSubjectsBySemester(@PathVariable UUID semesterId) {

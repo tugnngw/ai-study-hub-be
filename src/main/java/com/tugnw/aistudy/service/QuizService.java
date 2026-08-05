@@ -14,5 +14,5 @@ public interface QuizService {
 
     List<QuizResponse> getQuizByDocument(UUID documentId, UUID requesterId);
 
-    QuizSubmitResponse submitQuiz(UUID quizId, QuizSubmitRequest request);
+    QuizSubmitResponse submitQuiz(UUID quizId, QuizSubmitRequest request, UUID requesterId);
 }

@@ -28,6 +28,10 @@ public class Report {
     @Column(name = "reporter_id", nullable = false)
     private UUID reporterId;
 
+    /** REPORT (mặc định) hay APPEAL (kháng cáo doc bị BANNED). */
+    @Column(name = "type", nullable = false, length = 20)
+    private String type;
+
     @Column(name = "reason", columnDefinition = "TEXT")
     private String reason;
 

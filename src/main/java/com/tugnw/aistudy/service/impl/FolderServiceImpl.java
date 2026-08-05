@@ -69,17 +69,21 @@ public class FolderServiceImpl implements FolderService {
     public List<FolderResponse> getFoldersByOwner(UUID ownerId) {
         List<Folder> folders = folderRepository.findByOwnerIdAndDeletedAtIsNullOrderByCreatedAtDesc(ownerId);
 
-        // Group-by count 1 query thay N count riêng (chống N+1)
+        // Group-by count + size 1 query thay N query riêng (chống N+1).
+        // Chỉ đếm document hiển thị (đã exclude BANNED trong query).
         List<UUID> folderIds = folders.stream().map(Folder::getId).toList();
-        Map<UUID, Long> counts = folderIds.isEmpty()
+        Map<UUID, long[]> agg = folderIds.isEmpty()
                 ? Map.of()
-                : documentRepository.countByFolderIdsGroupBy(folderIds).stream()
-                        .collect(Collectors.toMap(r -> (UUID) r[0], r -> (Long) r[1]));
+                : documentRepository.countAndSizeByFolderIdsGroupBy(folderIds).stream()
+                        .collect(Collectors.toMap(r -> (UUID) r[0],
+                                r -> new long[]{ (Long) r[1], r[2] != null ? (Long) r[2] : 0L }));
 
         return folders.stream()
                 .map(folder -> {
+                    long[] a = agg.getOrDefault(folder.getId(), new long[]{0L, 0L});
                     FolderResponse resp = folderMapper.toResponse(folder);
-                    resp.setDocumentCount(Math.toIntExact(counts.getOrDefault(folder.getId(), 0L)));
+                    resp.setDocumentCount(Math.toIntExact(a[0]));
+                    resp.setFolderSizeBytes(a[1]);
                     return resp;
                 })
                 .toList();
@@ -95,8 +99,9 @@ public class FolderServiceImpl implements FolderService {
             throw new AccessDeniedException("You do not have permission to access this folder");
 
         FolderResponse resp = folderMapper.toResponse(folder);
-        long documentCount = documentRepository.countByFolderIdAndDeletedAtIsNull(folder.getId());
-        resp.setDocumentCount((int) documentCount);
+        Object[] agg = documentRepository.countAndSizeByFolderId(folder.getId()).get(0);
+        resp.setDocumentCount(Math.toIntExact((Long) agg[0]));
+        resp.setFolderSizeBytes(agg[1] != null ? (Long) agg[1] : 0L);
         return resp;
     }
 
@@ -126,8 +131,9 @@ public class FolderServiceImpl implements FolderService {
 
         Folder updatedFolder = folderRepository.save(folder);
         FolderResponse resp = folderMapper.toResponse(updatedFolder);
-        long documentCount = documentRepository.countByFolderIdAndDeletedAtIsNull(updatedFolder.getId());
-        resp.setDocumentCount((int) documentCount);
+        Object[] agg = documentRepository.countAndSizeByFolderId(updatedFolder.getId()).get(0);
+        resp.setDocumentCount(Math.toIntExact((Long) agg[0]));
+        resp.setFolderSizeBytes(agg[1] != null ? (Long) agg[1] : 0L);
         return resp;
     }
 

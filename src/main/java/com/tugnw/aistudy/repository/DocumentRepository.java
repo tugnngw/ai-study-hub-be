@@ -24,12 +24,24 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     List<Document> findByFolderIdAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(UUID folderId, String status);
 
-    long countByFolderIdAndDeletedAtIsNull(UUID folderId);
+    /**
+     * Count + tổng fileSize của document HIỂN THỊ trong 1 folder — exclude BANNED.
+     * Business: folder không đếm document BANNED (chúng ẩn khỏi listing folder).
+     */
+    @Query("SELECT COUNT(d), COALESCE(SUM(d.fileSize), 0) FROM Document d " +
+           "WHERE d.folderId = :folderId AND d.deletedAt IS NULL AND d.status <> 'BANNED'")
+    List<Object[]> countAndSizeByFolderId(@Param("folderId") UUID folderId);
 
-    /** Group-by count cho nhiều folder — 1 query thay N count (chống N+1). */
-    @Query("SELECT d.folderId, COUNT(d) FROM Document d " +
-           "WHERE d.folderId IN :folderIds AND d.deletedAt IS NULL GROUP BY d.folderId")
-    List<Object[]> countByFolderIdsGroupBy(@Param("folderIds") List<UUID> folderIds);
+    /**
+     * Group-by count + tổng storage cho nhiều folder — 1 query thay N count (chống N+1).
+     * CHỈ đếm document hiển thị trong folder: deletedAt IS NULL và KHÔNG BANNED
+     * (business: folder không hiển thị BANNED → count/size không tính).
+     * @return [folderId, COUNT, COALESCE(SUM(fileSize),0)]
+     */
+    @Query("SELECT d.folderId, COUNT(d), COALESCE(SUM(d.fileSize), 0) FROM Document d " +
+           "WHERE d.folderId IN :folderIds AND d.deletedAt IS NULL AND d.status <> 'BANNED' " +
+           "GROUP BY d.folderId")
+    List<Object[]> countAndSizeByFolderIdsGroupBy(@Param("folderIds") List<UUID> folderIds);
 
     Long countByOwnerIdAndDeletedAtIsNull(UUID ownerId);
 

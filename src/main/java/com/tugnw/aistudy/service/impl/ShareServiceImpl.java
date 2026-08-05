@@ -196,6 +196,24 @@ public class ShareServiceImpl implements ShareService {
         Share share = shareRepository.findById(shareId)
                 .orElseThrow(() -> new IllegalArgumentException("Share not found"));
 
+        // SECURITY: share đã revoke → không save
+        if (share.getRevoked())
+            throw new IllegalArgumentException("This share has been revoked");
+        // SECURITY: share hết hạn → không save
+        if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(Instant.now()))
+            throw new IllegalArgumentException("This share has expired");
+        // SECURITY: PRIVATE → chỉ sharedAccount (hoặc owner) được save; PUBLIC → cho phép
+        boolean isPublic = "public".equalsIgnoreCase(share.getVisibility());
+        boolean isRecipient = share.getSharedAccount() != null
+                && share.getSharedAccount().getId().equals(requesterId);
+        boolean isOwner = share.getOwner() != null && share.getOwner().getId().equals(requesterId);
+        if (!isPublic && !isRecipient && !isOwner)
+            throw new IllegalArgumentException("You don't have access to this share");
+        // SECURITY: folder đích phải thuộc requester
+        if (folderId == null
+                || folderRepository.findByIdAndOwnerIdAndDeletedAtIsNull(folderId, requesterId).isEmpty())
+            throw new IllegalArgumentException("Destination folder not found or not owned by you");
+
         List<Document> sourceDocs;
 
         if (share.getDocument() != null) {

@@ -53,7 +53,8 @@ public class QuizController {
     @Operation(summary = "Submit quiz answers", description = "Backend grades answers against stored correctAnswer. Frontend does NOT grade.")
     public ApiResponse<QuizSubmitResponse> submitQuiz(
             @PathVariable UUID quizId,
-            @Valid @RequestBody QuizSubmitRequest request) {
-        return ApiResponse.success(quizService.submitQuiz(quizId, request));
+            @Valid @RequestBody QuizSubmitRequest request,
+            Authentication authentication) {
+        return ApiResponse.success(quizService.submitQuiz(quizId, request, userId(authentication)));
     }
 }

@@ -316,7 +316,9 @@ public class RagServiceImpl implements RagService {
     @Override
     public RagChatResponse chatWithFolderContext(RagChatRequest chatRequest, UUID requesterId) {
         UUID docId = chatRequest.getDocumentId();
-        // Verify document ownership and approval status
+        // SECURITY: chỉ user có quyền truy cập document mới được chat.
+        // Reuse access-control hiện có (giống Summary/Flashcard/Quiz/Download/Viewer).
+        documentService.getAccessibleDocument(docId, requesterId, true);
 
         // Embed question
         List<Double> queryVector = getEmbeddingFromGemini(chatRequest.getQuestion());

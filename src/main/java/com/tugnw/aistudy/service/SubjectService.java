@@ -9,6 +9,8 @@ public interface SubjectService {
 
     List<SubjectResponse> getSubjectsBySemester(UUID semesterId);
 
+    List<SubjectResponse> getAllSubjects();
+
     SubjectResponse getSubjectById(UUID id);
 
     SubjectResponse createSubject(UUID semesterId, String code, String name);
