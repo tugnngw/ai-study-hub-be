@@ -16,6 +16,8 @@ public interface AccountMapper {
     @Mapping(target = "expiresIn", ignore = true)
     AuthResponse toAuthResponse(Account account);
 
+    // storageGb (đã xóa khỏi Account) → usedStorageBytes map tự động theo tên
+
     AccountMeResponse toAccountMeResponse(Account account);
 
     UserResponse toUserResponse(Account account);

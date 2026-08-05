@@ -41,8 +41,8 @@ public class AccountMeResponse {
     @Schema(description = "Subscription plan", example = "FREE")
     private Plan plan;
 
-    @Schema(description = "Storage limit in GB", example = "1")
-    private Double storageGb;
+    @Schema(description = "Storage used in bytes", example = "204800")
+    private Long usedStorageBytes;
 
     @Schema(description = "Account creation timestamp")
     private Instant createdAt;

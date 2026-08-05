@@ -7,6 +7,7 @@ import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.service.AccountService;
+import com.tugnw.aistudy.service.SubscriptionService;
 import com.tugnw.aistudy.service.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,10 +26,17 @@ public class AccountServiceImpl implements AccountService {
     private final AccountRepository accountRepository;
     private final VerificationService verificationService;
     private final AccountMapper accountMapper;
+    private final SubscriptionService subscriptionService;
 
     @Override
+    @Transactional
     public AccountMeResponse getMe(Authentication authentication) {
         Account account = loadAccount(authentication);
+        // Lazy-heal: chỉ chạy khi account legacy (không có ACTIVE subscription).
+        // Không gọi mỗi request — GET /me không có side-effect khi đã hợp lệ.
+        if (!subscriptionService.hasActiveSubscription(account.getId())) {
+            subscriptionService.ensureActiveSubscription(account.getId());
+        }
         return accountMapper.toAccountMeResponse(account);
     }
 

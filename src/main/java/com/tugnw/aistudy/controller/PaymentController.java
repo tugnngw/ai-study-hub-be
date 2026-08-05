@@ -6,7 +6,6 @@ import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.payment.CreatePaymentRequest;
 import com.tugnw.aistudy.domain.dto.payment.PaymentResponse;
 import com.tugnw.aistudy.domain.dto.payment.PaymentStatusResponse;
-import com.tugnw.aistudy.domain.dto.subscription.UpgradePreviewResponse;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.PaymentService;
@@ -14,6 +13,7 @@ import com.tugnw.aistudy.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -55,22 +55,14 @@ public class PaymentController {
         return ApiResponse.success(paymentService.createPaymentLink(userId, request.getPlanId()));
     }
 
-    // 🆕 THÊM MỚI - Preview upgrade
-    @GetMapping("/upgrade-preview")
-    public ApiResponse<UpgradePreviewResponse> previewUpgrade(
-            @RequestParam UUID planId,
-            Authentication authentication) {
-        UUID userId = extractUserId(authentication);
-        return ApiResponse.success(paymentService.previewUpgrade(userId, planId));
-    }
-
     // ✅ SỬA - Trả về PaymentStatusResponse đầy đủ
     @GetMapping("/status/{orderCode}")
     public ApiResponse<PaymentStatusResponse> getPaymentStatus(@PathVariable Long orderCode) {
         return ApiResponse.success(paymentService.getPaymentStatus(orderCode));
     }
 
-    // ✅ ĐÃ CÓ - Giữ nguyên (verify thủ công)
+    // ✅ ĐÃ CÓ - Giữ nguyên (verify thủ công) — chỉ ADMIN được verify (P0 security fix)
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/verify/{orderCode}")
     public ApiResponse<?> verifyPayment(@PathVariable Long orderCode) {
         log.info("Manual payment verification for orderCode: {}", orderCode);

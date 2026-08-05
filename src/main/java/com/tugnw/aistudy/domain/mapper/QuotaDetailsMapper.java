@@ -10,7 +10,6 @@ import org.mapstruct.Mapping;
 public interface QuotaDetailsMapper {
 
     @Mapping(target = "planName", source = "plan.name")
-    @Mapping(target = "storageGb", source = "storageGbGranted")
     @Mapping(target = "aiQuestions", source = "aiQuestionsGranted")
     @Mapping(target = "flashcardLimit", source = "flashcardLimitGranted")
     @Mapping(target = "questionLimit", source = "questionLimitGranted")
@@ -25,7 +24,6 @@ public interface QuotaDetailsMapper {
     QuotaDetails toQuotaDetails(Subscription subscription);
 
     @Mapping(target = "planName", constant = "FREE")
-    @Mapping(target = "storageGb", source = "storageGb")
     @Mapping(target = "aiQuestions", source = "aiQuestions")
     @Mapping(target = "flashcardLimit", source = "flashcardLimit")
     @Mapping(target = "questionLimit", source = "questionLimit")

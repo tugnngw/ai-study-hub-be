@@ -3,19 +3,15 @@ package com.tugnw.aistudy.service.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tugnw.aistudy.domain.dto.payment.*;
-import com.tugnw.aistudy.domain.dto.subscription.UpgradePreviewResponse;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.PaymentTransaction;
-import com.tugnw.aistudy.domain.entity.Subscription;
 import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.enums.PaymentStatus;
 import com.tugnw.aistudy.domain.enums.Plan;
-import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
 import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.PaymentPlanRepository;
 import com.tugnw.aistudy.repository.PaymentTransactionRepository;
-import com.tugnw.aistudy.repository.SubscriptionRepository;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.PaymentService;
 import com.tugnw.aistudy.service.SubscriptionService;
@@ -31,9 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -46,7 +44,6 @@ public class PaymentServiceImpl implements PaymentService {
     private final PayOSClient payOSClient;
     private final ObjectMapper objectMapper;
     private final ActivityLogService activityLogService;
-    private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
 
     private static final AtomicLong orderCodeSeq = new AtomicLong(
@@ -59,70 +56,25 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public UpgradePreviewResponse previewUpgrade(UUID userId, UUID planId) {
-        PaymentPlan newPlan = planRepo.findById(planId)
-                .orElseThrow(() -> new IllegalArgumentException("Plan not found"));
-        
-        if (!Boolean.TRUE.equals(newPlan.getIsActive())) {
-            throw new IllegalArgumentException("This plan is not available");
-        }
-        
-        List<Subscription> activeSubs = subscriptionRepository
-                .findByAccountIdAndStatus(userId, SubscriptionStatus.ACTIVE);
-        
-        long finalAmount = newPlan.getPrice();
-        long remainingDays = 0;
-        long remainingCredit = 0;
-        String currentPlanName = "N/A";
-        
-        if (!activeSubs.isEmpty()) {
-            Subscription activeSub = activeSubs.get(0);
-            PaymentPlan currentPlan = activeSub.getPlan();
-            currentPlanName = currentPlan.getName();
-            
-            if (newPlan.isDowngradeFrom(currentPlan)) {
-                throw new IllegalArgumentException(
-                    "Cannot downgrade from '" + currentPlan.getName() + 
-                    "' to '" + newPlan.getName() + "'"
-                );
-            }
-            
-            Instant now = Instant.now();
-            if (activeSub.getEndDate() != null && activeSub.getEndDate().isAfter(now)) {
-                long remainingMillis = activeSub.getEndDate().toEpochMilli() - now.toEpochMilli();
-                remainingDays = Math.max(0, (remainingMillis + 86_399_999) / 86_400_000);
-                
-                if (remainingDays > 0) {
-                    int currentDuration = currentPlan.getDurationDays() != null && currentPlan.getDurationDays() > 0 
-                            ? currentPlan.getDurationDays() : 30;
-                    remainingCredit = Math.round(((double) currentPlan.getPrice() / currentDuration) * remainingDays);
-                    finalAmount = Math.max(0, newPlan.getPrice() - remainingCredit);
-                }
-            }
-        }
-        
-        return UpgradePreviewResponse.builder()
-                .currentPlanName(currentPlanName)
-                .newPlanName(newPlan.getName())
-                .newPlanPrice(newPlan.getPrice())
-                .remainingDays(remainingDays)
-                .remainingCredit(remainingCredit)
-                .amountToPay(finalAmount)
-                .build();
-    }
-
-    @Override
     @Transactional
     public PaymentStatusResponse getPaymentStatus(Long orderCode) {
+        // Read path: không lock. Chỉ khi cần update EXPIRED → lock + re-check
+        // (tránh đè status PAID mà webhook vừa set).
         PaymentTransaction tx = txRepo.findByPayosOrderCode(orderCode)
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + orderCode));
 
         if (tx.getStatus() == PaymentStatus.PENDING
                 && tx.getExpiredAt() != null
                 && tx.getExpiredAt().isBefore(Instant.now())) {
-            tx.setStatus(PaymentStatus.EXPIRED);
-            tx = txRepo.save(tx);
+            // Lock-on-write: serialize với webhook/verify trên cùng transaction.
+            tx = txRepo.findByPayosOrderCodeForUpdate(orderCode)
+                    .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + orderCode));
+            if (tx.getStatus() == PaymentStatus.PENDING
+                    && tx.getExpiredAt() != null
+                    && tx.getExpiredAt().isBefore(Instant.now())) {
+                tx.setStatus(PaymentStatus.EXPIRED);
+                tx = txRepo.save(tx);
+            }
         }
         
         return PaymentStatusResponse.builder()
@@ -146,7 +98,7 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("This plan is not available for purchase");
         }
 
-        long finalAmount = calculateUpgradeAmount(userId, plan);
+        long finalAmount = subscriptionService.calculateUpgradePreview(userId, planId).getAmountToPay();
 
         log.info("Creating payment for user {}: plan={}, amount={}", userId, plan.getName(), finalAmount);
 
@@ -204,7 +156,9 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new IllegalArgumentException("Order code is required");
             }
 
-            PaymentTransaction tx = txRepo.findByPayosOrderCode(orderCode)
+            // Idempotency: lock row từ SELECT → 2 webhook cùng orderCode serialize.
+            // Luồng sau thấy PAID → skip. Mọi write-path dùng chung method này.
+            PaymentTransaction tx = txRepo.findByPayosOrderCodeForUpdate(orderCode)
                     .orElseThrow(() -> {
                         log.error("Transaction not found for orderCode: {}", orderCode);
                         return new IllegalArgumentException("Transaction not found: " + orderCode);
@@ -215,6 +169,8 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new IllegalArgumentException("Amount mismatch in webhook");
             }
 
+            // PAID là terminal — sau lock, nếu đã PAID thì không xử lý lại
+            // (không tạo subscription/quota/activity lần 2).
             if (tx.getStatus() == PaymentStatus.PAID) {
                 log.info("Transaction {} already paid, skipping", orderCode);
                 return;
@@ -265,41 +221,6 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
-    private long calculateUpgradeAmount(UUID userId, PaymentPlan newPlan) {
-        List<Subscription> activeSubs = subscriptionRepository
-                .findByAccountIdAndStatus(userId, SubscriptionStatus.ACTIVE);
-
-        if (activeSubs.isEmpty()) {
-            return newPlan.getPrice();
-        }
-
-        Subscription activeSub = activeSubs.get(0);
-        PaymentPlan currentPlan = activeSub.getPlan();
-
-        if (newPlan.isDowngradeFrom(currentPlan)) {
-            throw new IllegalArgumentException("Cannot downgrade plan");
-        }
-
-        Instant now = Instant.now();
-
-        if (activeSub.getEndDate() == null || !activeSub.getEndDate().isAfter(now)) {
-            return newPlan.getPrice();
-        }
-
-        long remainingMillis = activeSub.getEndDate().toEpochMilli() - now.toEpochMilli();
-        int remainingDays = (int) Math.ceil((double) remainingMillis / 86_400_000);
-
-        if (remainingDays <= 0) {
-            return newPlan.getPrice();
-        }
-
-        int currentDuration = currentPlan.getDurationDays() != null && currentPlan.getDurationDays() > 0
-                ? currentPlan.getDurationDays() : 30;
-        long remainingCredit = Math.round(((double) currentPlan.getPrice() / currentDuration) * remainingDays);
-
-        return Math.max(0, newPlan.getPrice() - remainingCredit);
-    }
-    
     @Transactional
     protected void updateUserQuota(PaymentTransaction tx) {
         try {
@@ -311,10 +232,7 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new IllegalArgumentException("Payment plan is null");
 
             Plan newPlan = mapPaymentPlanToAccountPlan(plan.getName());
-            account.setPlan(newPlan);
-
-            if (plan.getStorageGb() != null)
-                account.setStorageGb(plan.getStorageGb());
+            account.setPlan(newPlan); // account.plan chỉ để hiển thị — storage limit không còn ở Account
 
             Account savedAccount = accountRepo.save(account);
 
@@ -365,13 +283,13 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public Page<AdminTransactionResponse> getAllTransactions(Pageable pageable) {
         Page<PaymentTransaction> transactions = txRepo.findAllByOrderByCreatedAtDesc(pageable);
-        return transactions.map(this::convertToAdminResponse);
+        return transactions.map(tx -> convertToAdminResponse(tx, loadAccountMap(transactions.getContent())));
     }
 
     @Override
     public Page<AdminTransactionResponse> getTransactionsByStatus(PaymentStatus status, Pageable pageable) {
         Page<PaymentTransaction> transactions = txRepo.findByStatusOrderByCreatedAtDesc(status, pageable);
-        return transactions.map(this::convertToAdminResponse);
+        return transactions.map(tx -> convertToAdminResponse(tx, loadAccountMap(transactions.getContent())));
     }
 
     @Override
@@ -382,7 +300,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public void verifyAndProcessPayment(Long orderCode) {
-        PaymentTransaction tx = txRepo.findByPayosOrderCode(orderCode)
+        // Cùng cơ chế lock như webhook — manual verify + webhook không thể xử lý 2 lần.
+        PaymentTransaction tx = txRepo.findByPayosOrderCodeForUpdate(orderCode)
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found for orderCode: " + orderCode));
 
         if (tx.getStatus() == PaymentStatus.PAID) return;
@@ -398,21 +317,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public Page<AdminTransactionResponse> getTransactionsByAccountId(UUID accountId, Pageable pageable) {
         Page<PaymentTransaction> transactions = txRepo.findByAccountIdOrderByCreatedAtDesc(accountId, pageable);
-        return transactions.map(this::convertToAdminResponse);
-    }
-
-    @Override
-    public RevenueStatsResponse getRevenueStats() {
-        long totalPaid = txRepo.countByStatus(PaymentStatus.PAID);
-        long totalFailed = txRepo.countByStatus(PaymentStatus.FAILED);
-        Long totalRevenue = txRepo.sumAmountByStatus(PaymentStatus.PAID);
-        
-        return RevenueStatsResponse.builder()
-                .totalRevenue(totalRevenue != null ? totalRevenue : 0)
-                .totalPaidTransactions(totalPaid)
-                .totalFailedTransactions(totalFailed)
-                .successRate(totalPaid + totalFailed > 0 ? (double) totalPaid * 100 / (totalPaid + totalFailed) : 0)
-                .build();
+        return transactions.map(tx -> convertToAdminResponse(tx, loadAccountMap(transactions.getContent())));
     }
 
     private PaymentTransactionResponse convertToUserResponse(PaymentTransaction tx) {
@@ -436,9 +341,16 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
     }
 
-    private AdminTransactionResponse convertToAdminResponse(PaymentTransaction tx) {
-        Account account = accountRepo.findById(tx.getAccountId())
-                .orElse(null);
+    /** Preload toàn bộ account của 1 page — 1 query findAllById thay N findById (chống N+1). */
+    private Map<UUID, Account> loadAccountMap(List<PaymentTransaction> txs) {
+        List<UUID> ids = txs.stream().map(PaymentTransaction::getAccountId).distinct().toList();
+        if (ids.isEmpty()) return Map.of();
+        return accountRepo.findAllById(ids).stream()
+                .collect(Collectors.toMap(Account::getId, a -> a));
+    }
+
+    private AdminTransactionResponse convertToAdminResponse(PaymentTransaction tx, Map<UUID, Account> accountMap) {
+        Account account = accountMap.get(tx.getAccountId());
 
         PaymentStatus currentStatus = tx.getStatus();
         if (currentStatus == PaymentStatus.PENDING && tx.getExpiredAt() != null && tx.getExpiredAt().isBefore(Instant.now())) {

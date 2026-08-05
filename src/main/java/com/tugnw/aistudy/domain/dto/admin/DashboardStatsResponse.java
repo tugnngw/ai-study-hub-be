@@ -19,4 +19,9 @@ public class DashboardStatsResponse {
     private Long totalDownloads;
     private Long downloadsLastWeek;
     private Long downloadsPrevWeek;
+
+    // Revenue — backend tổng hợp, frontend chỉ render
+    private Long totalRevenue;
+    private Long totalPaidTransactions;
+    private Long totalPremiumUsers;
 }

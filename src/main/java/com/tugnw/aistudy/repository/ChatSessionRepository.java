@@ -2,6 +2,7 @@ package com.tugnw.aistudy.repository;
 
 import com.tugnw.aistudy.domain.entity.ChatSession;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,4 +18,9 @@ public interface ChatSessionRepository extends JpaRepository<ChatSession, UUID> 
     List<ChatSession> findByDocumentId(UUID documentId);
 
     void deleteByDocumentId(UUID documentId);
+
+    /** Batch chat cleanup — permanent delete folder (1 query IN). */
+    @Modifying
+    @Query("DELETE FROM ChatSession cs WHERE cs.documentId IN :documentIds")
+    void deleteByDocumentIdIn(@Param("documentIds") List<UUID> documentIds);
 }

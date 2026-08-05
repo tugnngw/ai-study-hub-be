@@ -6,23 +6,19 @@ import com.tugnw.aistudy.domain.dto.auth.LoginRequest;
 import com.tugnw.aistudy.domain.dto.auth.RefreshTokenRequest;
 import com.tugnw.aistudy.domain.dto.auth.RegisterRequest;
 import com.tugnw.aistudy.domain.entity.Account;
-import com.tugnw.aistudy.domain.entity.PaymentPlan;
-import com.tugnw.aistudy.domain.entity.Subscription;
 import com.tugnw.aistudy.domain.enums.AccountRole;
 import com.tugnw.aistudy.domain.enums.AccountStatus;
 import com.tugnw.aistudy.domain.enums.ActivityType;
-import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
 import com.tugnw.aistudy.exception.EmailNotVerifiedException;
 import com.tugnw.aistudy.exception.InvalidCredentialsException;
 import com.tugnw.aistudy.exception.InvalidTokenException;
 import com.tugnw.aistudy.domain.mapper.AccountMapper;
 import com.tugnw.aistudy.repository.AccountRepository;
-import com.tugnw.aistudy.repository.PaymentPlanRepository;
-import com.tugnw.aistudy.repository.SubscriptionRepository;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.security.JwtTokenProvider;
 import com.tugnw.aistudy.service.ActivityLogService;
 import com.tugnw.aistudy.service.AuthService;
+import com.tugnw.aistudy.service.SubscriptionService;
 import com.tugnw.aistudy.service.VerificationService;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -47,9 +43,8 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final AccountMapper accountMapper;
     private final ActivityLogService activityLogService;
-    private final PaymentPlanRepository paymentPlanRepository;
-    private final SubscriptionRepository subscriptionRepository;
     private final VerificationService verificationService;
+    private final SubscriptionService subscriptionService;
 
     @Value("${app.verification.auto-send-on-register:true}")
     private boolean autoSendOnRegister;
@@ -83,8 +78,9 @@ public class AuthServiceImpl implements AuthService {
 
         account = accountRepository.save(account);
 
-        // Create FREE subscription for new user
-        createFreeSubscription(account);
+        // Invariant: account luôn có đúng 1 subscription ACTIVE.
+        // Nơi duy nhất tạo FREE là SubscriptionService.ensureActiveSubscription.
+        subscriptionService.ensureActiveSubscription(account.getId());
 
         // Log activity for user registration
         activityLogService.logActivity(
@@ -132,6 +128,9 @@ public class AuthServiceImpl implements AuthService {
         // Update last login time
         account.setLastLoginAt(Instant.now());
         accountRepository.save(account);
+
+        // Self-heal account legacy — đảm bảo luôn có subscription ACTIVE
+        subscriptionService.ensureActiveSubscription(account.getId());
 
         // Generate JWT tokens
         Authentication authentication = new UsernamePasswordAuthenticationToken(
@@ -196,31 +195,4 @@ public class AuthServiceImpl implements AuthService {
                 account.isEmailVerified());
     }
 
-    private void createFreeSubscription(Account account) {
-        PaymentPlan freePlan = paymentPlanRepository.findByIsActiveTrue().stream()
-                .filter(plan -> "FREE".equalsIgnoreCase(plan.getName()))
-                .findFirst()
-                .orElse(null);
-
-        if (freePlan == null) return;
-
-        Subscription subscription = Subscription.builder()
-                .accountId(account.getId())
-                .plan(freePlan)
-                .status(SubscriptionStatus.ACTIVE)
-                .startDate(Instant.now())
-                .endDate(null)
-                .pricePaid(0L)
-                .storageGbGranted(freePlan.getStorageGb())
-                .aiQuestionsGranted(freePlan.getAiQuestions())
-                .flashcardLimitGranted(freePlan.getFlashcardLimit())
-                .questionLimitGranted(freePlan.getQuestionLimit())
-                .summaryLimitGranted(freePlan.getSummaryLimit())
-                .chatLimitGranted(freePlan.getChatLimit())
-                .tierGranted(freePlan.getTier())
-                .autoRenew(false)
-                .build();
-
-        subscriptionRepository.save(subscription);
-    }
 }

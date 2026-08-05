@@ -50,10 +50,4 @@ public class AdminPaymentController {
         Page<AdminTransactionResponse> transactions = paymentService.getTransactionsByAccountId(accountId, pageable);
         return ApiResponse.success(transactions);
     }
-
-    @GetMapping("/dashboard/revenue")
-    @Operation(summary = "Get revenue statistics")
-    public ApiResponse<com.tugnw.aistudy.domain.dto.payment.RevenueStatsResponse> getRevenueStats() {
-        return ApiResponse.success(paymentService.getRevenueStats());
-    }
 }

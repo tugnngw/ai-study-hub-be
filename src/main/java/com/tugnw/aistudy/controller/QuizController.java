@@ -3,6 +3,8 @@ package com.tugnw.aistudy.controller;
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.domain.dto.quiz.QuizResponse;
 import com.tugnw.aistudy.domain.dto.quiz.GenerateQuizRequest;
+import com.tugnw.aistudy.domain.dto.quiz.QuizSubmitRequest;
+import com.tugnw.aistudy.domain.dto.quiz.QuizSubmitResponse;
 import com.tugnw.aistudy.security.CustomUserDetails;
 import com.tugnw.aistudy.service.QuizService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,5 +47,13 @@ public class QuizController {
             Authentication authentication) {
         List<QuizResponse> responses = quizService.getQuizByDocument(documentId, userId(authentication));
         return ApiResponse.success(responses);
+    }
+
+    @PostMapping("/{quizId}/submit")
+    @Operation(summary = "Submit quiz answers", description = "Backend grades answers against stored correctAnswer. Frontend does NOT grade.")
+    public ApiResponse<QuizSubmitResponse> submitQuiz(
+            @PathVariable UUID quizId,
+            @Valid @RequestBody QuizSubmitRequest request) {
+        return ApiResponse.success(quizService.submitQuiz(quizId, request));
     }
 }

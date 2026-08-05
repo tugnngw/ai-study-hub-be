@@ -1,19 +1,23 @@
 package com.tugnw.aistudy.service.impl;
 
 import com.tugnw.aistudy.domain.dto.quota.QuotaDetails;
+import com.tugnw.aistudy.domain.dto.quota.StorageQuota;
 import com.tugnw.aistudy.domain.entity.PaymentPlan;
 import com.tugnw.aistudy.domain.entity.Subscription;
 import com.tugnw.aistudy.domain.enums.FeatureType;
 import com.tugnw.aistudy.domain.enums.SubscriptionStatus;
 import com.tugnw.aistudy.domain.mapper.QuotaDetailsMapper;
-import com.tugnw.aistudy.repository.*;
+import com.tugnw.aistudy.repository.ChatMessageRepository;
+import com.tugnw.aistudy.repository.ChatSessionRepository;
+import com.tugnw.aistudy.repository.DocumentRepository;
+import com.tugnw.aistudy.repository.SubscriptionRepository;
 import com.tugnw.aistudy.service.QuotaService;
+import com.tugnw.aistudy.service.StorageQuotaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,25 +28,25 @@ public class QuotaServiceImpl implements QuotaService {
 
     private final DocumentRepository documentRepository;
     private final SubscriptionRepository subscriptionRepository;
-    private final PaymentPlanRepository paymentPlanRepository;
     private final ChatSessionRepository chatSessionRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final QuotaDetailsMapper quotaDetailsMapper;
+    private final StorageQuotaService storageQuotaService;
 
     private record ActivePlan(Subscription subscription, PaymentPlan plan, String planName) {}
 
+    /**
+     * Chỉ đọc subscription ACTIVE hợp lệ — KHÔNG fallback FREE.
+     * Invariant "luôn có 1 ACTIVE" do SubscriptionService đảm bảo.
+     */
     private ActivePlan resolvePlan(UUID accountId) {
         Optional<Subscription> subOpt = subscriptionRepository
                 .findFirstByAccountIdAndStatusOrderByEndDateDesc(accountId, SubscriptionStatus.ACTIVE);
-        if (subOpt.isEmpty()) {
-            List<PaymentPlan> freePlans = paymentPlanRepository.findByIsActiveTrue().stream()
-                    .filter(p -> "FREE".equalsIgnoreCase(p.getName()))
-                    .toList();
-            if (freePlans.isEmpty()) return null;
-            return new ActivePlan(null, freePlans.get(0), "FREE");
+        Subscription sub = subOpt.orElse(null);
+        if (sub != null && sub.getEndDate() != null && sub.getEndDate().isBefore(Instant.now())) {
+            sub = null;
         }
-        Subscription sub = subOpt.get();
-        if (sub.getEndDate() != null && sub.getEndDate().isBefore(Instant.now())) return null;
+        if (sub == null) return null;
         return new ActivePlan(sub, null, sub.getPlan() != null ? sub.getPlan().getName() : "N/A");
     }
 
@@ -96,6 +100,13 @@ public class QuotaServiceImpl implements QuotaService {
                 case CHAT -> d.setChatRemaining(getRemainingQuota(accountId, ft.key()));
             }
         }
+
+        // Storage — StorageQuotaService là nơi duy nhất tính.
+        StorageQuota sq = storageQuotaService.getQuota(accountId);
+        d.setStorageUsedBytes(sq.storageUsedBytes());
+        d.setStorageLimitBytes(sq.storageLimitBytes());
+        d.setStorageRemainingBytes(sq.storageRemainingBytes());
+        d.setOverQuota(sq.overQuota());
         return d;
     }
 }

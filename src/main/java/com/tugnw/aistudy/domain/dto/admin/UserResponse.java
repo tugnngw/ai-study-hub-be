@@ -30,5 +30,5 @@ public class UserResponse {
     private Instant updatedAt;
     private Instant deletedAt;
     private Plan plan;
-    private Double storageGb;
+    private Long usedStorageBytes;
 }
