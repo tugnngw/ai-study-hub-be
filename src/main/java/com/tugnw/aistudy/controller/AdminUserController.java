@@ -1,5 +1,6 @@
 package com.tugnw.aistudy.controller;
 
+import com.tugnw.aistudy.domain.dto.admin.AdminResetPasswordRequest;
 import com.tugnw.aistudy.domain.dto.admin.UserResponse;
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.service.AdminUserService;
@@ -9,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -78,5 +80,14 @@ public class AdminUserController {
     @Operation(summary = "Toggle user status (lock/unlock)")
     public ApiResponse<UserResponse> toggleStatus(@PathVariable UUID id) {
         return ApiResponse.success(adminUserService.toggleStatus(id));
+    }
+
+    @PatchMapping("/{id}/reset-password")
+    @Operation(summary = "Reset a user's password (admin)")
+    public ApiResponse<Void> resetPassword(
+            @PathVariable UUID id,
+            @Valid @RequestBody AdminResetPasswordRequest request) {
+        adminUserService.resetPassword(id, request.newPassword());
+        return ApiResponse.success("Password reset successfully", null);
     }
 }

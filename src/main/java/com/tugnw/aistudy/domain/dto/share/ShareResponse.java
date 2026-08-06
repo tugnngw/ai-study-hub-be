@@ -22,7 +22,11 @@ public record ShareResponse(
         String documentTitle,
         String folderName,
         String cloudinaryUrl,
-        String documentStatus
+        String documentStatus,
+        Long documentFileSize,
+        Long folderSizeBytes,
+        String subjectName,
+        String semesterName
 ) {
     public record ShareRecipient(
             UUID accountId,

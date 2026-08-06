@@ -1,6 +1,7 @@
 package com.tugnw.aistudy.service.impl;
 
 import com.tugnw.aistudy.domain.dto.account.AccountMeResponse;
+import com.tugnw.aistudy.domain.dto.account.ChangePasswordRequest;
 import com.tugnw.aistudy.domain.dto.account.UpdateProfileRequest;
 import com.tugnw.aistudy.domain.entity.Account;
 import com.tugnw.aistudy.domain.mapper.AccountMapper;
@@ -12,6 +13,7 @@ import com.tugnw.aistudy.service.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,7 @@ public class AccountServiceImpl implements AccountService {
     private final VerificationService verificationService;
     private final AccountMapper accountMapper;
     private final SubscriptionService subscriptionService;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -77,6 +80,28 @@ public class AccountServiceImpl implements AccountService {
 
         accountRepository.save(account);
         return accountMapper.toAccountMeResponse(account);
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(Authentication authentication, ChangePasswordRequest request) {
+        Account account = loadAccount(authentication);
+
+        // currentPassword phải đúng
+        if (!passwordEncoder.matches(request.currentPassword(), account.getPasswordHash()))
+            throw new InvalidCredentialsException("Mật khẩu hiện tại không đúng");
+
+        // confirmPassword phải khớp
+        if (!request.newPassword().equals(request.confirmPassword()))
+            throw new IllegalArgumentException("Mật khẩu xác nhận không khớp");
+
+        // newPassword phải thay đổi
+        if (passwordEncoder.matches(request.newPassword(), account.getPasswordHash()))
+            throw new IllegalArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại");
+
+        // Lưu hash mới (policy độ dài đã được validate ở DTO @Size)
+        account.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        accountRepository.save(account);
     }
 
     // ============ HELPER METHODS ============

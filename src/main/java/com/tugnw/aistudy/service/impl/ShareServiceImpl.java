@@ -392,6 +392,10 @@ public class ShareServiceImpl implements ShareService {
                 documentTitle,
                 folderName,
                 cloudinaryUrl,
+                null,
+                null,
+                null,
+                null,
                 null
         );
     }
@@ -437,9 +441,43 @@ public class ShareServiceImpl implements ShareService {
     private ShareResponse mapToResponse(Share share) {
         String shareLink = frontendUrl + "/shared/" + share.getShareToken();
         String documentTitle = share.getDocument() != null ? share.getDocument().getTitle() : null;
-        String folderName = share.getFolder() != null ? share.getFolder().getName() : null;
+        String folderName = null;
+        if (share.getFolder() != null) {
+            folderName = share.getFolder().getName();
+        } else if (share.getDocument() != null && share.getDocument().getFolderId() != null) {
+            // Doc share: hiển thị tên folder chứa document
+            Folder docFolder = folderRepository.findById(share.getDocument().getFolderId()).orElse(null);
+            folderName = docFolder != null ? docFolder.getName() : null;
+        }
         String cloudinaryUrl = share.getDocument() != null ? share.getDocument().getCloudinaryUrl() : null;
         String documentStatus = share.getDocument() != null ? share.getDocument().getStatus() : null;
+
+        // Metadata hiển thị: size + semester/subject (từ entity — không thêm query)
+        Long documentFileSize = share.getDocument() != null
+                ? share.getDocument().getFileSize() : null;
+        Long folderSizeBytes = null;
+        if (share.getFolder() != null) {
+            List<Object[]> agg = documentRepository.countAndSizeByFolderId(share.getFolder().getId());
+            if (!agg.isEmpty() && agg.get(0)[1] != null)
+                folderSizeBytes = (Long) agg.get(0)[1];
+        }
+        String subjectName = null;
+        String semesterName = null;
+        if (share.getFolder() != null && share.getFolder().getSubject() != null) {
+            subjectName = share.getFolder().getSubject().getName();
+            if (share.getFolder().getSubject().getSemester() != null)
+                semesterName = share.getFolder().getSubject().getSemester().getName();
+        } else if (share.getDocument() != null && share.getDocument().getFolderId() != null) {
+            // Fallback: tìm folder của document nếu có
+            Folder folder = share.getDocument().getFolderId() != null
+                    ? folderRepository.findById(share.getDocument().getFolderId()).orElse(null)
+                    : null;
+            if (folder != null && folder.getSubject() != null) {
+                subjectName = folder.getSubject().getName();
+                if (folder.getSubject().getSemester() != null)
+                    semesterName = folder.getSubject().getSemester().getName();
+            }
+        }
         return new ShareResponse(
                 share.getId(),
                 share.getFolder() != null ? share.getFolder().getId() : null,
@@ -458,7 +496,11 @@ public class ShareServiceImpl implements ShareService {
                 documentTitle,
                 folderName,
                 cloudinaryUrl,
-                documentStatus
+                documentStatus,
+                documentFileSize,
+                folderSizeBytes,
+                subjectName,
+                semesterName
         );
     }
 }

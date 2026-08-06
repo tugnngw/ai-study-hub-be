@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     private final AccountRepository accountRepository;
     private final AccountMapper accountMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public Page<UserResponse> getAllUsers(Pageable pageable) {
@@ -39,6 +41,15 @@ public class AdminUserServiceImpl implements AdminUserService {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
         return accountMapper.toUserResponse(account);
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(UUID id, String newPassword) {
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+        account.setPasswordHash(passwordEncoder.encode(newPassword));
+        accountRepository.save(account);
     }
 
     @Override

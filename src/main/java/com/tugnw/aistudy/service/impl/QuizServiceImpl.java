@@ -150,13 +150,19 @@ public class QuizServiceImpl implements QuizService {
                 .collect(Collectors.toMap(Question::getId, q -> q));
 
         int correctCount = 0;
+        List<QuizSubmitResponse.QuestionResult> questionResults = new ArrayList<>();
         for (QuizSubmitRequest.Answer answer : request.getAnswers()) {
             Question question = byId.get(UUID.fromString(answer.getQuestionId()));
             if (question == null) continue; // question không thuộc quiz — bỏ qua
-            if (answer.getSelectedAnswer() != null
-                    && answer.getSelectedAnswer().trim().equalsIgnoreCase(question.getCorrectAnswer())) {
-                correctCount++;
-            }
+            boolean correct = answer.getSelectedAnswer() != null
+                    && answer.getSelectedAnswer().trim().equalsIgnoreCase(question.getCorrectAnswer());
+            if (correct) correctCount++;
+            questionResults.add(QuizSubmitResponse.QuestionResult.builder()
+                    .questionId(question.getId().toString())
+                    .selectedAnswer(answer.getSelectedAnswer())
+                    .correctAnswer(question.getCorrectAnswer())
+                    .correct(correct)
+                    .build());
         }
 
         int total = questions.size();
@@ -166,6 +172,7 @@ public class QuizServiceImpl implements QuizService {
                 .correctCount(correctCount)
                 .totalQuestions(total)
                 .percentage(percentage)
+                .questionResults(questionResults)
                 .build();
     }
 

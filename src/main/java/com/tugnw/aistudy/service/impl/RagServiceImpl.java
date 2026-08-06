@@ -370,8 +370,12 @@ public class RagServiceImpl implements RagService {
 
             if (req.getSessionId() != null) {
                 session = chatSessionRepository.findById(req.getSessionId()).orElse(null);
-                if (session == null)
+                if (session == null) {
                     session = createSession(accountId, req.getDocumentId());
+                } else if (!session.getAccountId().equals(accountId)) {
+                    // SECURITY: session thuộc account khác — không append, chặn luôn.
+                    throw new AccessDeniedException("You do not have permission to use this chat session.");
+                }
 
             } else {
                 session = createSession(accountId, req.getDocumentId());

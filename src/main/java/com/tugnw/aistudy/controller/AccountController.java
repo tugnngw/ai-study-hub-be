@@ -1,6 +1,7 @@
 package com.tugnw.aistudy.controller;
 
 import com.tugnw.aistudy.domain.dto.account.AccountMeResponse;
+import com.tugnw.aistudy.domain.dto.account.ChangePasswordRequest;
 import com.tugnw.aistudy.domain.dto.account.UpdateProfileRequest;
 import com.tugnw.aistudy.domain.dto.common.ApiResponse;
 import com.tugnw.aistudy.service.AccountService;
@@ -40,5 +41,14 @@ public class AccountController {
             @Valid @RequestBody UpdateProfileRequest request) {
         AccountMeResponse response = accountService.updateProfile(authentication, request);
         return ApiResponse.success("Profile updated successfully", response);
+    }
+
+    @PutMapping("/password")
+    @Operation(summary = "Change password", description = "Change the current authenticated user's password. Requires current password.")
+    public ApiResponse<Void> changePassword(
+            Authentication authentication,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        accountService.changePassword(authentication, request);
+        return ApiResponse.success("Password changed successfully", null);
     }
 }
