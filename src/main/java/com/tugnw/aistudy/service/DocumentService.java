@@ -3,6 +3,7 @@ package com.tugnw.aistudy.service;
 import com.tugnw.aistudy.domain.dto.document.DocumentResponse;
 import com.tugnw.aistudy.domain.dto.document.DocumentUploadRequest;
 import com.tugnw.aistudy.domain.dto.document.DocumentUpdateRequest;
+import com.tugnw.aistudy.domain.dto.document.UploadConfigResponse;
 import com.tugnw.aistudy.domain.entity.Document;
 
 import java.util.List;

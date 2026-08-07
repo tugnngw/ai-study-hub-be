@@ -40,7 +40,7 @@ public class DocumentController {
     public ApiResponse<UploadConfigResponse> getUploadConfig() {
         return ApiResponse.success(UploadConfigResponse.builder()
                 .allowedExtensions(List.of(".pdf", ".txt"))
-                .maxFileSize(50L * 1024 * 1024)
+                .maxFileSize(5L * 1024 * 1024)
                 .build());
     }
 

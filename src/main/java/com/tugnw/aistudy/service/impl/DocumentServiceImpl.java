@@ -54,12 +54,12 @@ public class DocumentServiceImpl implements DocumentService {
     public List<DocumentResponse> uploadDocuments(UUID ownerId, DocumentUploadRequest request) {
         List<DocumentResponse> responses = new ArrayList<>();
 
-        long MAX_FILE_SIZE = 50 * 1024 * 1024L; // 50MB
+        long MAX_FILE_SIZE = 5 * 1024 * 1024L; // 5MB
         long totalIncoming = 0;
         for (MultipartFile file : request.getFiles()) {
             totalIncoming += file.getSize();
             if (file.getSize() > MAX_FILE_SIZE)
-                throw new RuntimeException("File size exceeds limit (50MB)");
+                throw new RuntimeException("File size exceeds limit (5MB)");
         }
 
         // Storage quota — reserve lock account + cộng used ngay (atomic theo account,
