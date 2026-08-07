@@ -76,7 +76,6 @@ class FolderPermanentDeleteStorageTest {
                 .endDate(null)
                 .pricePaid(0L)
                 .storageGbGranted(1.0)
-                .aiQuestionsGranted(0)
                 .flashcardLimitGranted(0)
                 .questionLimitGranted(0)
                 .summaryLimitGranted(0)

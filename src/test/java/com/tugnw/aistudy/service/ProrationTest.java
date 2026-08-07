@@ -78,7 +78,6 @@ class ProrationTest {
                 .pricePaid(pricePaid)
                 .storageGbGranted(1.0)
                 .maxStorageGb(1.0)
-                .aiQuestionsGranted(0)
                 .flashcardLimitGranted(0)
                 .questionLimitGranted(0)
                 .summaryLimitGranted(0)

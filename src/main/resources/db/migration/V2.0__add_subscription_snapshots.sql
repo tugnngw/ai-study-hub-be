@@ -6,8 +6,7 @@
 --   time so that existing subscribers keep their entitled
 --   limits even after the plan is later modified.
 --
---   Fields already snapshotted: price_paid, storage_gb_granted,
---   ai_questions_granted.
+--   Fields already snapshotted: price_paid, storage_gb_granted.
 --
 --   New snapshot columns:
 --     flashcard_limit_granted

@@ -28,9 +28,6 @@ public class PaymentPlan {
     @Column(name = "storage_gb")
     private Double storageGb;
 
-    @Column(name = "ai_questions")
-    private Integer aiQuestions;
-
     @Column(nullable = false)
     private Long price;
 

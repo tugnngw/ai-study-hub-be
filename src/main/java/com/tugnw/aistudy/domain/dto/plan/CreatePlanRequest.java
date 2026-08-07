@@ -36,8 +36,6 @@ public class CreatePlanRequest {
 
     private Double storageGb;
 
-    private Integer aiQuestions;
-
     private List<String> features;
 
     private Boolean isPopular;

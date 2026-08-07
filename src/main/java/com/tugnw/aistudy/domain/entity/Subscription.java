@@ -56,9 +56,6 @@ public class Subscription {
     @Column(name = "max_storage_gb", nullable = false)
     private Double maxStorageGb = 1.0;
 
-    @Column(name = "ai_questions_granted", nullable = false)
-    private Integer aiQuestionsGranted = 2;
-
     @Column(name = "flashcard_limit_granted", nullable = false)
     @Builder.Default
     private Integer flashcardLimitGranted = 0;

@@ -13,7 +13,6 @@ import java.time.Instant;
 @AllArgsConstructor
 public class QuotaDetails {
     private String planName;
-    private Integer aiQuestions;
     private Integer flashcardLimit;
     private Integer questionLimit;
     private Integer summaryLimit;

@@ -21,7 +21,6 @@ public class SubscriptionResponse {
     private Instant endDate;
     private Long pricePaid;
     private Double storageGbGranted;
-    private Integer aiQuestionsGranted;
     private Integer flashcardLimitGranted;
     private Integer questionLimitGranted;
     private Integer summaryLimitGranted;

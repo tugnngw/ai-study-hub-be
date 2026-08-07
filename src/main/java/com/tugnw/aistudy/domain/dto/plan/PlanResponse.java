@@ -20,7 +20,6 @@ public class PlanResponse {
     private Long price;
     private Integer durationDays;
     private Double storageGb;
-    private Integer aiQuestions;
     private List<String> features;
     private Boolean isPopular;
     private Integer displayOrder;

@@ -226,7 +226,6 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .pricePaid(plan.getPrice())
                 .storageGbGranted(plan.getStorageGb())
                 .maxStorageGb(plan.getStorageGb())
-                .aiQuestionsGranted(plan.getAiQuestions())
                 .flashcardLimitGranted(plan.getFlashcardLimit() != null ? plan.getFlashcardLimit() : 0)
                 .questionLimitGranted(plan.getQuestionLimit() != null ? plan.getQuestionLimit() : 0)
                 .summaryLimitGranted(plan.getSummaryLimit() != null ? plan.getSummaryLimit() : 0)

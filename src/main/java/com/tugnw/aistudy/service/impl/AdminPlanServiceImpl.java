@@ -84,7 +84,6 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                 .price(request.getPrice())
                 .durationDays(request.getDurationDays())
                 .storageGb(request.getStorageGb())
-                .aiQuestions(request.getAiQuestions())
                 .features(serializeFeatures(request.getFeatures()))
                 .isPopular(request.getIsPopular() != null ? request.getIsPopular() : false)
                 .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
@@ -126,7 +125,6 @@ public class AdminPlanServiceImpl implements AdminPlanService {
                     .price(request.getPrice() != null ? request.getPrice() : plan.getPrice())
                     .durationDays(request.getDurationDays() != null ? request.getDurationDays() : plan.getDurationDays())
                     .storageGb(request.getStorageGb() != null ? request.getStorageGb() : plan.getStorageGb())
-                    .aiQuestions(request.getAiQuestions() != null ? request.getAiQuestions() : plan.getAiQuestions())
                     .features(request.getFeatures() != null ? serializeFeatures(request.getFeatures()) : plan.getFeatures())
                     .isPopular(request.getIsPopular() != null ? request.getIsPopular() : plan.getIsPopular())
                     .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : plan.getDisplayOrder())
@@ -155,7 +153,6 @@ public class AdminPlanServiceImpl implements AdminPlanService {
         if (request.getPrice() != null) plan.setPrice(request.getPrice());
         if (request.getDurationDays() != null) plan.setDurationDays(request.getDurationDays());
         if (request.getStorageGb() != null) plan.setStorageGb(request.getStorageGb());
-        if (request.getAiQuestions() != null) plan.setAiQuestions(request.getAiQuestions());
         if (request.getFeatures() != null) plan.setFeatures(serializeFeatures(request.getFeatures()));
         if (request.getIsPopular() != null) plan.setIsPopular(request.getIsPopular());
         if (request.getDisplayOrder() != null) plan.setDisplayOrder(request.getDisplayOrder());
