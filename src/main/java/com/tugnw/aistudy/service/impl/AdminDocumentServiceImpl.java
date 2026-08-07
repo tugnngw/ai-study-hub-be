@@ -5,6 +5,7 @@ import com.tugnw.aistudy.domain.entity.Document;
 import com.tugnw.aistudy.domain.enums.ActivityType;
 import com.tugnw.aistudy.domain.enums.DocumentStatus;
 import com.tugnw.aistudy.domain.mapper.DocumentMapper;
+import com.tugnw.aistudy.repository.AccountRepository;
 import com.tugnw.aistudy.repository.DocumentRepository;
 import com.tugnw.aistudy.repository.FolderRepository;
 import com.tugnw.aistudy.repository.ShareRepository;
@@ -29,12 +30,17 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     private final ActivityLogService activityLogService;
     private final ShareRepository shareRepository;
     private final DocumentMapper documentMapper;
+    private final AccountRepository accountRepository;
 
     @Override
     @Transactional(readOnly = true)
     public List<DocumentResponse> getAllDocuments() {
         return documentRepository.findAllByDeletedAtIsNull().stream()
-                .map(documentMapper::toResponse)
+                .map(doc -> {
+                    DocumentResponse resp = documentMapper.toResponse(doc);
+                    accountRepository.findById(doc.getOwnerId()).ifPresent(acc -> resp.setOwnerName(acc.getUsername()));
+                    return resp;
+                })
                 .toList();
     }
 
@@ -42,7 +48,11 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     @Transactional(readOnly = true)
     public List<DocumentResponse> getDocumentsByStatus(String status) {
         return documentRepository.findByStatusAndDeletedAtIsNull(status).stream()
-                .map(documentMapper::toResponse)
+                .map(doc -> {
+                    DocumentResponse resp = documentMapper.toResponse(doc);
+                    accountRepository.findById(doc.getOwnerId()).ifPresent(acc -> resp.setOwnerName(acc.getUsername()));
+                    return resp;
+                })
                 .toList();
     }
 
@@ -50,7 +60,11 @@ public class AdminDocumentServiceImpl implements AdminDocumentService {
     @Transactional(readOnly = true)
     public List<DocumentResponse> getTrashDocuments() {
         return documentRepository.findByDeletedAtIsNotNullOrderByCreatedAtDesc().stream()
-                .map(documentMapper::toResponse)
+                .map(doc -> {
+                    DocumentResponse resp = documentMapper.toResponse(doc);
+                    accountRepository.findById(doc.getOwnerId()).ifPresent(acc -> resp.setOwnerName(acc.getUsername()));
+                    return resp;
+                })
                 .toList();
     }
 

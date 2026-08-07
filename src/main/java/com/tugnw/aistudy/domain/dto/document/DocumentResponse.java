@@ -3,6 +3,7 @@ package com.tugnw.aistudy.domain.dto.document;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -15,6 +16,9 @@ public class DocumentResponse {
 
     @Schema(description = "Owner user ID", example = "d7ff12cf-...")
     private UUID ownerId;
+
+    @Schema(description = "Owner username", example = "johndoe")
+    private String ownerName;
 
     @Schema(description = "Folder this document belongs to", example = "d7ff12cf-2ad0-4888-a9a1-b12de5d2bc9e")
     private UUID folderId;
@@ -72,4 +76,11 @@ public class DocumentResponse {
 
     @Schema(description = "Reason for rejection if status is REJECT")
     private String rejectReason;
+
+    @Schema(description = "Remaining days before permanent deletion when soft-deleted (30-day retention), computed by server")
+    public Long getRemainingDays() {
+        if (deletedAt == null) return null;
+        long remaining = 30 - Duration.between(deletedAt, LocalDateTime.now()).toDays();
+        return Math.max(0, remaining);
+    }
 }

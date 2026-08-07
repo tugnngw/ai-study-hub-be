@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.time.Duration;
 
 @Data
 @Builder
@@ -31,4 +32,10 @@ public class UserResponse {
     private Instant deletedAt;
     private Plan plan;
     private Long usedStorageBytes;
+
+    public long getRemainingDays() {
+        if (deletedAt == null) return 0;
+        long remaining = 30 - Duration.between(deletedAt, Instant.now()).toDays();
+        return Math.max(0, remaining);
+    }
 }
