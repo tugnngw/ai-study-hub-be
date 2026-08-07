@@ -19,10 +19,10 @@ public class PaymentPlan {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 100)
     private String name;
 
-    @Column(name = "description")
+    @Column(name = "description", length = 500)
     private String description;
 
     @Column(name = "storage_gb")
@@ -38,7 +38,7 @@ public class PaymentPlan {
     @Builder.Default
     private Boolean isActive = true;
 
-    @Column(name = "tagline")
+    @Column(name = "tagline", length = 150)
     private String tagline;
 
     @Column(name = "duration_days")

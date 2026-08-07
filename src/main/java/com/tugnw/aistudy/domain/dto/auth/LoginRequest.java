@@ -7,12 +7,12 @@ import jakarta.validation.constraints.Size;
 @Schema(description = "Login request")
 public record LoginRequest(
         @NotBlank(message = "Username is required")
-        @Size(max = 50, message = "Username must not exceed 10 characters")
+        @Size(max = 255, message = "Username or email must not exceed 255 characters")
         @Schema(description = "Username or email", example = "john_doe")
         String username,
 
         @NotBlank(message = "Password is required")
-        @Size(max = 128, message = "Password must not exceed 20 characters")
+        @Size(max = 128, message = "Password must not exceed 128 characters")
         @Schema(description = "Password", example = "SecurePass123")
         String password
 ) {

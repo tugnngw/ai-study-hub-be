@@ -1,6 +1,7 @@
 package com.tugnw.aistudy.domain.dto.plan;
 
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,10 +14,13 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class UpdatePlanRequest {
+    @Size(max = 100, message = "Plan name must be at most 100 characters")
     private String name;
 
+    @Size(max = 150, message = "Tagline must be at most 150 characters")
     private String tagline;
 
+    @Size(max = 500, message = "Description must be at most 500 characters")
     private String description;
 
     @Min(value = 0, message = "Price must be greater than or equal to 0")

@@ -8,13 +8,13 @@ import jakarta.validation.constraints.Size;
 @Schema(description = "Registration request")
 public record RegisterRequest(
         @NotBlank(message = "Username is required")
-        @Size(min = 3, max = 50, message = "Username must be between 3 and 10 characters")
+        @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
         @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "Username can only contain letters, numbers, and underscores")
         @Schema(description = "Username", example = "john_doe", minLength = 3, maxLength = 50)
         String username,
 
         @NotBlank(message = "Password is required")
-        @Size(min = 8, max = 128, message = "Password must be between 6 and 20 characters")
+        @Size(min = 8, max = 128, message = "Password must be between 8 and 128 characters")
         @Schema(description = "Password", example = "SecurePass123", minLength = 8, maxLength = 128)
         String password,
 
@@ -23,7 +23,7 @@ public record RegisterRequest(
         @Schema(description = "Full name", example = "John Doe", maxLength = 30)
         String fullName,
 
-        @Size(max = 100, message = "Email must not exceed 100 characters")
+        @Size(max = 255, message = "Email must not exceed 255 characters")
         @Pattern(regexp = "^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$", message = "Email must be valid")
         @Schema(description = "Email for verification", example = "john@example.com")
         String email

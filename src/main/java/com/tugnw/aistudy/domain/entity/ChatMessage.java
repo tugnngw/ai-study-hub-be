@@ -29,7 +29,7 @@ public class ChatMessage {
     @Column(name = "sender_type", nullable = false, length = 20)
     private String senderType;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = false, length = 2000)
     private String content;
 
     @Column(name = "referenced_chunks", columnDefinition = "JSONB")

@@ -9,7 +9,7 @@ public record UpdateProfileRequest(
         @Schema(description = "New full name", example = "John Doe", maxLength = 30)
         String fullName,
 
-        @Size(max = 100, message = "Email must not exceed 100 characters")
+        @Size(max = 255, message = "Email must not exceed 255 characters")
         @jakarta.validation.constraints.Pattern(
                 regexp = "^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$",
                 message = "Email must be valid"

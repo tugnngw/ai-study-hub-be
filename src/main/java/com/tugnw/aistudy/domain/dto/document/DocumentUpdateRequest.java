@@ -15,6 +15,7 @@ public class DocumentUpdateRequest {
     private String title;
 
     @Schema(description = "Document description")
+    @Size(max = 500, message = "Description must be at most 500 characters")
     private String description;
 
     @Schema(description = "Folder ID to reassign")

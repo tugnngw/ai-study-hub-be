@@ -32,13 +32,13 @@ public class Report {
     @Column(name = "type", nullable = false, length = 20)
     private String type;
 
-    @Column(name = "reason", columnDefinition = "TEXT")
+    @Column(name = "reason", length = 500)
     private String reason;
 
     @Column(name = "status", nullable = false)
     private String status;
 
-    @Column(name = "admin_comment", columnDefinition = "TEXT")
+    @Column(name = "admin_comment", length = 500)
     private String adminComment;
 
     @Column(name = "created_at", nullable = false, updatable = false)

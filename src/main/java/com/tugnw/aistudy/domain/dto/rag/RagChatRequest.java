@@ -2,6 +2,7 @@ package com.tugnw.aistudy.domain.dto.rag;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import java.util.UUID;
 
@@ -14,5 +15,6 @@ public class RagChatRequest {
     private UUID documentId;
 
     @NotBlank(message = "Câu hỏi không được để trống")
+    @Size(max = 2000, message = "Câu hỏi không được quá 2000 ký tự")
     private String question;
 }

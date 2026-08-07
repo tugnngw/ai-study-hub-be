@@ -20,6 +20,7 @@ public class DocumentUploadRequest {
     private String title;
 
     @Schema(description = "Document description", example = "Summary of AI concepts")
+    @Size(max = 500, message = "Description must be at most 500 characters")
     private String description;
 
     @Schema(description = "Folder ID where documents belong", example = "d7ff12cf-2ad0-4888-a9a1-b12de5d2bc9e")

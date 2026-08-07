@@ -16,7 +16,7 @@ public class GenerateFlashcardsRequest {
     private UUID documentId;
 
     @Min(value = 1, message = "Number of cards must be at least 1")
-    @Max(value = 50, message = "Number of cards must not exceed 50")
-    @Schema(description = "Number of flashcards to generate", example = "10", minimum = "1", maximum = "50")
+    @Max(value = 20, message = "Number of cards must not exceed 20")
+    @Schema(description = "Number of flashcards to generate", example = "10", minimum = "1", maximum = "20")
     private Integer numberOfCards;
 }

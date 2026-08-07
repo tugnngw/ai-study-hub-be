@@ -23,10 +23,10 @@ public class Folder {
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
 
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(length = 500)
     private String description;
 
     @Column(name = "ai_summary")
