@@ -39,13 +39,11 @@ public class PaymentController {
         return UUID.fromString(principal.toString());
     }
 
-    // ✅ ĐÃ CÓ - Giữ nguyên
     @GetMapping("/plans")
     public ApiResponse<List<PaymentPlan>> getActivePlans() {
         return ApiResponse.success(paymentService.listActivePlans());
     }
 
-    // ✅ SỬA - KHÔNG nhận amount từ client
     @PostMapping("/create")
     public ApiResponse<PaymentResponse> createPaymentLink(
             @RequestBody CreatePaymentRequest request,
@@ -55,13 +53,11 @@ public class PaymentController {
         return ApiResponse.success(paymentService.createPaymentLink(userId, request.getPlanId()));
     }
 
-    // ✅ SỬA - Trả về PaymentStatusResponse đầy đủ
     @GetMapping("/status/{orderCode}")
     public ApiResponse<PaymentStatusResponse> getPaymentStatus(@PathVariable Long orderCode) {
         return ApiResponse.success(paymentService.getPaymentStatus(orderCode));
     }
 
-    // ✅ ĐÃ CÓ - Giữ nguyên (verify thủ công) — chỉ ADMIN được verify (P0 security fix)
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/verify/{orderCode}")
     public ApiResponse<?> verifyPayment(@PathVariable Long orderCode) {
@@ -70,7 +66,6 @@ public class PaymentController {
         return ApiResponse.success("Payment verified successfully", null);
     }
 
-    // ✅ ĐÃ CÓ - Giữ nguyên (webhook)
     @PostMapping("/webhook")
     public ApiResponse<?> handleWebhook(@RequestBody String payload) {
         try {
@@ -84,14 +79,12 @@ public class PaymentController {
         }
     }
 
-    // ✅ ĐÃ CÓ - Giữ nguyên
     @GetMapping("/my-transactions")
     public ApiResponse<?> getMyTransactions(Authentication authentication) {
         UUID userId = extractUserId(authentication);
         return ApiResponse.success(paymentService.getUserTransactions(userId));
     }
 
-    // ✅ ĐÃ CÓ - Giữ nguyên
     @GetMapping("/my-subscription")
     public ApiResponse<?> getMySubscription(Authentication authentication) {
         UUID userId = extractUserId(authentication);
